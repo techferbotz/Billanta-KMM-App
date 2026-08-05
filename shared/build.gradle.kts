@@ -95,6 +95,12 @@ sqldelight {
     }
 }
 
+compose.resources {
+    publicResClass = true
+    packageOfResClass = "com.ferbotz.billanta.resources"
+    generateResClass = auto
+}
+
 dependencies {
     androidRuntimeClasspath(libs.compose.uiTooling)
 }

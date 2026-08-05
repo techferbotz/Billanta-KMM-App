@@ -7,14 +7,8 @@ import kotlinx.cinterop.addressOf
 import kotlinx.cinterop.usePinned
 import org.jetbrains.skia.EncodedImageFormat
 import org.jetbrains.skia.Image
-import platform.CoreGraphics.CGRectMake
 import platform.Foundation.NSData
-import platform.Foundation.NSMutableData
 import platform.Foundation.create
-import platform.UIKit.UIGraphicsBeginPDFContextToData
-import platform.UIKit.UIGraphicsBeginPDFPage
-import platform.UIKit.UIGraphicsEndPDFContext
-import platform.UIKit.UIImage
 import platform.posix.memcpy
 
 @OptIn(ExperimentalForeignApi::class)
@@ -37,16 +31,3 @@ actual fun encodePng(bitmap: ImageBitmap): ByteArray =
 actual fun encodeJpeg(bitmap: ImageBitmap, quality: Int): ByteArray =
     Image.makeFromBitmap(bitmap.asSkiaBitmap())
         .encodeToData(EncodedImageFormat.JPEG, quality.coerceIn(1, 100))?.bytes ?: ByteArray(0)
-
-@OptIn(ExperimentalForeignApi::class)
-actual fun imageToPdf(pngBytes: ByteArray, pageWidthPt: Float, pageHeightPt: Float): ByteArray {
-    if (pngBytes.isEmpty()) return ByteArray(0)
-    val image = UIImage(data = pngBytes.toNSData())
-    val pdfData = NSMutableData()
-    val bounds = CGRectMake(0.0, 0.0, pageWidthPt.toDouble(), pageHeightPt.toDouble())
-    UIGraphicsBeginPDFContextToData(pdfData, bounds, null)
-    UIGraphicsBeginPDFPage()
-    image.drawInRect(bounds)
-    UIGraphicsEndPDFContext()
-    return pdfData.toByteArray()
-}

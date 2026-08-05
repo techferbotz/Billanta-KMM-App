@@ -24,6 +24,7 @@ import com.ferbotz.billanta.data.repo.MediaRepository
 import com.ferbotz.billanta.data.repo.SettingsRepository
 import com.ferbotz.billanta.data.repo.TemplateRepository
 import com.ferbotz.billanta.data.sync.SyncManager
+import com.ferbotz.billanta.render.paint.InvoiceImageLoader
 import com.ferbotz.billanta.session.SignInCoordinator
 import com.ferbotz.billanta.session.TokenManager
 import com.ferbotz.billanta.session.TokenStore
@@ -54,7 +55,7 @@ class AppContainer(
     /** Platform share sheet for exported invoices. */
     shareService: FileShareService = NoopFileShareService,
 ) {
-    /** The core deliverable: captured invoice page → PDF/PNG/JPEG → share sheet. */
+    /** The core deliverable: rendered invoice → PDF/PNG/JPEG → share sheet. */
     val invoiceExporter = InvoiceExporter(shareService)
     /** Small local prefs (dark mode, etc.) — same store the session uses. */
     val prefs: KeyValueStore = keyValueStore
@@ -71,9 +72,13 @@ class AppContainer(
 
     // ---- network ----
     private val tokenStore = TokenStore(keyValueStore)
-    private val authApi = AuthApi(createAuthlessHttpClient(config))
+    private val authlessClient = createAuthlessHttpClient(config)
+    private val authApi = AuthApi(authlessClient)
     private val tokenManager = TokenManager(tokenStore, authApi, clock)
     val api = BillantaApi(createAuthedHttpClient(config, tokenManager))
+
+    /** Fetches logo/signature/QR bitmaps so a shared file never has a half-loaded image. */
+    val invoiceImageLoader = InvoiceImageLoader(authlessClient)
 
     // ---- session ----
     private val wipeLocalData: suspend () -> Unit = {

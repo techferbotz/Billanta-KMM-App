@@ -5,16 +5,15 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -31,22 +30,22 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawWithContent
-import androidx.compose.ui.graphics.TransformOrigin
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.layer.GraphicsLayer
-import androidx.compose.ui.graphics.layer.drawLayer
-import androidx.compose.ui.graphics.rememberGraphicsLayer
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.painter.BitmapPainter
+import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.ferbotz.billanta.core.AppError
 import com.ferbotz.billanta.core.AppResult
 import com.ferbotz.billanta.domain.model.InvoiceRecord
-import com.ferbotz.billanta.render.PageSpec
-import com.ferbotz.billanta.render.RenderedInvoicePage
+import com.ferbotz.billanta.render.InvoiceRenderer
 import com.ferbotz.billanta.render.TemplateDoc
 import com.ferbotz.billanta.render.TemplateParser
+import com.ferbotz.billanta.render.layout.RenderedDocument
+import com.ferbotz.billanta.render.paint.InvoicePageView
+import com.ferbotz.billanta.render.paint.intrinsicSizes
+import com.ferbotz.billanta.render.paint.rememberInvoiceRenderer
 import com.ferbotz.billanta.share.ExportFormat
 import com.ferbotz.billanta.state.BillantaState
 import com.ferbotz.billanta.state.PremiumSheet
@@ -61,10 +60,18 @@ import com.ferbotz.billanta.ui.components.SecondaryButton
 import com.ferbotz.billanta.ui.components.StackTopBar
 import kotlinx.coroutines.launch
 
-private sealed interface CompiledUi {
-    data object Loading : CompiledUi
-    data class Ready(val doc: TemplateDoc) : CompiledUi
-    data class Failed(val message: String, val premium: Boolean = false) : CompiledUi
+private sealed interface TemplateState {
+    data object Loading : TemplateState
+    data class Ready(val doc: TemplateDoc) : TemplateState
+    data class Failed(val message: String, val premium: Boolean) : TemplateState
+}
+
+/** Everything needed to draw and to share, resolved together so the two can never disagree. */
+private class PreparedInvoice(
+    val document: RenderedDocument,
+    val images: Map<String, ImageBitmap>,
+) {
+    val painters: Map<String, Painter> = images.mapValues { (_, bitmap) -> BitmapPainter(bitmap) }
 }
 
 @Composable
@@ -90,54 +97,40 @@ fun PreviewScreen(state: BillantaState, invoiceId: String) {
             return@Column
         }
 
-        // Which compiled tree to render: the invoice's own (id, version) pair, else the default.
         val templateId = record.templateId ?: state.selectedTemplateId
         val templateVersion = if (record.templateId != null) record.templateVersion else null
         var reloadKey by remember { mutableIntStateOf(0) }
-        val compiled by produceState<CompiledUi>(CompiledUi.Loading, templateId, templateVersion, reloadKey) {
-            value = CompiledUi.Loading
+
+        val template by produceState<TemplateState>(
+            TemplateState.Loading,
+            templateId,
+            templateVersion,
+            reloadKey,
+        ) {
+            value = TemplateState.Loading
             if (templateId == null) {
-                value = CompiledUi.Failed("No templates yet — connect once to download them.")
+                value = TemplateState.Failed("No templates yet — connect once to download them.", premium = false)
                 return@produceState
             }
             value = when (val result = state.container.templateRepository.getCompiled(templateId, templateVersion)) {
                 is AppResult.Success -> TemplateParser.parse(result.value.json)
-                    ?.let { CompiledUi.Ready(it) }
-                    ?: CompiledUi.Failed("This template can't be displayed — try updating the app.")
+                    ?.let { TemplateState.Ready(it) }
+                    ?: TemplateState.Failed("This template can't be displayed — try updating the app.", premium = false)
                 is AppResult.Failure -> {
                     val error = result.error
-                    CompiledUi.Failed(
-                        message = if (error is AppError.Http && error.isPremiumRequired) {
-                            "This is a premium template."
-                        } else {
-                            error.userMessage()
-                        },
-                        premium = error is AppError.Http && error.isPremiumRequired,
+                    val premium = error is AppError.Http && error.isPremiumRequired
+                    TemplateState.Failed(
+                        message = if (premium) "This is a premium template." else error.userMessage(),
+                        premium = premium,
                     )
                 }
             }
         }
 
-        // Sync state strip — from the row's dirty/syncError flags.
-        val (stripBg, stripFg, stripText) = when {
-            record.syncError != null -> Triple(c.dangerBg, c.danger, record.syncError!!)
-            record.pendingSync && state.signedIn -> Triple(c.warningBg, c.warning, "Waiting to sync")
-            record.pendingSync -> Triple(c.surfaceAlt, c.textSecondary, "Saved on this device — sign in to back up")
-            else -> Triple(c.successBg, c.success, "Synced")
-        }
-        Row(
-            Modifier.fillMaxWidth().padding(horizontal = 18.dp).padding(bottom = 8.dp)
-                .clip(RoundedCornerShape(10.dp))
-                .background(stripBg)
-                .padding(horizontal = 12.dp, vertical = 9.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            BillantaIcon(if (record.syncError != null) AppIcon.Info else AppIcon.Check, stripFg, size = 16.dp)
-            Text(stripText, style = BillantaTheme.type.caption, color = stripFg)
-        }
+        SyncStrip(record)
 
-        val captureLayer = rememberGraphicsLayer()
+        val ready = template as? TemplateState.Ready
+        val prepared = ready?.let { RememberPreparedInvoice(state, it.doc, record) }
         var exporting by remember { mutableStateOf<ExportFormat?>(null) }
         val scope = rememberCoroutineScope()
 
@@ -146,23 +139,48 @@ fun PreviewScreen(state: BillantaState, invoiceId: String) {
                 .padding(horizontal = 18.dp, vertical = 4.dp),
             verticalArrangement = Arrangement.spacedBy(18.dp),
         ) {
-            when (val ui = compiled) {
-                CompiledUi.Loading -> PagePlaceholder("Preparing template…")
-                is CompiledUi.Failed -> TemplateProblem(
-                    message = ui.message,
-                    actionLabel = if (ui.premium) "See premium" else "Retry",
-                    onAction = {
-                        if (ui.premium && templateId != null) {
-                            state.openSheet(PremiumSheet(templateId))
-                        } else {
-                            reloadKey++
+            when {
+                template is TemplateState.Failed -> {
+                    val failure = template as TemplateState.Failed
+                    TemplateProblem(
+                        message = failure.message,
+                        actionLabel = if (failure.premium) "See premium" else "Retry",
+                        onAction = {
+                            if (failure.premium && templateId != null) state.openSheet(PremiumSheet(templateId))
+                            else reloadKey++
+                        },
+                    )
+                }
+
+                prepared == null -> PagePlaceholder("Preparing invoice…")
+
+                else -> {
+                    val document = prepared.document
+                    document.pages.forEachIndexed { index, page ->
+                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            InvoicePageView(
+                                page = page,
+                                pageWidthPt = document.pageWidthPt,
+                                pageHeightPt = document.pageHeightPt,
+                                modifier = Modifier.fillMaxWidth()
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .border(1.dp, c.border, RoundedCornerShape(6.dp)),
+                                imageFor = { prepared.painters[it] },
+                            )
+                            if (document.pageCount > 1) {
+                                Text(
+                                    "Page ${index + 1} of ${document.pageCount}",
+                                    style = BillantaTheme.type.caption,
+                                    color = c.textMuted,
+                                    modifier = Modifier.fillMaxWidth(),
+                                    textAlign = TextAlign.Center,
+                                )
+                            }
                         }
-                    },
-                )
-                is CompiledUi.Ready -> CapturedInvoicePage(ui.doc, record, captureLayer)
+                    }
+                }
             }
 
-            // Template switcher — swapping re-renders and re-syncs the invoice.
             if (state.templates.isNotEmpty()) {
                 Column {
                     Overline("Template")
@@ -174,11 +192,8 @@ fun PreviewScreen(state: BillantaState, invoiceId: String) {
                                 premium = t.isPremium,
                                 selected = t.id == (record.templateId ?: state.selectedTemplateId),
                                 onClick = {
-                                    if (t.isPremium && !state.isPremium) {
-                                        state.openSheet(PremiumSheet(t.id))
-                                    } else {
-                                        state.setInvoiceTemplate(record.id, t)
-                                    }
+                                    if (t.isPremium && !state.isPremium) state.openSheet(PremiumSheet(t.id))
+                                    else state.setInvoiceTemplate(record.id, t)
                                 },
                             )
                         }
@@ -188,16 +203,15 @@ fun PreviewScreen(state: BillantaState, invoiceId: String) {
             Spacer(Modifier.height(4.dp))
         }
 
-        // The whole point of the app: hand the invoice over as a file.
         BottomActionBar {
-            val ready = compiled is CompiledUi.Ready && exporting == null
+            val canShare = prepared != null && exporting == null
             fun shareAs(format: ExportFormat) {
-                if (compiled !is CompiledUi.Ready || exporting != null) return
+                val ready = prepared ?: return
+                if (exporting != null) return
                 scope.launch {
                     exporting = format
-                    val bitmap = captureLayer.toImageBitmap()
                     state.container.invoiceExporter
-                        .export(bitmap, format, record.invoiceNumber)
+                        .export(ready.document, format, record.invoiceNumber, ready.images)
                         .onFailure { state.uiMessage = it.userMessage() }
                     exporting = null
                 }
@@ -206,19 +220,19 @@ fun PreviewScreen(state: BillantaState, invoiceId: String) {
                 SecondaryButton(
                     if (exporting == ExportFormat.PNG) "…" else "PNG",
                     onClick = { shareAs(ExportFormat.PNG) },
-                    enabled = ready,
+                    enabled = canShare,
                     modifier = Modifier.weight(1f),
                 )
                 SecondaryButton(
                     if (exporting == ExportFormat.JPEG) "…" else "JPG",
                     onClick = { shareAs(ExportFormat.JPEG) },
-                    enabled = ready,
+                    enabled = canShare,
                     modifier = Modifier.weight(1f),
                 )
                 PrimaryButton(
                     if (exporting == ExportFormat.PDF) "…" else "Share PDF",
                     onClick = { shareAs(ExportFormat.PDF) },
-                    enabled = ready,
+                    enabled = canShare,
                     leadingIcon = AppIcon.Share,
                     modifier = Modifier.weight(1.6f),
                 )
@@ -228,52 +242,58 @@ fun PreviewScreen(state: BillantaState, invoiceId: String) {
 }
 
 /**
- * The A4 page composed at full 595×842 (1pt = 1dp), recorded into [layer] for pixel-perfect
- * export, and scaled down to the screen width for viewing.
+ * Downloads every image the template binds, then lays the invoice out with their real dimensions.
+ * Doing this before rendering — rather than letting images stream in behind an already-drawn page
+ * — is what stops a shared PDF going out with the logo missing.
  */
 @Composable
-private fun CapturedInvoicePage(doc: TemplateDoc, record: InvoiceRecord, layer: GraphicsLayer) {
-    BoxWithConstraints(Modifier.fillMaxWidth()) {
-        val scale = maxWidth / PageSpec.A4_WIDTH_PT.dp
-        Box(
-            Modifier
-                .fillMaxWidth()
-                .height(PageSpec.A4_HEIGHT_PT.dp * scale)
-                .clip(RoundedCornerShape(6.dp))
-                .border(1.dp, BillantaTheme.colors.border, RoundedCornerShape(6.dp)),
-        ) {
-            Box(
-                Modifier
-                    .wrapContentSize(Alignment.TopStart, unbounded = true)
-                    .graphicsLayer(
-                        scaleX = scale,
-                        scaleY = scale,
-                        transformOrigin = TransformOrigin(0f, 0f),
-                    )
-                    .drawWithContent {
-                        layer.record { this@drawWithContent.drawContent() }
-                        drawLayer(layer)
-                    },
-            ) {
-                RenderedInvoicePage(doc, record)
-            }
-        }
+private fun RememberPreparedInvoice(
+    state: BillantaState,
+    doc: TemplateDoc,
+    record: InvoiceRecord,
+): PreparedInvoice? {
+    val measuringRenderer = rememberInvoiceRenderer()
+    val urls = remember(doc, record) { measuringRenderer.imageUrlsFor(doc, record) }
+    val images by produceState(initialValue = emptyMap<String, ImageBitmap>(), urls) {
+        value = if (urls.isEmpty()) emptyMap() else state.container.invoiceImageLoader.load(urls)
+    }
+    val renderer = rememberInvoiceRenderer(images.intrinsicSizes())
+    return remember(doc, record, images, renderer) {
+        PreparedInvoice(renderer.render(doc, record), images)
+    }
+}
+
+@Composable
+private fun SyncStrip(record: InvoiceRecord) {
+    val c = BillantaTheme.colors
+    val (background, foreground, message) = when {
+        record.syncError != null -> Triple(c.dangerBg, c.danger, record.syncError!!)
+        record.pendingSync -> Triple(c.surfaceAlt, c.textSecondary, "Saved on this device")
+        else -> Triple(c.successBg, c.success, "Backed up")
+    }
+    Row(
+        Modifier.fillMaxWidth().padding(horizontal = 18.dp).padding(bottom = 8.dp)
+            .clip(RoundedCornerShape(10.dp))
+            .background(background)
+            .padding(horizontal = 12.dp, vertical = 9.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        BillantaIcon(if (record.syncError != null) AppIcon.Info else AppIcon.Check, foreground, size = 16.dp)
+        Text(message, style = BillantaTheme.type.caption, color = foreground)
     }
 }
 
 @Composable
 private fun PagePlaceholder(text: String) {
     val c = BillantaTheme.colors
-    BoxWithConstraints(Modifier.fillMaxWidth()) {
-        val scale = maxWidth / PageSpec.A4_WIDTH_PT.dp
-        Box(
-            Modifier.fillMaxWidth().height(PageSpec.A4_HEIGHT_PT.dp * scale)
-                .clip(RoundedCornerShape(6.dp)).background(c.surface)
-                .border(1.dp, c.border, RoundedCornerShape(6.dp)),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text(text, style = BillantaTheme.type.body, color = c.textMuted)
-        }
+    Box(
+        Modifier.fillMaxWidth().aspectRatio(A4_ASPECT)
+            .clip(RoundedCornerShape(6.dp)).background(c.surface)
+            .border(1.dp, c.border, RoundedCornerShape(6.dp)),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(text, style = BillantaTheme.type.body, color = c.textMuted)
     }
 }
 
@@ -286,9 +306,10 @@ private fun TemplateProblem(message: String, actionLabel: String, onAction: () -
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Box(Modifier.size(56.dp).clip(RoundedCornerShape(18.dp)).background(c.primaryMuted), contentAlignment = Alignment.Center) {
-            BillantaIcon(AppIcon.Grid, c.primary, size = 26.dp)
-        }
+        Box(
+            Modifier.size(56.dp).clip(RoundedCornerShape(18.dp)).background(c.primaryMuted),
+            contentAlignment = Alignment.Center,
+        ) { BillantaIcon(AppIcon.Grid, c.primary, size = 26.dp) }
         Text(message, style = BillantaTheme.type.body, color = c.textSecondary, textAlign = TextAlign.Center)
         SecondaryButton(actionLabel, onClick = onAction)
     }
@@ -318,12 +339,21 @@ private fun androidx.compose.foundation.layout.RowScope.TemplateSwatch(
                 Box(Modifier.fillMaxWidth(0.75f).height(4.dp).clip(RoundedCornerShape(2.dp)).background(c.border))
             }
             if (premium) {
-                Box(Modifier.align(Alignment.TopEnd).padding(6.dp).size(20.dp).clip(RoundedCornerShape(999.dp)).background(c.primaryMuted), contentAlignment = Alignment.Center) {
-                    BillantaIcon(AppIcon.Star, c.primary, size = 13.dp)
-                }
+                Box(
+                    Modifier.align(Alignment.TopEnd).padding(6.dp).size(20.dp)
+                        .clip(RoundedCornerShape(999.dp)).background(c.primaryMuted),
+                    contentAlignment = Alignment.Center,
+                ) { BillantaIcon(AppIcon.Star, c.primary, size = 13.dp) }
             }
         }
         Spacer(Modifier.height(6.dp))
-        Text(name, style = BillantaTheme.type.caption.copy(fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal), color = if (selected) c.textPrimary else c.textSecondary)
+        Text(
+            name,
+            style = BillantaTheme.type.caption.copy(fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal),
+            color = if (selected) c.textPrimary else c.textSecondary,
+        )
     }
 }
+
+/** A4 proportions, used for the placeholder before the real page size is known. */
+private const val A4_ASPECT = 595f / 842f
