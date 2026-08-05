@@ -3,6 +3,7 @@ package com.ferbotz.billanta.di
 import com.ferbotz.billanta.core.UserDefaultsKeyValueStore
 import com.ferbotz.billanta.data.api.BillantaApiConfig
 import com.ferbotz.billanta.data.db.IosDatabaseDriverFactory
+import com.ferbotz.billanta.share.IosFileShareService
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
 import platform.Foundation.NSURL
@@ -21,4 +22,5 @@ fun createAppContainer(
             UIApplication.sharedApplication.openURL(it, options = emptyMap<Any?, Any>(), completionHandler = null)
         }
     },
+    shareService = IosFileShareService(),
 )

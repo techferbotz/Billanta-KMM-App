@@ -4,14 +4,12 @@ import com.ferbotz.billanta.core.AppError
 import com.ferbotz.billanta.core.AppResult
 import com.ferbotz.billanta.core.BigMath
 import com.ferbotz.billanta.core.EpochClock
-import com.ferbotz.billanta.core.Iso8601
 import com.ferbotz.billanta.core.asFailure
 import com.ferbotz.billanta.core.asSuccess
 import com.ferbotz.billanta.core.randomUuid
 import com.ferbotz.billanta.data.local.CustomerLocalDataSource
 import com.ferbotz.billanta.data.local.InvoiceLocalDataSource
 import com.ferbotz.billanta.data.local.ProfileLocalDataSource
-import com.ferbotz.billanta.domain.model.InvoiceDocStatus
 import com.ferbotz.billanta.domain.model.InvoiceDraft
 import com.ferbotz.billanta.domain.model.InvoiceItemRecord
 import com.ferbotz.billanta.domain.model.InvoiceRecord
@@ -20,19 +18,6 @@ import com.ferbotz.billanta.domain.money.CalcLine
 import com.ferbotz.billanta.domain.money.GstSplit
 import com.ferbotz.billanta.domain.money.InvoiceCalculator
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.combine
-
-data class DashboardStats(
-    val monthTotalPaise: Long,
-    val lastMonthTotalPaise: Long,
-    val unpaidTotalPaise: Long,
-    val pendingCount: Int,
-) {
-    /** Whole-percent change vs last month; null when last month billed nothing. */
-    val deltaPercentVsLastMonth: Int?
-        get() = if (lastMonthTotalPaise <= 0L) null
-        else (((monthTotalPaise - lastMonthTotalPaise) * 100) / lastMonthTotalPaise).toInt()
-}
 
 /**
  * Offline-first invoices. Every write lands locally (with totals computed by the exact server
@@ -46,25 +31,12 @@ class InvoiceRepository(
     private val onLocalMutation: () -> Unit,
 ) {
 
-    fun observeInvoices(status: InvoiceDocStatus? = null, query: String = ""): Flow<List<InvoiceRecord>> =
-        local.observeList(status, query)
+    fun observeInvoices(query: String = ""): Flow<List<InvoiceRecord>> =
+        local.observeList(status = null, query = query)
 
     fun observeInvoice(id: String): Flow<InvoiceRecord?> = local.observeById(id)
 
     suspend fun getInvoice(id: String): InvoiceRecord? = local.getById(id)
-
-    fun observeDashboard(): Flow<DashboardStats> {
-        val thisMonth = Iso8601.monthRange(clock.nowMillis())
-        val lastMonth = Iso8601.monthRange(thisMonth.first - 1)
-        return combine(
-            local.observeMonthTotal(thisMonth),
-            local.observeMonthTotal(lastMonth),
-            local.observeUnpaidTotal(),
-            local.observePendingCount(),
-        ) { month, last, unpaid, pending ->
-            DashboardStats(month, last, unpaid, pending.toInt())
-        }
-    }
 
     /**
      * Creates or replaces an invoice from the edit flow. Totals are computed here — never taken
@@ -140,18 +112,6 @@ class InvoiceRepository(
         onLocalMutation()
         return record.asSuccess()
     }
-
-    suspend fun setStatus(id: String, status: InvoiceDocStatus): AppResult<InvoiceRecord> =
-        patchScalars(id) { it.copy(status = status) }
-
-    suspend fun updateNotes(id: String, notes: String?): AppResult<InvoiceRecord> =
-        patchScalars(id) { it.copy(notes = notes) }
-
-    suspend fun updateDueDate(id: String, dueDateMillis: Long?): AppResult<InvoiceRecord> =
-        patchScalars(id) { it.copy(dueDateMillis = dueDateMillis) }
-
-    suspend fun setPdfPath(id: String, pdfPath: String?): AppResult<InvoiceRecord> =
-        patchScalars(id) { it.copy(pdfPath = pdfPath) }
 
     /** Template only affects rendering; the change re-syncs as an idempotent re-POST. */
     suspend fun setTemplate(id: String, templateId: String, templateVersion: Long?): AppResult<InvoiceRecord> =

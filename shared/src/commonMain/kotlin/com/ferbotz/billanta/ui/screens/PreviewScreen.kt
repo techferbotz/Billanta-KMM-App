@@ -5,6 +5,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -13,7 +14,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -21,37 +22,50 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.layer.GraphicsLayer
+import androidx.compose.ui.graphics.layer.drawLayer
+import androidx.compose.ui.graphics.rememberGraphicsLayer
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import com.ferbotz.billanta.core.Iso8601
-import com.ferbotz.billanta.domain.model.CompanySnapshot
-import com.ferbotz.billanta.domain.model.InvoiceDocStatus
+import com.ferbotz.billanta.core.AppError
+import com.ferbotz.billanta.core.AppResult
 import com.ferbotz.billanta.domain.model.InvoiceRecord
-import com.ferbotz.billanta.domain.model.toSnapshot
-import com.ferbotz.billanta.model.formatPaise
+import com.ferbotz.billanta.render.PageSpec
+import com.ferbotz.billanta.render.RenderedInvoicePage
+import com.ferbotz.billanta.render.TemplateDoc
+import com.ferbotz.billanta.render.TemplateParser
+import com.ferbotz.billanta.share.ExportFormat
 import com.ferbotz.billanta.state.BillantaState
+import com.ferbotz.billanta.state.PremiumSheet
 import com.ferbotz.billanta.theme.BillantaTheme
 import com.ferbotz.billanta.ui.AppIcon
 import com.ferbotz.billanta.ui.BillantaIcon
+import com.ferbotz.billanta.ui.components.BottomActionBar
+import com.ferbotz.billanta.ui.components.IconButtonBox
 import com.ferbotz.billanta.ui.components.Overline
 import com.ferbotz.billanta.ui.components.PrimaryButton
 import com.ferbotz.billanta.ui.components.SecondaryButton
 import com.ferbotz.billanta.ui.components.StackTopBar
-import com.ferbotz.billanta.ui.components.StatusPill
+import kotlinx.coroutines.launch
 
-// Fixed "paper" palette so the document reads like print in both light and dark themes.
-private val Paper = Color(0xFFFFFFFF)
-private val Ink = Color(0xFF1C1F2A)
-private val InkMuted = Color(0xFF6B7280)
-private val InkFaint = Color(0xFFAAB0BC)
-private val PaperLine = Color(0xFFE6E8EC)
-private val Accent = Color(0xFF5B4FE0)
+private sealed interface CompiledUi {
+    data object Loading : CompiledUi
+    data class Ready(val doc: TemplateDoc) : CompiledUi
+    data class Failed(val message: String, val premium: Boolean = false) : CompiledUi
+}
 
 @Composable
 fun PreviewScreen(state: BillantaState, invoiceId: String) {
@@ -61,7 +75,12 @@ fun PreviewScreen(state: BillantaState, invoiceId: String) {
 
     Column(Modifier.fillMaxSize().background(c.background)) {
         StackTopBar("Invoice", onBack = { state.pop() }, actions = {
-            record?.let { StatusPill(it.status, Modifier.padding(end = 12.dp)) }
+            if (record != null) {
+                IconButtonBox(AppIcon.Trash, c.danger, onClick = {
+                    state.deleteInvoice(record.id)
+                    state.pop()
+                })
+            }
         })
 
         if (record == null || record.deletedAtMillis != null) {
@@ -71,7 +90,35 @@ fun PreviewScreen(state: BillantaState, invoiceId: String) {
             return@Column
         }
 
-        // Sync state strip — real, from the row's dirty/syncError flags.
+        // Which compiled tree to render: the invoice's own (id, version) pair, else the default.
+        val templateId = record.templateId ?: state.selectedTemplateId
+        val templateVersion = if (record.templateId != null) record.templateVersion else null
+        var reloadKey by remember { mutableIntStateOf(0) }
+        val compiled by produceState<CompiledUi>(CompiledUi.Loading, templateId, templateVersion, reloadKey) {
+            value = CompiledUi.Loading
+            if (templateId == null) {
+                value = CompiledUi.Failed("No templates yet — connect once to download them.")
+                return@produceState
+            }
+            value = when (val result = state.container.templateRepository.getCompiled(templateId, templateVersion)) {
+                is AppResult.Success -> TemplateParser.parse(result.value.json)
+                    ?.let { CompiledUi.Ready(it) }
+                    ?: CompiledUi.Failed("This template can't be displayed — try updating the app.")
+                is AppResult.Failure -> {
+                    val error = result.error
+                    CompiledUi.Failed(
+                        message = if (error is AppError.Http && error.isPremiumRequired) {
+                            "This is a premium template."
+                        } else {
+                            error.userMessage()
+                        },
+                        premium = error is AppError.Http && error.isPremiumRequired,
+                    )
+                }
+            }
+        }
+
+        // Sync state strip — from the row's dirty/syncError flags.
         val (stripBg, stripFg, stripText) = when {
             record.syncError != null -> Triple(c.dangerBg, c.danger, record.syncError!!)
             record.pendingSync && state.signedIn -> Triple(c.warningBg, c.warning, "Waiting to sync")
@@ -90,14 +137,32 @@ fun PreviewScreen(state: BillantaState, invoiceId: String) {
             Text(stripText, style = BillantaTheme.type.caption, color = stripFg)
         }
 
+        val captureLayer = rememberGraphicsLayer()
+        var exporting by remember { mutableStateOf<ExportFormat?>(null) }
+        val scope = rememberCoroutineScope()
+
         Column(
             Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())
                 .padding(horizontal = 18.dp, vertical = 4.dp),
             verticalArrangement = Arrangement.spacedBy(18.dp),
         ) {
-            InvoicePaper(state, record)
+            when (val ui = compiled) {
+                CompiledUi.Loading -> PagePlaceholder("Preparing template…")
+                is CompiledUi.Failed -> TemplateProblem(
+                    message = ui.message,
+                    actionLabel = if (ui.premium) "See premium" else "Retry",
+                    onAction = {
+                        if (ui.premium && templateId != null) {
+                            state.openSheet(PremiumSheet(templateId))
+                        } else {
+                            reloadKey++
+                        }
+                    },
+                )
+                is CompiledUi.Ready -> CapturedInvoicePage(ui.doc, record, captureLayer)
+            }
 
-            // Template switcher — the server catalogue; premium gates on account status.
+            // Template switcher — swapping re-renders and re-syncs the invoice.
             if (state.templates.isNotEmpty()) {
                 Column {
                     Overline("Template")
@@ -110,7 +175,7 @@ fun PreviewScreen(state: BillantaState, invoiceId: String) {
                                 selected = t.id == (record.templateId ?: state.selectedTemplateId),
                                 onClick = {
                                     if (t.isPremium && !state.isPremium) {
-                                        state.openSheet(com.ferbotz.billanta.state.PremiumSheet(t.id))
+                                        state.openSheet(PremiumSheet(t.id))
                                     } else {
                                         state.setInvoiceTemplate(record.id, t)
                                     }
@@ -123,181 +188,111 @@ fun PreviewScreen(state: BillantaState, invoiceId: String) {
             Spacer(Modifier.height(4.dp))
         }
 
-        com.ferbotz.billanta.ui.components.BottomActionBar {
+        // The whole point of the app: hand the invoice over as a file.
+        BottomActionBar {
+            val ready = compiled is CompiledUi.Ready && exporting == null
+            fun shareAs(format: ExportFormat) {
+                if (compiled !is CompiledUi.Ready || exporting != null) return
+                scope.launch {
+                    exporting = format
+                    val bitmap = captureLayer.toImageBitmap()
+                    state.container.invoiceExporter
+                        .export(bitmap, format, record.invoiceNumber)
+                        .onFailure { state.uiMessage = it.userMessage() }
+                    exporting = null
+                }
+            }
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 SecondaryButton(
-                    "Delete",
-                    onClick = { state.deleteInvoice(record.id); state.pop() },
+                    if (exporting == ExportFormat.PNG) "…" else "PNG",
+                    onClick = { shareAs(ExportFormat.PNG) },
+                    enabled = ready,
                     modifier = Modifier.weight(1f),
                 )
-                when (record.status) {
-                    InvoiceDocStatus.Draft -> PrimaryButton(
-                        "Mark as pending",
-                        onClick = { state.setInvoiceStatus(record.id, InvoiceDocStatus.Pending) },
-                        modifier = Modifier.weight(1f),
-                    )
-                    InvoiceDocStatus.Pending -> PrimaryButton(
-                        "Mark as paid",
-                        onClick = { state.setInvoiceStatus(record.id, InvoiceDocStatus.Paid) },
-                        leadingIcon = AppIcon.Check,
-                        modifier = Modifier.weight(1f),
-                    )
-                    InvoiceDocStatus.Paid -> PrimaryButton(
-                        "Mark as pending",
-                        onClick = { state.setInvoiceStatus(record.id, InvoiceDocStatus.Pending) },
-                        modifier = Modifier.weight(1f),
-                    )
-                }
+                SecondaryButton(
+                    if (exporting == ExportFormat.JPEG) "…" else "JPG",
+                    onClick = { shareAs(ExportFormat.JPEG) },
+                    enabled = ready,
+                    modifier = Modifier.weight(1f),
+                )
+                PrimaryButton(
+                    if (exporting == ExportFormat.PDF) "…" else "Share PDF",
+                    onClick = { shareAs(ExportFormat.PDF) },
+                    enabled = ready,
+                    leadingIcon = AppIcon.Share,
+                    modifier = Modifier.weight(1.6f),
+                )
             }
         }
     }
 }
 
+/**
+ * The A4 page composed at full 595×842 (1pt = 1dp), recorded into [layer] for pixel-perfect
+ * export, and scaled down to the screen width for viewing.
+ */
 @Composable
-private fun InvoicePaper(state: BillantaState, invoice: InvoiceRecord) {
-    // Snapshots are the render source of truth (frozen at issue time); a live-company fallback
-    // covers legacy rows only.
-    val company: CompanySnapshot? = invoice.companySnapshot ?: state.company?.toSnapshot()
-    val customer = invoice.customerSnapshot
-    Column(
-        Modifier.fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
-            .background(Paper)
-            .border(1.dp, PaperLine, RoundedCornerShape(14.dp))
-            .padding(22.dp),
-    ) {
-        // Header
-        Row(verticalAlignment = Alignment.Top) {
-            Column(Modifier.weight(1f)) {
-                Box(Modifier.size(38.dp).clip(RoundedCornerShape(10.dp)).background(Accent), contentAlignment = Alignment.Center) {
-                    Text((company?.name ?: "B").take(1), color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                }
-                Spacer(Modifier.height(10.dp))
-                Text(company?.name ?: "Your business", style = BillantaTheme.type.sectionTitle, color = Ink)
-                company?.gstin?.let { Text("GSTIN $it", style = BillantaTheme.type.caption, color = InkMuted) }
-            }
-            Column(horizontalAlignment = Alignment.End) {
-                Text("INVOICE", color = Accent, fontWeight = FontWeight.Bold, fontSize = 15.sp, letterSpacing = 2.sp)
-                Spacer(Modifier.height(4.dp))
-                Text(invoice.invoiceNumber, style = BillantaTheme.type.label, color = Ink)
-                Spacer(Modifier.height(8.dp))
-                PaperMeta("Issued", Iso8601.formatDisplayDate(invoice.invoiceDateMillis))
-                invoice.dueDateMillis?.let { PaperMeta("Due", Iso8601.formatDisplayDate(it)) }
-            }
-        }
-        Spacer(Modifier.height(16.dp))
-        Box(Modifier.fillMaxWidth().height(2.dp).background(Accent))
-        Spacer(Modifier.height(16.dp))
-
-        // Bill to — from the customer snapshot
-        Text("BILL TO", color = InkFaint, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp)
-        Spacer(Modifier.height(6.dp))
-        Text(customer?.name ?: "—", style = BillantaTheme.type.bodyStrong, color = Ink)
-        val addressLine = listOfNotNull(
-            customer?.addressLine1, customer?.addressLine2,
-            listOfNotNull(customer?.city, customer?.pincode).joinToString(" ").ifBlank { null },
-        ).joinToString(", ").ifBlank { null }
-        addressLine?.let { Text(it, style = BillantaTheme.type.caption, color = InkMuted) }
-        customer?.gstin?.let { Text("GSTIN: $it", style = BillantaTheme.type.caption, color = InkMuted) }
-
-        Spacer(Modifier.height(18.dp))
-
-        // Items table
-        Row(Modifier.fillMaxWidth()) {
-            Text("ITEM", color = InkFaint, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp, modifier = Modifier.weight(1f))
-            Text("AMOUNT", color = InkFaint, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp)
-        }
-        Spacer(Modifier.height(8.dp))
-        PaperDivider()
-        invoice.items.forEach { item ->
-            Row(Modifier.fillMaxWidth().padding(vertical = 10.dp), verticalAlignment = Alignment.Top) {
-                Column(Modifier.weight(1f)) {
-                    Text(item.description, style = BillantaTheme.type.body.copy(color = Ink))
-                    Text(
-                        buildString {
-                            append("${item.quantity} × ${item.unitPricePaise.formatPaise()}")
-                            append(" · GST ${item.taxRatePercent}%")
-                            item.hsnSac?.let { append(" · HSN $it") }
-                        },
-                        style = BillantaTheme.type.caption, color = InkMuted,
+private fun CapturedInvoicePage(doc: TemplateDoc, record: InvoiceRecord, layer: GraphicsLayer) {
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        val scale = maxWidth / PageSpec.A4_WIDTH_PT.dp
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .height(PageSpec.A4_HEIGHT_PT.dp * scale)
+                .clip(RoundedCornerShape(6.dp))
+                .border(1.dp, BillantaTheme.colors.border, RoundedCornerShape(6.dp)),
+        ) {
+            Box(
+                Modifier
+                    .wrapContentSize(Alignment.TopStart, unbounded = true)
+                    .graphicsLayer(
+                        scaleX = scale,
+                        scaleY = scale,
+                        transformOrigin = TransformOrigin(0f, 0f),
                     )
-                }
-                Text(item.lineTotalPaise.formatPaise(), style = BillantaTheme.type.bodyStrong.copy(color = Ink))
-            }
-            PaperDivider()
-        }
-
-        Spacer(Modifier.height(14.dp))
-        // Totals — the stored, server-parity figures; GST split derived from the snapshots.
-        Column(Modifier.fillMaxWidth()) {
-            PaperTotal("Subtotal", invoice.subtotalPaise)
-            if (invoice.discountTotalPaise > 0) {
-                Spacer(Modifier.height(8.dp))
-                PaperTotal("Discount", -invoice.discountTotalPaise)
-            }
-            val split = state.gstSplitFor(invoice)
-            val codesKnown = !company?.stateCode.isNullOrBlank() && !customer?.stateCode.isNullOrBlank()
-            Spacer(Modifier.height(8.dp))
-            if (codesKnown && split.intraState) {
-                PaperTotal("CGST", split.cgst)
-                Spacer(Modifier.height(8.dp))
-                PaperTotal("SGST", split.sgst)
-            } else if (codesKnown) {
-                PaperTotal("IGST", split.igst)
-            } else {
-                PaperTotal("Tax (GST)", invoice.taxTotalPaise)
-            }
-            Spacer(Modifier.height(12.dp))
-            Row(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(Accent.copy(alpha = 0.08f)).padding(12.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                    .drawWithContent {
+                        layer.record { this@drawWithContent.drawContent() }
+                        drawLayer(layer)
+                    },
             ) {
-                Text("Total due", style = BillantaTheme.type.bodyStrong, color = Ink)
-                Text(invoice.grandTotalPaise.formatPaise(), color = Accent, fontWeight = FontWeight.Bold, fontSize = 20.sp)
+                RenderedInvoicePage(doc, record)
             }
         }
+    }
+}
 
-        // Payment block — only what the company snapshot actually has.
-        val hasPayment = company?.upiId != null || company?.bankName != null || company?.accountNumber != null
-        if (hasPayment) {
-            Spacer(Modifier.height(18.dp))
-            Column(Modifier.fillMaxWidth()) {
-                Text("PAYMENT", color = InkFaint, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp)
-                Spacer(Modifier.height(8.dp))
-                company?.upiId?.let { Text("UPI: $it", style = BillantaTheme.type.caption.copy(color = Ink)) }
-                val bankLine = listOfNotNull(
-                    company?.bankName,
-                    company?.accountNumber?.let { "••${it.takeLast(4)}" },
-                    company?.ifsc,
-                ).joinToString(" · ").ifBlank { null }
-                bankLine?.let { Text(it, style = BillantaTheme.type.caption, color = InkMuted) }
-            }
-        }
-        invoice.notes?.let {
-            Spacer(Modifier.height(16.dp))
-            Text(it, style = BillantaTheme.type.caption, color = InkMuted)
+@Composable
+private fun PagePlaceholder(text: String) {
+    val c = BillantaTheme.colors
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        val scale = maxWidth / PageSpec.A4_WIDTH_PT.dp
+        Box(
+            Modifier.fillMaxWidth().height(PageSpec.A4_HEIGHT_PT.dp * scale)
+                .clip(RoundedCornerShape(6.dp)).background(c.surface)
+                .border(1.dp, c.border, RoundedCornerShape(6.dp)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(text, style = BillantaTheme.type.body, color = c.textMuted)
         }
     }
 }
 
 @Composable
-private fun PaperMeta(label: String, value: String) {
-    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        Text(label, style = BillantaTheme.type.caption, color = InkFaint)
-        Text(value, style = BillantaTheme.type.caption.copy(color = Ink))
+private fun TemplateProblem(message: String, actionLabel: String, onAction: () -> Unit) {
+    val c = BillantaTheme.colors
+    Column(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(c.surface)
+            .border(1.dp, c.border, RoundedCornerShape(14.dp)).padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Box(Modifier.size(56.dp).clip(RoundedCornerShape(18.dp)).background(c.primaryMuted), contentAlignment = Alignment.Center) {
+            BillantaIcon(AppIcon.Grid, c.primary, size = 26.dp)
+        }
+        Text(message, style = BillantaTheme.type.body, color = c.textSecondary, textAlign = TextAlign.Center)
+        SecondaryButton(actionLabel, onClick = onAction)
     }
 }
-
-@Composable
-private fun PaperTotal(label: String, valuePaise: Long) {
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-        Text(label, style = BillantaTheme.type.body, color = InkMuted)
-        Text(valuePaise.formatPaise(), style = BillantaTheme.type.body.copy(color = Ink))
-    }
-}
-
-@Composable
-private fun PaperDivider() = Box(Modifier.fillMaxWidth().height(1.dp).background(PaperLine))
 
 @Composable
 private fun androidx.compose.foundation.layout.RowScope.TemplateSwatch(

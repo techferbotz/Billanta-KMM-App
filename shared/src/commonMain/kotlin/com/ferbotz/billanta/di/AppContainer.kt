@@ -28,6 +28,9 @@ import com.ferbotz.billanta.session.SignInCoordinator
 import com.ferbotz.billanta.session.TokenManager
 import com.ferbotz.billanta.session.TokenStore
 import com.ferbotz.billanta.session.UserManager
+import com.ferbotz.billanta.share.FileShareService
+import com.ferbotz.billanta.share.InvoiceExporter
+import com.ferbotz.billanta.share.NoopFileShareService
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -48,7 +51,11 @@ class AppContainer(
     clock: EpochClock = SystemClock,
     /** Opens an external URL (terms/privacy pages) — provided by the platform factory. */
     val openUrl: (String) -> Unit = {},
+    /** Platform share sheet for exported invoices. */
+    shareService: FileShareService = NoopFileShareService,
 ) {
+    /** The core deliverable: captured invoice page → PDF/PNG/JPEG → share sheet. */
+    val invoiceExporter = InvoiceExporter(shareService)
     /** Small local prefs (dark mode, etc.) — same store the session uses. */
     val prefs: KeyValueStore = keyValueStore
 

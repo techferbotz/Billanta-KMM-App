@@ -9,7 +9,6 @@ import androidx.compose.runtime.snapshots.SnapshotStateList
 import com.ferbotz.billanta.core.AppResult
 import com.ferbotz.billanta.core.randomUuid
 import com.ferbotz.billanta.core.systemEpochMillis
-import com.ferbotz.billanta.data.repo.DashboardStats
 import com.ferbotz.billanta.data.sync.SyncStatus
 import com.ferbotz.billanta.di.AppContainer
 import com.ferbotz.billanta.domain.model.CompanyProfile
@@ -26,7 +25,6 @@ import com.ferbotz.billanta.domain.money.DiscountType
 import com.ferbotz.billanta.domain.money.GstSplit
 import com.ferbotz.billanta.domain.money.InvoiceCalculator
 import com.ferbotz.billanta.domain.money.InvoiceTotals
-import com.ferbotz.billanta.model.InvoiceFilter
 import com.ferbotz.billanta.model.parseRupeesToPaise
 import com.ferbotz.billanta.session.AuthState
 import com.ferbotz.billanta.ui.components.BottomTab
@@ -121,15 +119,12 @@ class BillantaState(
     }
 
     // ---- data mirrors --------------------------------------------------------------------------
-    var filter by mutableStateOf(InvoiceFilter.ALL)
     var query by mutableStateOf("")
     var loading by mutableStateOf(true)
         private set
     var invoices by mutableStateOf<List<InvoiceRecord>>(emptyList())
         private set
     private var allInvoices by mutableStateOf<List<InvoiceRecord>>(emptyList())
-    var dashboard by mutableStateOf<DashboardStats?>(null)
-        private set
     var customers by mutableStateOf<List<CustomerRecord>>(emptyList())
         private set
     var templates by mutableStateOf<List<TemplateInfo>>(emptyList())
@@ -163,12 +158,11 @@ class BillantaState(
             container.userManager.sessionExpired.collect { uiMessage = "Session expired — please sign in again." }
         }
         scope.launch {
-            snapshotFlow { filter to query }
-                .flatMapLatest { (f, q) -> container.invoiceRepository.observeInvoices(f.status, q) }
+            snapshotFlow { query }
+                .flatMapLatest { q -> container.invoiceRepository.observeInvoices(q) }
                 .collect { invoices = it; loading = false }
         }
-        scope.launch { container.invoiceRepository.observeInvoices(null, "").collect { allInvoices = it } }
-        scope.launch { container.invoiceRepository.observeDashboard().collect { dashboard = it } }
+        scope.launch { container.invoiceRepository.observeInvoices("").collect { allInvoices = it } }
         scope.launch { container.customerRepository.observeCustomers().collect { customers = it } }
         scope.launch { container.templateRepository.observeTemplates().collect { templates = it } }
         scope.launch { container.settingsRepository.observeSettings().collect { settings = it } }
@@ -176,10 +170,6 @@ class BillantaState(
     }
 
     // ---- invoice actions -----------------------------------------------------------------------
-
-    fun setInvoiceStatus(id: String, status: InvoiceDocStatus) = launchReporting {
-        container.invoiceRepository.setStatus(id, status)
-    }
 
     fun deleteInvoice(id: String) {
         scope.launch { container.invoiceRepository.delete(id) }
@@ -359,7 +349,7 @@ class BillantaState(
 
     fun setDraftCustomer(id: String) { draftCustomerId = id }
 
-    fun saveDraft(status: InvoiceDocStatus, onSaved: (InvoiceRecord) -> Unit) {
+    fun saveDraft(onSaved: (InvoiceRecord) -> Unit) {
         if (savingDraft) return
         scope.launch {
             savingDraft = true
@@ -371,7 +361,8 @@ class BillantaState(
                 invoiceDateMillis = today,
                 dueDateMillis = today + draftDueDays * MILLIS_PER_DAY,
                 currency = settings.defaultCurrency,
-                status = status,
+                // Status is a wire field the app no longer surfaces — everything is "Draft".
+                status = InvoiceDocStatus.Draft,
                 templateId = template?.id,
                 templateVersion = template?.currentVersion,
                 customerId = draftCustomerId,

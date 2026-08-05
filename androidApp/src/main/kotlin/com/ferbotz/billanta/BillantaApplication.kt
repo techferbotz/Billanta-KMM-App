@@ -13,14 +13,9 @@ class BillantaApplication : Application() {
         super.onCreate()
         container = createAppContainer(
             context = this,
-            baseUrl = BASE_URL,
+            baseUrl = BillantaConfig.BASE_URL,
             enableHttpLogging = BuildConfig.DEBUG,
         )
-    }
-
-    companion object {
-        // TODO: point at the real deployment origin (see DEPLOY.md) before release.
-        const val BASE_URL = "https://billanta.ferbotz.com"
     }
 }
 

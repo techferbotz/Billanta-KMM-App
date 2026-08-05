@@ -2,7 +2,6 @@ package com.ferbotz.billanta.data.local
 
 import app.cash.sqldelight.coroutines.asFlow
 import app.cash.sqldelight.coroutines.mapToList
-import app.cash.sqldelight.coroutines.mapToOne
 import com.ferbotz.billanta.core.BillantaJson
 import com.ferbotz.billanta.data.db.BillantaDb
 import com.ferbotz.billanta.domain.model.InvoiceDocStatus
@@ -110,15 +109,6 @@ class InvoiceLocalDataSource(
     suspend fun isNumberInUse(number: String, excludeId: String): Boolean = withContext(dispatcher) {
         q.numberInUse(number = number, excludeId = excludeId).executeAsOne() > 0
     }
-
-    fun observeMonthTotal(range: LongRange): Flow<Long> =
-        q.sumGrandTotalBetween(range.first, range.last).asFlow().mapToOne(dispatcher)
-
-    fun observeUnpaidTotal(): Flow<Long> =
-        q.sumGrandTotalByStatus(InvoiceDocStatus.Pending.name).asFlow().mapToOne(dispatcher)
-
-    fun observePendingCount(): Flow<Long> =
-        q.countByStatus(InvoiceDocStatus.Pending.name).asFlow().mapToOne(dispatcher)
 
     suspend fun statsForCustomer(customerId: String): Pair<Long, Long> = withContext(dispatcher) {
         val count = q.countForCustomer(customerId).executeAsOne()

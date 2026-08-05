@@ -30,21 +30,16 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import com.ferbotz.billanta.model.InvoiceFilter
-import com.ferbotz.billanta.model.Paise
 import com.ferbotz.billanta.state.BillantaState
 import com.ferbotz.billanta.state.PreviewRoute
 import com.ferbotz.billanta.state.SignInRoute
 import com.ferbotz.billanta.theme.BillantaTheme
 import com.ferbotz.billanta.ui.AppIcon
 import com.ferbotz.billanta.ui.BillantaIcon
-import com.ferbotz.billanta.ui.components.ChipRow
 import com.ferbotz.billanta.ui.components.BottomBarSpace
-import com.ferbotz.billanta.ui.components.IconButtonBox
 import com.ferbotz.billanta.ui.components.InvoiceCard
 import com.ferbotz.billanta.ui.components.LargeTopBar
 import com.ferbotz.billanta.ui.components.StatusBanner
-import com.ferbotz.billanta.ui.components.SummaryCard
 import com.ferbotz.billanta.ui.components.TextButtonLink
 
 @Composable
@@ -85,45 +80,13 @@ fun InvoicesScreen(state: BillantaState) {
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             item {
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                    SearchBar(state.query, { state.query = it }, Modifier.weight(1f))
-                    SquareIconButton(AppIcon.Tune)
-                }
-            }
-            item {
-                ChipRow(
-                    items = InvoiceFilter.entries.toList(),
-                    isSelected = { it == state.filter },
-                    label = { it.label },
-                    onSelect = { state.filter = it },
-                )
+                SearchBar(state.query, { state.query = it }, Modifier.fillMaxWidth())
             }
             if (state.loading) {
                 items(4) { ShimmerCard() }
             } else if (list.isEmpty()) {
-                item { EmptyInvoices(hasQuery = state.query.isNotBlank() || state.filter != InvoiceFilter.ALL, onCreate = { state.openCreate() }) }
+                item { EmptyInvoices(hasQuery = state.query.isNotBlank(), onCreate = { state.openCreate() }) }
             } else {
-                item {
-                    val stats = state.dashboard
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        SummaryCard(
-                            label = "This month",
-                            amount = Paise(stats?.monthTotalPaise ?: 0),
-                            footnote = stats?.deltaPercentVsLastMonth?.let { delta ->
-                                if (delta >= 0) "+$delta% vs last month" else "$delta% vs last month"
-                            } ?: "vs last month —",
-                            footnoteColor = if ((stats?.deltaPercentVsLastMonth ?: 0) >= 0) c.success else c.danger,
-                            modifier = Modifier.weight(1f),
-                        )
-                        SummaryCard(
-                            label = "Unpaid",
-                            amount = Paise(stats?.unpaidTotalPaise ?: 0),
-                            footnote = "${stats?.pendingCount ?: 0} pending",
-                            footnoteColor = c.warning,
-                            modifier = Modifier.weight(1f),
-                        )
-                    }
-                }
                 items(list, key = { it.id }) { inv ->
                     InvoiceCard(inv, onClick = { state.push(PreviewRoute(inv.id)) })
                 }
@@ -158,19 +121,6 @@ private fun SearchBar(query: String, onChange: (String) -> Unit, modifier: Modif
             )
         }
     }
-}
-
-@Composable
-private fun SquareIconButton(icon: AppIcon) {
-    val c = BillantaTheme.colors
-    Box(
-        Modifier
-            .size(52.dp)
-            .clip(RoundedCornerShape(14.dp))
-            .background(c.surface)
-            .border(1.dp, c.border, RoundedCornerShape(14.dp)),
-        contentAlignment = Alignment.Center,
-    ) { BillantaIcon(icon, c.textSecondary, size = 20.dp) }
 }
 
 @Composable

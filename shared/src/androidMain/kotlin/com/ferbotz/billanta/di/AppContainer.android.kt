@@ -7,6 +7,7 @@ import com.ferbotz.billanta.core.AndroidConnectivityObserver
 import com.ferbotz.billanta.core.SharedPrefsKeyValueStore
 import com.ferbotz.billanta.data.api.BillantaApiConfig
 import com.ferbotz.billanta.data.db.AndroidDatabaseDriverFactory
+import com.ferbotz.billanta.share.AndroidFileShareService
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -32,5 +33,6 @@ fun createAppContainer(
                 )
             }
         },
+        shareService = AndroidFileShareService(appContext),
     )
 }

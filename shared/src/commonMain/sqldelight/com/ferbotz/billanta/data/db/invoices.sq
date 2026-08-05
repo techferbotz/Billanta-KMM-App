@@ -61,17 +61,6 @@ ORDER BY invoiceDateMillis DESC;
 dirtyRows:
 SELECT * FROM invoiceRow WHERE dirty = 1;
 
-sumGrandTotalBetween:
-SELECT COALESCE(SUM(grandTotal), 0) FROM invoiceRow
-WHERE deletedAtMillis IS NULL AND invoiceDateMillis >= :startInclusive AND invoiceDateMillis <= :endInclusive;
-
-sumGrandTotalByStatus:
-SELECT COALESCE(SUM(grandTotal), 0) FROM invoiceRow
-WHERE deletedAtMillis IS NULL AND status = :status;
-
-countByStatus:
-SELECT COUNT(*) FROM invoiceRow WHERE deletedAtMillis IS NULL AND status = :status;
-
 countForCustomer:
 SELECT COUNT(*) FROM invoiceRow WHERE deletedAtMillis IS NULL AND customerId = ?;
 

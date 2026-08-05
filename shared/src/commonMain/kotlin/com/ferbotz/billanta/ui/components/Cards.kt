@@ -108,11 +108,7 @@ fun InvoiceCard(
                 )
             }
             Spacer(Modifier.size(12.dp))
-            Column(horizontalAlignment = Alignment.End) {
-                Text(invoice.grandTotalPaise.formatPaise(), style = BillantaTheme.type.amount, color = c.textPrimary, maxLines = 1)
-                Spacer(Modifier.height(8.dp))
-                StatusPill(invoice.status)
-            }
+            Text(invoice.grandTotalPaise.formatPaise(), style = BillantaTheme.type.amount, color = c.textPrimary, maxLines = 1)
         }
     }
 }

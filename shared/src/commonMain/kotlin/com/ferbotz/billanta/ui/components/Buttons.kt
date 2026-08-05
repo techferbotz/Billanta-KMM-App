@@ -52,17 +52,18 @@ fun SecondaryButton(
     text: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    enabled: Boolean = true,
     leadingIcon: AppIcon? = null,
     tint: Color? = null,
 ) {
     val c = BillantaTheme.colors
-    val fg = tint ?: c.textPrimary
+    val fg = (tint ?: c.textPrimary).let { if (enabled) it else it.copy(alpha = 0.45f) }
     Box(
         modifier
             .clip(RoundedCornerShape(14.dp))
             .background(c.surface)
             .border(1.dp, c.border, RoundedCornerShape(14.dp))
-            .clickable(onClick = onClick)
+            .clickable(enabled = enabled, onClick = onClick)
             .heightIn(min = 52.dp)
             .padding(horizontal = 20.dp),
         contentAlignment = Alignment.Center,

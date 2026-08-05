@@ -1,15 +1,5 @@
 package com.ferbotz.billanta.model
 
-import com.ferbotz.billanta.domain.model.InvoiceDocStatus
-
-/** The invoice-list filter chips, mapped straight onto the API's status values. */
-enum class InvoiceFilter(val label: String, val status: InvoiceDocStatus?) {
-    ALL("All", null),
-    DRAFT("Draft", InvoiceDocStatus.Draft),
-    PENDING("Pending", InvoiceDocStatus.Pending),
-    PAID("Paid", InvoiceDocStatus.Paid),
-}
-
 fun initialsOf(name: String): String = name.trim()
     .split(" ")
     .filter { it.isNotEmpty() }

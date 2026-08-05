@@ -22,30 +22,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.ferbotz.billanta.domain.model.InvoiceDocStatus
 import com.ferbotz.billanta.theme.BillantaTheme
-
-@Composable
-fun StatusPill(status: InvoiceDocStatus, modifier: Modifier = Modifier) {
-    val c = BillantaTheme.colors
-    val (bg, fg) = when (status) {
-        InvoiceDocStatus.Paid -> c.successBg to c.success
-        InvoiceDocStatus.Pending -> c.warningBg to c.warning
-        InvoiceDocStatus.Draft -> c.draftBg to c.draft
-    }
-    Box(
-        modifier
-            .clip(RoundedCornerShape(999.dp))
-            .background(bg)
-            .padding(horizontal = 10.dp, vertical = 4.dp),
-    ) {
-        androidx.compose.material3.Text(
-            text = status.name,
-            style = BillantaTheme.type.caption.copy(fontWeight = FontWeight.SemiBold),
-            color = fg,
-        )
-    }
-}
 
 @Composable
 fun ColorDot(color: Color, size: Int = 7, modifier: Modifier = Modifier) {

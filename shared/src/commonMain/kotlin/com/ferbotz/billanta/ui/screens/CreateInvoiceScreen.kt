@@ -257,7 +257,7 @@ fun CreateInvoiceScreen(state: BillantaState) {
                 PrimaryButton(
                     if (state.savingDraft) "Saving…" else "Save & preview",
                     onClick = {
-                        state.saveDraft(InvoiceDocStatus.Pending) { saved ->
+                        state.saveDraft { saved ->
                             state.replaceTop(PreviewRoute(saved.id))
                         }
                     },
