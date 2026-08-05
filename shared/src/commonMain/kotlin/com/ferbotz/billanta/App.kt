@@ -2,14 +2,25 @@ package com.ferbotz.billanta
 
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.unit.dp
+import com.ferbotz.billanta.di.AppContainer
 import com.ferbotz.billanta.state.BillantaState
 import com.ferbotz.billanta.state.BusinessProfileRoute
 import com.ferbotz.billanta.state.CreateInvoiceRoute
@@ -35,13 +46,10 @@ import com.ferbotz.billanta.ui.screens.TemplatesScreen
 import kotlinx.coroutines.delay
 
 @Composable
-fun App() {
-    val state = remember { BillantaState() }
+fun App(container: AppContainer) {
+    val scope = rememberCoroutineScope()
+    val state = remember { BillantaState(container, scope) }
     BillantaTheme(darkTheme = state.isDark) {
-        LaunchedEffect(Unit) {
-            delay(900)
-            state.loading = false
-        }
         SystemBackHandler(enabled = state.currentRoute != null || state.sheet != null) { state.back() }
 
         Surface(Modifier.fillMaxSize(), color = BillantaTheme.colors.background) {
@@ -50,6 +58,7 @@ fun App() {
                     if (route == null) TabRootHost(state) else RouteHost(state, route)
                 }
                 BillantaSheetHost(state)
+                UiMessageHost(state, Modifier.align(Alignment.BottomCenter))
             }
         }
     }
@@ -82,5 +91,28 @@ private fun RouteHost(state: BillantaState, route: Route) {
         SettingsRoute -> SettingsScreen(state)
         SignInRoute -> SignInScreen(state)
         is EditCustomerRoute -> EditCustomerScreen(state, route.customerId)
+    }
+}
+
+/** Transient action errors (sync conflicts, validation) — tap or wait to dismiss. */
+@Composable
+private fun UiMessageHost(state: BillantaState, modifier: Modifier = Modifier) {
+    val message = state.uiMessage ?: return
+    val c = BillantaTheme.colors
+    LaunchedEffect(message) {
+        delay(4_000)
+        if (state.uiMessage == message) state.uiMessage = null
+    }
+    Box(
+        modifier
+            .navigationBarsPadding()
+            .padding(horizontal = 18.dp, vertical = 96.dp)
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(c.textPrimary)
+            .clickable { state.uiMessage = null }
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+    ) {
+        Text(message, style = BillantaTheme.type.body, color = c.background)
     }
 }

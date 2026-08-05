@@ -17,6 +17,12 @@ dependencies {
 
     implementation(libs.compose.uiToolingPreview)
     debugImplementation(libs.compose.uiTooling)
+
+    // Google sign-in via Credential Manager (yields the idToken POST /auth/google verifies).
+    implementation(libs.androidx.credentials)
+    implementation(libs.androidx.credentials.play)
+    implementation(libs.googleid)
+    implementation(libs.kotlinx.coroutines.android)
 }
 
 android {

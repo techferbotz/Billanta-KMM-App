@@ -53,5 +53,16 @@ operator fun Paise.plus(other: Paise) = Paise(value + other.value)
 operator fun Paise.minus(other: Paise) = Paise(value - other.value)
 operator fun Paise.times(qty: Int) = Paise(value * qty)
 
-/** GST is expressed in basis points (e.g. 18% == 1800) so the split stays exact. */
-fun Paise.percent(basisPoints: Int): Paise = Paise((value * basisPoints) / 10_000)
+/** Formats a raw paise Long (the data layer's money representation). */
+fun Long.formatPaise(withPaise: Boolean = true, withSymbol: Boolean = true): String =
+    Paise(this).format(withPaise = withPaise, withSymbol = withSymbol)
+
+/** `"1500.5"` (rupees, plain decimal, no grouping) → 150050 paise. Null when malformed. */
+fun parseRupeesToPaise(text: String): Long? {
+    val parsed = com.ferbotz.billanta.core.DecimalString.parseOrNull(text.trim()) ?: return null
+    return try {
+        com.ferbotz.billanta.core.BigMath.mulDivHalfUp(parsed.unscaled, 100, parsed.scaleDivisor)
+    } catch (_: ArithmeticException) {
+        null
+    }
+}

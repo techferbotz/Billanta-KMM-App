@@ -1,6 +1,8 @@
 package com.ferbotz.billanta.di
 
 import android.content.Context
+import android.content.Intent
+import android.net.Uri
 import com.ferbotz.billanta.core.AndroidConnectivityObserver
 import com.ferbotz.billanta.core.SharedPrefsKeyValueStore
 import com.ferbotz.billanta.data.api.BillantaApiConfig
@@ -15,12 +17,20 @@ fun createAppContainer(
     enableHttpLogging: Boolean = false,
 ): AppContainer {
     val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    val appContext = context.applicationContext
     return AppContainer(
-        driverFactory = AndroidDatabaseDriverFactory(context),
-        keyValueStore = SharedPrefsKeyValueStore(context),
+        driverFactory = AndroidDatabaseDriverFactory(appContext),
+        keyValueStore = SharedPrefsKeyValueStore(appContext),
         config = BillantaApiConfig(baseUrl, enableHttpLogging),
-        connectivity = AndroidConnectivityObserver(context, appScope),
+        connectivity = AndroidConnectivityObserver(appContext, appScope),
         ioDispatcher = Dispatchers.IO,
         appScope = appScope,
+        openUrl = { url ->
+            runCatching {
+                appContext.startActivity(
+                    Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                )
+            }
+        },
     )
 }

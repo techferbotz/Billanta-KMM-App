@@ -16,34 +16,23 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ferbotz.billanta.state.BillantaState
 import com.ferbotz.billanta.theme.BillantaTheme
 import com.ferbotz.billanta.ui.AppIcon
-import com.ferbotz.billanta.ui.BillantaIcon
-import com.ferbotz.billanta.ui.components.BillantaTextField
 import com.ferbotz.billanta.ui.components.PrimaryButton
-import com.ferbotz.billanta.ui.components.SecondaryButton
 import com.ferbotz.billanta.ui.components.StackTopBar
 import com.ferbotz.billanta.ui.components.TextButtonLink
 
 @Composable
 fun SignInScreen(state: BillantaState) {
     val c = BillantaTheme.colors
-    var email by remember { mutableStateOf("") }
-
-    fun signIn() { state.signedIn = true; state.isOffline = false; state.pop() }
 
     Column(Modifier.fillMaxSize().background(c.background)) {
         StackTopBar("", onBack = { state.pop() })
@@ -65,22 +54,21 @@ fun SignInScreen(state: BillantaState) {
             )
             Spacer(Modifier.height(28.dp))
 
-            SecondaryButton(
-                "Continue with Google",
-                onClick = { signIn() },
+            PrimaryButton(
+                if (state.signingIn) "Signing in…" else "Continue with Google",
+                onClick = { state.signInWithGoogle(onSuccess = { state.pop() }) },
                 leadingIcon = AppIcon.Google,
                 modifier = Modifier.fillMaxWidth(),
             )
-            Spacer(Modifier.height(18.dp))
-            DividerWithText("or")
-            Spacer(Modifier.height(18.dp))
-            BillantaTextField(
-                email, { email = it },
-                label = "Email", placeholder = "you@studio.in",
-                keyboardType = KeyboardType.Email, modifier = Modifier.fillMaxWidth(),
-            )
-            Spacer(Modifier.height(12.dp))
-            PrimaryButton("Continue with email", onClick = { signIn() }, modifier = Modifier.fillMaxWidth())
+            state.signInError?.let { error ->
+                Spacer(Modifier.height(12.dp))
+                Row(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(c.dangerBg)
+                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                ) {
+                    Text(error, style = BillantaTheme.type.caption, color = c.danger)
+                }
+            }
             Spacer(Modifier.height(20.dp))
             TextButtonLink("Continue offline", color = c.textSecondary, onClick = { state.pop() })
             Spacer(Modifier.height(24.dp))
@@ -90,15 +78,5 @@ fun SignInScreen(state: BillantaState) {
             )
             Spacer(Modifier.height(24.dp))
         }
-    }
-}
-
-@Composable
-private fun DividerWithText(text: String) {
-    val c = BillantaTheme.colors
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        Box(Modifier.weight(1f).height(1.dp).background(c.border))
-        Text(text, style = BillantaTheme.type.caption, color = c.textMuted)
-        Box(Modifier.weight(1f).height(1.dp).background(c.border))
     }
 }

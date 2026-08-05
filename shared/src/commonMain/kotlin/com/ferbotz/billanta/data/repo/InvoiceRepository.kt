@@ -24,9 +24,15 @@ import kotlinx.coroutines.flow.combine
 
 data class DashboardStats(
     val monthTotalPaise: Long,
+    val lastMonthTotalPaise: Long,
     val unpaidTotalPaise: Long,
     val pendingCount: Int,
-)
+) {
+    /** Whole-percent change vs last month; null when last month billed nothing. */
+    val deltaPercentVsLastMonth: Int?
+        get() = if (lastMonthTotalPaise <= 0L) null
+        else (((monthTotalPaise - lastMonthTotalPaise) * 100) / lastMonthTotalPaise).toInt()
+}
 
 /**
  * Offline-first invoices. Every write lands locally (with totals computed by the exact server
@@ -48,13 +54,15 @@ class InvoiceRepository(
     suspend fun getInvoice(id: String): InvoiceRecord? = local.getById(id)
 
     fun observeDashboard(): Flow<DashboardStats> {
-        val monthRange = Iso8601.monthRange(clock.nowMillis())
+        val thisMonth = Iso8601.monthRange(clock.nowMillis())
+        val lastMonth = Iso8601.monthRange(thisMonth.first - 1)
         return combine(
-            local.observeMonthTotal(monthRange),
+            local.observeMonthTotal(thisMonth),
+            local.observeMonthTotal(lastMonth),
             local.observeUnpaidTotal(),
             local.observePendingCount(),
-        ) { month, unpaid, pending ->
-            DashboardStats(month, unpaid, pending.toInt())
+        ) { month, last, unpaid, pending ->
+            DashboardStats(month, last, unpaid, pending.toInt())
         }
     }
 
@@ -144,6 +152,10 @@ class InvoiceRepository(
 
     suspend fun setPdfPath(id: String, pdfPath: String?): AppResult<InvoiceRecord> =
         patchScalars(id) { it.copy(pdfPath = pdfPath) }
+
+    /** Template only affects rendering; the change re-syncs as an idempotent re-POST. */
+    suspend fun setTemplate(id: String, templateId: String, templateVersion: Long?): AppResult<InvoiceRecord> =
+        patchScalars(id) { it.copy(templateId = templateId, templateVersion = templateVersion) }
 
     private suspend fun patchScalars(id: String, transform: (InvoiceRecord) -> InvoiceRecord): AppResult<InvoiceRecord> {
         val existing = local.getById(id)

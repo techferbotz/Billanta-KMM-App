@@ -95,8 +95,15 @@ fun StackTopBar(
     }
 }
 
+/** Thin status strip under the top bar: offline / sign-in nudge / sync progress. */
 @Composable
-fun OfflineBanner(onSignIn: () -> Unit, modifier: Modifier = Modifier) {
+fun StatusBanner(
+    text: String,
+    modifier: Modifier = Modifier,
+    dotColor: Color? = null,
+    actionLabel: String? = null,
+    onAction: (() -> Unit)? = null,
+) {
     val c = BillantaTheme.colors
     Row(
         modifier
@@ -106,15 +113,17 @@ fun OfflineBanner(onSignIn: () -> Unit, modifier: Modifier = Modifier) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        ColorDot(c.accentDot, size = 7)
-        Text("Working offline", style = BillantaTheme.type.caption, color = c.textSecondary)
-        Text("·", style = BillantaTheme.type.caption, color = c.textMuted)
-        Text(
-            "Sign in to back up",
-            style = BillantaTheme.type.caption,
-            color = c.textSecondary,
-            modifier = Modifier.clip(RoundedCornerShape(4.dp)).clickable(onClick = onSignIn),
-        )
+        ColorDot(dotColor ?: c.accentDot, size = 7)
+        Text(text, style = BillantaTheme.type.caption, color = c.textSecondary)
+        if (actionLabel != null && onAction != null) {
+            Text("·", style = BillantaTheme.type.caption, color = c.textMuted)
+            Text(
+                actionLabel,
+                style = BillantaTheme.type.caption,
+                color = c.textSecondary,
+                modifier = Modifier.clip(RoundedCornerShape(4.dp)).clickable(onClick = onAction),
+            )
+        }
     }
 }
 

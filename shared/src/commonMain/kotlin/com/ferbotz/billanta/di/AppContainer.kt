@@ -24,6 +24,7 @@ import com.ferbotz.billanta.data.repo.MediaRepository
 import com.ferbotz.billanta.data.repo.SettingsRepository
 import com.ferbotz.billanta.data.repo.TemplateRepository
 import com.ferbotz.billanta.data.sync.SyncManager
+import com.ferbotz.billanta.session.SignInCoordinator
 import com.ferbotz.billanta.session.TokenManager
 import com.ferbotz.billanta.session.TokenStore
 import com.ferbotz.billanta.session.UserManager
@@ -41,11 +42,18 @@ class AppContainer(
     driverFactory: DatabaseDriverFactory,
     keyValueStore: KeyValueStore,
     val config: BillantaApiConfig,
-    connectivity: ConnectivityObserver = AlwaysOnlineConnectivity,
+    val connectivity: ConnectivityObserver = AlwaysOnlineConnectivity,
     ioDispatcher: CoroutineDispatcher = Dispatchers.Default,
     val appScope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
     clock: EpochClock = SystemClock,
+    /** Opens an external URL (terms/privacy pages) — provided by the platform factory. */
+    val openUrl: (String) -> Unit = {},
 ) {
+    /** Small local prefs (dark mode, etc.) — same store the session uses. */
+    val prefs: KeyValueStore = keyValueStore
+
+    /** Platform sign-in UIs register their Google idToken provider here. */
+    val signInCoordinator = SignInCoordinator()
     // ---- storage ----
     private val db = createBillantaDb(driverFactory)
     private val invoiceLocal = InvoiceLocalDataSource(db, ioDispatcher)

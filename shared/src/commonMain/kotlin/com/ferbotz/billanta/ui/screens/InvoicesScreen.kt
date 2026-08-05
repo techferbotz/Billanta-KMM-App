@@ -31,6 +31,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.ferbotz.billanta.model.InvoiceFilter
+import com.ferbotz.billanta.model.Paise
 import com.ferbotz.billanta.state.BillantaState
 import com.ferbotz.billanta.state.PreviewRoute
 import com.ferbotz.billanta.state.SignInRoute
@@ -42,7 +43,7 @@ import com.ferbotz.billanta.ui.components.BottomBarSpace
 import com.ferbotz.billanta.ui.components.IconButtonBox
 import com.ferbotz.billanta.ui.components.InvoiceCard
 import com.ferbotz.billanta.ui.components.LargeTopBar
-import com.ferbotz.billanta.ui.components.OfflineBanner
+import com.ferbotz.billanta.ui.components.StatusBanner
 import com.ferbotz.billanta.ui.components.SummaryCard
 import com.ferbotz.billanta.ui.components.TextButtonLink
 
@@ -51,14 +52,31 @@ fun InvoicesScreen(state: BillantaState) {
     val c = BillantaTheme.colors
     Column(Modifier.fillMaxSize().background(c.background)) {
         LargeTopBar("Invoices", actions = {
-            IconButtonBox(AppIcon.Bell, c.textSecondary, onClick = {})
             if (!state.signedIn) {
                 TextButtonLink("Sign in", onClick = { state.push(SignInRoute) })
             }
         })
-        if (state.isOffline) OfflineBanner(onSignIn = { state.push(SignInRoute) })
+        when {
+            !state.signedIn ->
+                StatusBanner(
+                    "Working offline",
+                    actionLabel = "Sign in to back up",
+                    onAction = { state.push(SignInRoute) },
+                )
+            !state.isOnline ->
+                StatusBanner("You're offline — changes will sync when you're back", dotColor = c.warning)
+            state.syncStatus.running ->
+                StatusBanner("Syncing…", dotColor = c.primary)
+            state.syncStatus.lastError != null ->
+                StatusBanner(
+                    "Sync issue",
+                    dotColor = c.danger,
+                    actionLabel = "Retry",
+                    onAction = { state.requestSyncNow() },
+                )
+        }
 
-        val list = state.filteredInvoices
+        val list = state.invoices
         LazyColumn(
             Modifier.fillMaxSize(),
             contentPadding = androidx.compose.foundation.layout.PaddingValues(
@@ -86,18 +104,21 @@ fun InvoicesScreen(state: BillantaState) {
                 item { EmptyInvoices(hasQuery = state.query.isNotBlank() || state.filter != InvoiceFilter.ALL, onCreate = { state.openCreate() }) }
             } else {
                 item {
+                    val stats = state.dashboard
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         SummaryCard(
                             label = "This month",
-                            amount = state.monthTotal,
-                            footnote = "+18% vs June",
-                            footnoteColor = c.success,
+                            amount = Paise(stats?.monthTotalPaise ?: 0),
+                            footnote = stats?.deltaPercentVsLastMonth?.let { delta ->
+                                if (delta >= 0) "+$delta% vs last month" else "$delta% vs last month"
+                            } ?: "vs last month —",
+                            footnoteColor = if ((stats?.deltaPercentVsLastMonth ?: 0) >= 0) c.success else c.danger,
                             modifier = Modifier.weight(1f),
                         )
                         SummaryCard(
                             label = "Unpaid",
-                            amount = state.unpaidTotal,
-                            footnote = "${state.pendingCount} pending",
+                            amount = Paise(stats?.unpaidTotalPaise ?: 0),
+                            footnote = "${stats?.pendingCount ?: 0} pending",
                             footnoteColor = c.warning,
                             modifier = Modifier.weight(1f),
                         )

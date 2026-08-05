@@ -21,9 +21,12 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.ferbotz.billanta.model.Invoice
+import com.ferbotz.billanta.core.Iso8601
+import com.ferbotz.billanta.domain.model.InvoiceDocStatus
+import com.ferbotz.billanta.domain.model.InvoiceRecord
 import com.ferbotz.billanta.model.Paise
 import com.ferbotz.billanta.model.format
+import com.ferbotz.billanta.model.formatPaise
 import com.ferbotz.billanta.theme.BillantaTheme
 import com.ferbotz.billanta.ui.AppIcon
 import com.ferbotz.billanta.ui.BillantaIcon
@@ -72,7 +75,7 @@ fun SummaryCard(
 
 @Composable
 fun InvoiceCard(
-    invoice: Invoice,
+    invoice: InvoiceRecord,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -82,20 +85,22 @@ fun InvoiceCard(
             Column(Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                     Text(
-                        invoice.customer.name,
+                        invoice.customerName ?: "No customer",
                         style = BillantaTheme.type.cardTitle,
                         color = c.textPrimary,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f, fill = false),
                     )
-                    if (invoice.status != com.ferbotz.billanta.model.InvoiceStatus.PAID) {
-                        ColorDot(c.accentDot, size = 7)
+                    // Sync at a glance: red = server rejected it, amber = waiting to push.
+                    when {
+                        invoice.syncError != null -> ColorDot(c.danger, size = 7)
+                        invoice.pendingSync -> ColorDot(c.accentDot, size = 7)
                     }
                 }
                 Spacer(Modifier.height(4.dp))
                 Text(
-                    "${invoice.number} · ${invoice.issueDate}",
+                    "${invoice.invoiceNumber} · ${Iso8601.formatDisplayDate(invoice.invoiceDateMillis)}",
                     style = BillantaTheme.type.caption,
                     color = c.textSecondary,
                     maxLines = 1,
@@ -104,7 +109,7 @@ fun InvoiceCard(
             }
             Spacer(Modifier.size(12.dp))
             Column(horizontalAlignment = Alignment.End) {
-                Text(invoice.total.format(), style = BillantaTheme.type.amount, color = c.textPrimary, maxLines = 1)
+                Text(invoice.grandTotalPaise.formatPaise(), style = BillantaTheme.type.amount, color = c.textPrimary, maxLines = 1)
                 Spacer(Modifier.height(8.dp))
                 StatusPill(invoice.status)
             }

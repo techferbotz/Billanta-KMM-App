@@ -20,7 +20,7 @@ class BillantaApplication : Application() {
 
     companion object {
         // TODO: point at the real deployment origin (see DEPLOY.md) before release.
-        const val BASE_URL = "https://api.billanta.example"
+        const val BASE_URL = "https://billanta.ferbotz.com"
     }
 }
 
