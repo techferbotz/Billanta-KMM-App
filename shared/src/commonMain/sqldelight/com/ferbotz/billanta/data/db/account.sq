@@ -1,0 +1,20 @@
+-- The signed-in user. At most one row.
+CREATE TABLE accountRow (
+    id TEXT NOT NULL PRIMARY KEY,
+    email TEXT NOT NULL,
+    name TEXT,
+    photoUrl TEXT,
+    isPremium INTEGER NOT NULL DEFAULT 0,
+    createdAtMillis INTEGER,
+    updatedAtMillis INTEGER
+);
+
+get:
+SELECT * FROM accountRow LIMIT 1;
+
+upsert:
+INSERT OR REPLACE INTO accountRow(id, email, name, photoUrl, isPremium, createdAtMillis, updatedAtMillis)
+VALUES (?, ?, ?, ?, ?, ?, ?);
+
+clear:
+DELETE FROM accountRow;

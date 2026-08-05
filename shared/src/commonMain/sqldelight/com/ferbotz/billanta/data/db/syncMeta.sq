@@ -1,0 +1,17 @@
+-- Small key/value state for the sync engine (invoice pull cursor, last sync time, owner user id).
+CREATE TABLE syncMetaRow (
+    key TEXT NOT NULL PRIMARY KEY,
+    value TEXT NOT NULL
+);
+
+get:
+SELECT value FROM syncMetaRow WHERE key = ?;
+
+put:
+INSERT OR REPLACE INTO syncMetaRow(key, value) VALUES (?, ?);
+
+delete:
+DELETE FROM syncMetaRow WHERE key = ?;
+
+clear:
+DELETE FROM syncMetaRow;

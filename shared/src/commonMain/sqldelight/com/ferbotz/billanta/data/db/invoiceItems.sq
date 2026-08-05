@@ -1,0 +1,27 @@
+-- Line items, ordered by orderIdx within an invoice. Replaced wholesale on every invoice write.
+CREATE TABLE invoiceItemRow (
+    invoiceId TEXT NOT NULL,
+    orderIdx INTEGER NOT NULL,
+    description TEXT NOT NULL,
+    hsnSac TEXT,
+    quantity TEXT NOT NULL,
+    unitPrice INTEGER NOT NULL,
+    taxRatePercent TEXT NOT NULL,
+    lineTotal INTEGER NOT NULL,
+    taxAmount INTEGER NOT NULL,
+    PRIMARY KEY (invoiceId, orderIdx)
+);
+
+forInvoice:
+SELECT * FROM invoiceItemRow WHERE invoiceId = ? ORDER BY orderIdx ASC;
+
+insertItem:
+INSERT OR REPLACE INTO invoiceItemRow(
+    invoiceId, orderIdx, description, hsnSac, quantity, unitPrice, taxRatePercent, lineTotal, taxAmount
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+deleteForInvoice:
+DELETE FROM invoiceItemRow WHERE invoiceId = ?;
+
+clear:
+DELETE FROM invoiceItemRow;

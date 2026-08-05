@@ -1,0 +1,63 @@
+-- Customers, offline-first. `dirty` rows need pushing; `isDeleted` rows are local tombstones
+-- awaiting a DELETE call (the customers API has no batch sync, so ops replay individually).
+-- `isSynced` records whether the server has ever seen this id (POST vs PATCH on push).
+CREATE TABLE customerRow (
+    id TEXT NOT NULL PRIMARY KEY,
+    name TEXT NOT NULL,
+    phone TEXT,
+    email TEXT,
+    gstin TEXT,
+    addressLine1 TEXT,
+    addressLine2 TEXT,
+    city TEXT,
+    state TEXT,
+    stateCode TEXT,
+    pincode TEXT,
+    country TEXT,
+    createdAtMillis INTEGER,
+    updatedAtMillis INTEGER NOT NULL,
+    dirty INTEGER NOT NULL DEFAULT 0,
+    isDeleted INTEGER NOT NULL DEFAULT 0,
+    isSynced INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE INDEX idx_customer_name ON customerRow(name);
+
+upsert:
+INSERT OR REPLACE INTO customerRow(
+    id, name, phone, email, gstin, addressLine1, addressLine2, city, state, stateCode, pincode,
+    country, createdAtMillis, updatedAtMillis, dirty, isDeleted, isSynced
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+byId:
+SELECT * FROM customerRow WHERE id = ? AND isDeleted = 0;
+
+byIdIncludingDeleted:
+SELECT * FROM customerRow WHERE id = ?;
+
+list:
+SELECT * FROM customerRow
+WHERE isDeleted = 0
+  AND (:q = '' OR name LIKE '%' || :q || '%' OR phone LIKE '%' || :q || '%')
+ORDER BY name COLLATE NOCASE ASC;
+
+dirtyRows:
+SELECT * FROM customerRow WHERE dirty = 1;
+
+syncedCleanIds:
+SELECT id FROM customerRow WHERE dirty = 0 AND isSynced = 1;
+
+markSynced:
+UPDATE customerRow SET dirty = 0, isSynced = 1 WHERE id = ? AND updatedAtMillis = ?;
+
+softDelete:
+UPDATE customerRow SET isDeleted = 1, dirty = 1, updatedAtMillis = ? WHERE id = ?;
+
+hardDelete:
+DELETE FROM customerRow WHERE id = ?;
+
+countAll:
+SELECT COUNT(*) FROM customerRow WHERE isDeleted = 0;
+
+clear:
+DELETE FROM customerRow;

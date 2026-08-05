@@ -1,0 +1,39 @@
+-- The user's business profile. Single row (localId is always 1).
+CREATE TABLE companyRow (
+    localId INTEGER NOT NULL PRIMARY KEY,
+    name TEXT NOT NULL,
+    gstin TEXT,
+    addressLine1 TEXT,
+    addressLine2 TEXT,
+    city TEXT,
+    state TEXT,
+    stateCode TEXT,
+    pincode TEXT,
+    country TEXT,
+    phone TEXT,
+    email TEXT,
+    logo TEXT,
+    signature TEXT,
+    upiId TEXT,
+    qr TEXT,
+    bankName TEXT,
+    accountNumber TEXT,
+    ifsc TEXT,
+    dirty INTEGER NOT NULL DEFAULT 0,
+    updatedAtMillis INTEGER NOT NULL DEFAULT 0
+);
+
+get:
+SELECT * FROM companyRow WHERE localId = 1;
+
+upsert:
+INSERT OR REPLACE INTO companyRow(
+    localId, name, gstin, addressLine1, addressLine2, city, state, stateCode, pincode, country,
+    phone, email, logo, signature, upiId, qr, bankName, accountNumber, ifsc, dirty, updatedAtMillis
+) VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+markClean:
+UPDATE companyRow SET dirty = 0 WHERE localId = 1;
+
+clear:
+DELETE FROM companyRow;

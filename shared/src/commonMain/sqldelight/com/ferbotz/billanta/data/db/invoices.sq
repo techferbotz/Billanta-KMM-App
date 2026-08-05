@@ -1,0 +1,106 @@
+-- Invoices, offline-first. Totals are stored in integer paise, computed locally with the exact
+-- server algorithm; the server's recomputed values overwrite them on sync. `dirty` rows are
+-- pending push; a row with deletedAtMillis set is a tombstone (soft delete, like the server).
+-- customerName is denormalized from the snapshot for list display + search.
+CREATE TABLE invoiceRow (
+    id TEXT NOT NULL PRIMARY KEY,
+    invoiceNumber TEXT NOT NULL,
+    invoiceDateMillis INTEGER NOT NULL,
+    dueDateMillis INTEGER,
+    currency TEXT NOT NULL,
+    status TEXT NOT NULL,
+    templateId TEXT,
+    templateVersion INTEGER,
+    customerId TEXT,
+    customerName TEXT,
+    customerSnapshotJson TEXT,
+    companySnapshotJson TEXT,
+    notes TEXT,
+    discountType TEXT,
+    discountValue TEXT,
+    discountBeforeTax INTEGER NOT NULL DEFAULT 1,
+    subtotal INTEGER NOT NULL DEFAULT 0,
+    discountTotal INTEGER NOT NULL DEFAULT 0,
+    taxTotal INTEGER NOT NULL DEFAULT 0,
+    grandTotal INTEGER NOT NULL DEFAULT 0,
+    pdfPath TEXT,
+    deletedAtMillis INTEGER,
+    createdAtMillis INTEGER,
+    updatedAtMillis INTEGER NOT NULL,
+    dirty INTEGER NOT NULL DEFAULT 0,
+    syncError TEXT
+);
+
+CREATE INDEX idx_invoice_status ON invoiceRow(status);
+CREATE INDEX idx_invoice_date ON invoiceRow(invoiceDateMillis);
+CREATE INDEX idx_invoice_dirty ON invoiceRow(dirty);
+CREATE INDEX idx_invoice_customer ON invoiceRow(customerId);
+
+upsert:
+INSERT OR REPLACE INTO invoiceRow(
+    id, invoiceNumber, invoiceDateMillis, dueDateMillis, currency, status, templateId,
+    templateVersion, customerId, customerName, customerSnapshotJson, companySnapshotJson, notes,
+    discountType, discountValue, discountBeforeTax, subtotal, discountTotal, taxTotal, grandTotal,
+    pdfPath, deletedAtMillis, createdAtMillis, updatedAtMillis, dirty, syncError
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+byId:
+SELECT * FROM invoiceRow WHERE id = ?;
+
+list:
+SELECT * FROM invoiceRow
+WHERE deletedAtMillis IS NULL
+  AND (:status IS NULL OR status = :status)
+  AND (:q = '' OR invoiceNumber LIKE '%' || :q || '%' OR customerName LIKE '%' || :q || '%')
+ORDER BY invoiceDateMillis DESC, createdAtMillis DESC;
+
+listForCustomer:
+SELECT * FROM invoiceRow WHERE deletedAtMillis IS NULL AND customerId = ?
+ORDER BY invoiceDateMillis DESC;
+
+dirtyRows:
+SELECT * FROM invoiceRow WHERE dirty = 1;
+
+sumGrandTotalBetween:
+SELECT COALESCE(SUM(grandTotal), 0) FROM invoiceRow
+WHERE deletedAtMillis IS NULL AND invoiceDateMillis >= :startInclusive AND invoiceDateMillis <= :endInclusive;
+
+sumGrandTotalByStatus:
+SELECT COALESCE(SUM(grandTotal), 0) FROM invoiceRow
+WHERE deletedAtMillis IS NULL AND status = :status;
+
+countByStatus:
+SELECT COUNT(*) FROM invoiceRow WHERE deletedAtMillis IS NULL AND status = :status;
+
+countForCustomer:
+SELECT COUNT(*) FROM invoiceRow WHERE deletedAtMillis IS NULL AND customerId = ?;
+
+sumGrandTotalForCustomer:
+SELECT COALESCE(SUM(grandTotal), 0) FROM invoiceRow WHERE deletedAtMillis IS NULL AND customerId = ?;
+
+numberInUse:
+SELECT COUNT(*) FROM invoiceRow
+WHERE invoiceNumber = :number AND id != :excludeId AND deletedAtMillis IS NULL;
+
+softDelete:
+UPDATE invoiceRow SET deletedAtMillis = :deletedAtMillis, updatedAtMillis = :updatedAtMillis, dirty = 1
+WHERE id = :id;
+
+patchScalars:
+UPDATE invoiceRow SET
+    status = :status, notes = :notes, dueDateMillis = :dueDateMillis, pdfPath = :pdfPath,
+    invoiceDateMillis = :invoiceDateMillis, invoiceNumber = :invoiceNumber, currency = :currency,
+    updatedAtMillis = :updatedAtMillis, dirty = 1, syncError = NULL
+WHERE id = :id;
+
+markClean:
+UPDATE invoiceRow SET dirty = 0, syncError = NULL WHERE id = ? AND updatedAtMillis = ?;
+
+setSyncError:
+UPDATE invoiceRow SET syncError = ?, dirty = 0 WHERE id = ?;
+
+hardDelete:
+DELETE FROM invoiceRow WHERE id = ?;
+
+clear:
+DELETE FROM invoiceRow;
