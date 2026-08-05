@@ -48,6 +48,6 @@ class GoogleCredentialTokenProvider(internal val activity: ComponentActivity) : 
 
     companion object {
         // TODO: the backend's GOOGLE_CLIENT_ID (a *web* OAuth client id) — see DEPLOY.md.
-        const val WEB_CLIENT_ID = "REPLACE_WITH_GOOGLE_WEB_CLIENT_ID.apps.googleusercontent.com"
+        const val WEB_CLIENT_ID = "452978864976-s12ek778jagovgqkdtobadj0hhb316m3.apps.googleusercontent.com"
     }
 }
