@@ -25,19 +25,39 @@ class TemplateRepository(
 
     fun observeTemplates(): Flow<List<TemplateInfo>> = local.observeTemplates()
 
-    /** Pulls GET /templates into the local catalogue. Offline failure is non-fatal. */
-    suspend fun refreshCatalogue(): AppResult<List<TemplateInfo>> =
-        api.listTemplates().flatMap { list ->
-            val templates = list.items.map { it.toDomain() }
-            local.replaceCatalogue(templates)
-            templates.asSuccess()
+    /**
+     * Pulls the whole catalogue into local storage, draining every page — the endpoint became
+     * cursor-paginated in BE-006, so stopping at the first page would silently hide templates once
+     * the catalogue outgrows one. Offline failure is non-fatal; the cached catalogue stays.
+     */
+    suspend fun refreshCatalogue(): AppResult<List<TemplateInfo>> {
+        val templates = ArrayList<TemplateInfo>()
+        var cursor: String? = null
+        var guard = 0
+        while (guard++ < MAX_PAGES) {
+            val page = when (val result = api.listTemplates(cursor = cursor)) {
+                is AppResult.Success -> result.value
+                is AppResult.Failure -> return result
+            }
+            templates += page.items.map { it.toDomain() }
+            cursor = page.nextCursor
+            if (!page.hasMore || cursor == null) break
         }
+        // Replace in one go so a partially-drained catalogue never half-overwrites the cache.
+        local.replaceCatalogue(templates)
+        return templates.asSuccess()
+    }
 
     /**
      * The compiled Billanta Template JSON for a template, cache-first:
      * cached (id, version) → done; otherwise fetch (revalidating with the checksum as ETag) and
      * cache forever. Premium templates surface `PREMIUM_REQUIRED` for the paywall.
      */
+    private companion object {
+        /** Backstop against a server that keeps handing back a cursor. */
+        const val MAX_PAGES = 50
+    }
+
     suspend fun getCompiled(templateId: String, version: Long? = null): AppResult<CompiledTemplate> {
         // Resolve which version "current" means, locally if possible.
         val info = local.getById(templateId) ?: run {

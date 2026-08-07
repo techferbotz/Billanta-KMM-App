@@ -104,6 +104,29 @@ object TemplateFlattener {
         return themed
     }
 
+    /**
+     * Strips the box model off a text node, keeping only what actually describes the text.
+     *
+     * The compiler copies an element's entire computed style onto the `text` node it synthesises
+     * for that element's content, so a table cell and its text both carry the same padding,
+     * background and borders. The element itself is already represented by the parent `box`/`cell`
+     * node, so honouring them here would inset the text twice and paint the background twice —
+     * the second copy landing on top in the template's original colour, which is how this surfaced.
+     */
+    private fun textOnly(style: TStyle) = TStyle(
+        display = style.display,
+        color = style.color,
+        fontSizePt = style.fontSizePt,
+        fontWeight = style.fontWeight,
+        fontStyleItalic = style.fontStyleItalic,
+        fontFamily = style.fontFamily,
+        lineHeight = style.lineHeight,
+        textAlign = style.textAlign,
+        textTransform = style.textTransform,
+        letterSpacingPt = style.letterSpacingPt,
+        opacity = style.opacity,
+    )
+
     /** Returns a list because `repeat` expands to many nodes and `conditional` may drop to none. */
     private fun flattenNode(
         node: TNode,
@@ -139,7 +162,8 @@ object TemplateFlattener {
                 val runs = buildRuns(node, style, ctx, aliases, page)
                 // An element whose text resolves to nothing generates no line box in CSS, so it
                 // must not leave a gap behind — this is how absent optional fields disappear.
-                if (runs.isEmpty()) emptyList() else listOf(LText(style, runs, paragraphStyleOf(style, page)))
+                if (runs.isEmpty()) emptyList()
+                else listOf(LText(textOnly(style), runs, paragraphStyleOf(style, page)))
             }
 
             is TImage -> {
@@ -231,21 +255,44 @@ object TemplateFlattener {
             val transform = span.style?.textTransform ?: nodeStyle.textTransform
             val text = applyTransform(raw, transform)
             if (text.isEmpty()) return@forEach
-            runs += StyledRun(text, runStyleOf(nodeStyle, span.style, page))
+            runs += StyledRun(text, runStyleOf(node.style, nodeStyle, span.style, page))
         }
         // A paragraph of nothing but whitespace still occupies a line, but one of pure empties
         // does not — mirroring how the browser the template was authored against behaves.
         return if (runs.all { it.text.isEmpty() }) emptyList() else runs
     }
 
-    private fun runStyleOf(nodeStyle: TStyle, spanStyle: TStyle?, page: PageSpec) = RunStyle(
+    private fun runStyleOf(
+        originalNodeStyle: TStyle,
+        nodeStyle: TStyle,
+        spanStyle: TStyle?,
+        page: PageSpec,
+    ) = RunStyle(
         fontFamily = spanStyle?.fontFamily ?: nodeStyle.fontFamily ?: page.fontFamily,
         fontSizePt = spanStyle?.fontSizePt ?: nodeStyle.fontSizePt ?: page.baseFontSizePt,
         fontWeight = spanStyle?.fontWeight ?: nodeStyle.fontWeight ?: 400,
         italic = spanStyle?.fontStyleItalic ?: nodeStyle.fontStyleItalic ?: false,
-        colorArgb = spanStyle?.color ?: nodeStyle.color ?: DEFAULT_INK,
+        colorArgb = spanColorOf(originalNodeStyle, nodeStyle, spanStyle),
         letterSpacingPt = spanStyle?.letterSpacingPt ?: nodeStyle.letterSpacingPt ?: 0f,
     )
+
+    /**
+     * A span carries its own resolved colour, and `tokens` only exists on nodes — so an inline run
+     * (`<strong>{{ invoice.total }}</strong>`) would keep the template's original colour while the
+     * text around it recoloured, which is how the invoice total ended up stranded in the old accent.
+     *
+     * A span whose colour merely restates the one it inherited was not expressing a choice, so it
+     * follows the themed colour. A span that genuinely differs is left alone.
+     */
+    private fun spanColorOf(originalNodeStyle: TStyle, nodeStyle: TStyle, spanStyle: TStyle?): Long {
+        val spanColor = spanStyle?.color ?: return nodeStyle.color ?: DEFAULT_INK
+        val inherited = originalNodeStyle.color
+        return if (inherited != null && spanColor == inherited) {
+            nodeStyle.color ?: spanColor
+        } else {
+            spanColor
+        }
+    }
 
     private fun paragraphStyleOf(style: TStyle, page: PageSpec) = ParagraphStyle(
         align = when (style.textAlign) {

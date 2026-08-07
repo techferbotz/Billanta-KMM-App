@@ -30,6 +30,7 @@ object TemplateParser {
             root = rootNode,
             themeTokens = parseThemeTokens(root["theme"] as? JsonObject),
             sections = parseSections(root["sections"] as? JsonArray),
+            declaredControls = parseControls(root["customisation"] as? JsonArray),
         )
     } catch (e: CancellationException) {
         throw e
@@ -73,6 +74,27 @@ object TemplateParser {
                 label = obj.str("label") ?: id,
                 hidable = (obj["hidable"] as? JsonPrimitive)?.booleanOrNull ?: true,
             )
+        } ?: emptyList()
+
+    /**
+     * The controls a template asks the edit sheet to show. A `type` this build does not recognise
+     * is skipped rather than treated as an error — the same forward-compatibility rule that governs
+     * node types, so the backend can ship a new kind of control ahead of the app.
+     */
+    private fun parseControls(array: JsonArray?): List<CustomisationControl> =
+        array?.mapNotNull { element ->
+            val obj = element as? JsonObject ?: return@mapNotNull null
+            val title = obj.str("title").orEmpty()
+            when (obj.str("type")) {
+                "color" -> obj.str("token")?.let {
+                    CustomisationControl.Color(title.ifEmpty { it }, it)
+                }
+                "section" -> obj.str("section")?.let {
+                    CustomisationControl.SectionToggle(title.ifEmpty { it }, it)
+                }
+                "template" -> CustomisationControl.TemplatePicker(title.ifEmpty { "Template" })
+                else -> null
+            }
         } ?: emptyList()
 
     /** Style key → token name, for the colours the user may change. */

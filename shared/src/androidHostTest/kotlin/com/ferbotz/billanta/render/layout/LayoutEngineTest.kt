@@ -159,6 +159,32 @@ class LayoutEngineTest {
         // one padding-left — not two.
         val inset = text.x - cellBox.x
         assertEquals(cellPadding.left, inset, 0.01f, "text should be inset by exactly one padding")
+
+        // The assertion above only sees the cell's padding — the text box's own padding would
+        // shift its *contents*, not its origin. So check the rule at the source: a text node
+        // contributes nothing but text, because the element's box is already the parent cell.
+        val textMetrics = text.box.metrics
+        assertEquals(EdgesPt.ZERO, textMetrics.padding, "a text node must not re-apply padding")
+        assertEquals(EdgesPt.ZERO, textMetrics.border, "a text node must not re-apply borders")
+        assertEquals(null, textMetrics.backgroundArgb, "a text node must not re-paint the background")
+    }
+
+    /**
+     * The header cells of `classic` are painted; their text children carry a copy of that same
+     * background. Painting both stacks a second, un-themed rectangle over the first.
+     */
+    @Test
+    fun a_cells_background_is_painted_once() {
+        val (doc, root) = layout("classic", itemCount = 3)
+        val commands = ArrayList<DrawCommand>()
+        LayoutEngine(shaper).paint(root, doc.page.marginLeftPt, doc.page.marginTopPt, commands)
+
+        val fills = commands.flattenCommands().filterIsInstance<DrawCommand.Fill>()
+        val duplicated = fills.groupBy { it.rect to it.colorArgb }.filterValues { it.size > 1 }
+        assertTrue(
+            duplicated.isEmpty(),
+            "the same rectangle is filled more than once: ${duplicated.keys.take(3)}",
+        )
     }
 
     @Test

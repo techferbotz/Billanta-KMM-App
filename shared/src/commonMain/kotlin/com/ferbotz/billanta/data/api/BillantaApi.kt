@@ -2,6 +2,7 @@ package com.ferbotz.billanta.data.api
 
 import com.ferbotz.billanta.core.AppError
 import com.ferbotz.billanta.core.AppResult
+import com.ferbotz.billanta.core.Iso8601
 import com.ferbotz.billanta.core.asFailure
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
@@ -23,6 +24,8 @@ import io.ktor.http.contentType
 import io.ktor.http.isSuccess
 import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
 
 /** All protected/optional-auth endpoints, on the bearer-authed client. One method per API.md route. */
 class BillantaApi(private val client: HttpClient) {
@@ -94,6 +97,34 @@ class BillantaApi(private val client: HttpClient) {
 
     suspend fun deleteCustomer(id: String): AppResult<Unit> = apiCallUnit { client.delete("customers/$id") }
 
+    // ---- products ------------------------------------------------------------------------------
+
+    suspend fun createProduct(product: ProductDto): AppResult<ProductDto> = apiCall {
+        client.post("products") {
+            contentType(ContentType.Application.Json)
+            setBody(product)
+        }
+    }
+
+    suspend fun listProducts(q: String? = null, limit: Int = 100, cursor: String? = null): AppResult<PageDto<ProductDto>> =
+        apiCall {
+            client.get("products") {
+                if (!q.isNullOrBlank()) parameter("q", q)
+                parameter("limit", limit)
+                cursor?.let { parameter("cursor", it) }
+            }
+        }
+
+    suspend fun patchProduct(id: String, patch: JsonObject): AppResult<ProductDto> = apiCall {
+        client.patch("products/$id") {
+            contentType(ContentType.Application.Json)
+            setBody(patch)
+        }
+    }
+
+    /** Hard delete, as documented — there is no product tombstone. */
+    suspend fun deleteProduct(id: String): AppResult<Unit> = apiCallUnit { client.delete("products/$id") }
+
     // ---- invoices ------------------------------------------------------------------------------
 
     /** Create or idempotently replace by client id. Totals in the response are authoritative. */
@@ -128,8 +159,24 @@ class BillantaApi(private val client: HttpClient) {
         }
     }
 
-    /** Soft delete (tombstone); idempotent. */
-    suspend fun deleteInvoice(id: String): AppResult<Unit> = apiCallUnit { client.delete("invoices/$id") }
+    /**
+     * Soft delete (tombstone); idempotent.
+     *
+     * [deletedAtMillis] is the moment the user deleted it on this device. Sending it keeps the
+     * tombstone's `updatedAt` in the same clock domain as every other edit and as the sync cursor,
+     * which matters because a delete can sit in the queue for a long time before it is pushed.
+     * Omitting it falls back to server time (BE-001).
+     */
+    suspend fun deleteInvoice(id: String, deletedAtMillis: Long? = null): AppResult<Unit> = apiCallUnit {
+        client.delete("invoices/$id") {
+            contentType(ContentType.Application.Json)
+            setBody(
+                buildJsonObject {
+                    deletedAtMillis?.let { put("updatedAt", JsonPrimitive(Iso8601.format(it))) }
+                },
+            )
+        }
+    }
 
     /** Batch offline sync: pushes are LWW by `updatedAt`; pull pages via `since`/`nextCursor`. */
     suspend fun syncInvoices(request: SyncRequestDto): AppResult<SyncResponseDto> = apiCall {
@@ -141,7 +188,14 @@ class BillantaApi(private val client: HttpClient) {
 
     // ---- templates (optional auth) -------------------------------------------------------------
 
-    suspend fun listTemplates(): AppResult<TemplateListDto> = apiCall { client.get("templates") }
+    /** Cursor-paginated since BE-006, like every other list endpoint. */
+    suspend fun listTemplates(limit: Int = 100, cursor: String? = null): AppResult<PageDto<TemplateDto>> =
+        apiCall {
+            client.get("templates") {
+                parameter("limit", limit)
+                cursor?.let { parameter("cursor", it) }
+            }
+        }
 
     suspend fun getTemplate(id: String): AppResult<TemplateDto> = apiCall { client.get("templates/$id") }
 

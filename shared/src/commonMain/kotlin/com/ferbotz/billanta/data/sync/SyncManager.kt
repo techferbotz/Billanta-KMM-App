@@ -12,11 +12,13 @@ import com.ferbotz.billanta.data.api.toDto
 import com.ferbotz.billanta.data.api.toPatchBody
 import com.ferbotz.billanta.data.local.CustomerLocalDataSource
 import com.ferbotz.billanta.data.local.InvoiceLocalDataSource
+import com.ferbotz.billanta.data.local.ProductLocalDataSource
 import com.ferbotz.billanta.data.local.ProfileLocalDataSource
 import com.ferbotz.billanta.data.local.SyncMetaLocal
 import com.ferbotz.billanta.data.local.toDomain
 import com.ferbotz.billanta.domain.model.CustomerRecord
 import com.ferbotz.billanta.domain.model.InvoiceRecord
+import com.ferbotz.billanta.domain.model.ProductRecord
 import com.ferbotz.billanta.session.AuthState
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -42,8 +44,9 @@ data class SyncStatus(
  * The offline-sync engine. Push-then-pull, in this order:
  *
  *  1. company + settings (PUT when dirty)
- *  2. customers: replay local ops (POST new / PATCH edited / DELETE tombstoned), then pull the
- *     full list and reconcile server-side deletions
+ *  2. customers, then products: replay local ops (POST new / PATCH edited / DELETE removed), then
+ *     pull the full list and reconcile deletions made on another device. Neither has a batch sync
+ *     endpoint — they change one row at a time — so both replay per row
  *  3. invoices: DELETE local tombstones, then `/invoices/sync` — dirty rows pushed in batches
  *     (server applies last-write-wins by `updatedAt`), pulled pages applied LWW locally, cursor
  *     persisted, draining while `hasMore`
@@ -58,6 +61,7 @@ class SyncManager(
     private val authState: StateFlow<AuthState>,
     private val invoiceLocal: InvoiceLocalDataSource,
     private val customerLocal: CustomerLocalDataSource,
+    private val productLocal: ProductLocalDataSource,
     private val profileLocal: ProfileLocalDataSource,
     private val syncMeta: SyncMetaLocal,
     private val connectivity: ConnectivityObserver,
@@ -127,6 +131,11 @@ class SyncManager(
         note(pushSettings())
         note(pushCustomers())
         note(pullCustomers())
+        // Ids pushed in this pass are shielded from the pull's "deleted elsewhere" reconcile: a
+        // server that has not yet made the write visible would otherwise look like a deletion.
+        val justPushedProducts = mutableSetOf<String>()
+        note(pushProducts(justPushedProducts))
+        note(pullProducts(justPushedProducts))
         note(pushInvoiceTombstones())
         note(syncInvoicesWithServer())
         note(pullCompanyIfClean())
@@ -265,6 +274,92 @@ class SyncManager(
         return null
     }
 
+    // ---- products ------------------------------------------------------------------------------
+
+    /**
+     * Replayed per row like customers — there is deliberately no `/products/sync`, since a
+     * catalogue changes rarely and one entry at a time.
+     */
+    private suspend fun pushProducts(pushedIds: MutableSet<String>): AppError? {
+        var firstError: AppError? = null
+        for (row in productLocal.dirtyRows()) {
+            val record = row.toDomain()
+            val error: AppError? = when {
+                row.isDeleted != 0L -> when (val result = api.deleteProduct(row.id)) {
+                    is AppResult.Success -> {
+                        productLocal.hardDelete(row.id)
+                        null
+                    }
+                    is AppResult.Failure -> {
+                        val err = result.error
+                        if (err is AppError.Http && err.status == 404) {
+                            productLocal.hardDelete(row.id) // already gone server-side
+                            null
+                        } else err
+                    }
+                }
+
+                row.isSynced != 0L -> when (val result = api.patchProduct(row.id, record.toPatchBody())) {
+                    is AppResult.Success -> {
+                        productLocal.markSynced(row.id, row.updatedAtMillis)
+                        pushedIds += row.id
+                        null
+                    }
+                    is AppResult.Failure -> {
+                        val err = result.error
+                        if (err is AppError.Http && err.status == 404) {
+                            createProductOnServer(record, row.updatedAtMillis, pushedIds)
+                        } else err
+                    }
+                }
+
+                else -> createProductOnServer(record, row.updatedAtMillis, pushedIds)
+            }
+            if (firstError == null && error != null) firstError = error
+        }
+        return firstError
+    }
+
+    private suspend fun createProductOnServer(
+        record: ProductRecord,
+        rowUpdatedAtMillis: Long,
+        pushedIds: MutableSet<String>,
+    ): AppError? = when (val result = api.createProduct(record.toDto())) {
+        is AppResult.Success -> {
+            productLocal.markSynced(record.id, rowUpdatedAtMillis)
+            pushedIds += record.id
+            null
+        }
+        is AppResult.Failure -> result.error
+    }
+
+    private suspend fun pullProducts(justPushed: Set<String>): AppError? {
+        val serverIds = mutableSetOf<String>()
+        var cursor: String? = null
+        while (true) {
+            val page = when (val result = api.listProducts(limit = 100, cursor = cursor)) {
+                is AppResult.Success -> result.value
+                is AppResult.Failure -> return result.error
+            }
+            for (dto in page.items) {
+                val record = try {
+                    dto.toDomain(fallbackUpdatedAtMillis = clock.nowMillis())
+                } catch (_: IllegalArgumentException) {
+                    continue
+                }
+                serverIds += record.id
+                productLocal.applyServer(record)
+            }
+            cursor = page.nextCursor
+            if (!page.hasMore || cursor == null) break
+        }
+        // A full page-through succeeded, so anything synced+clean the server no longer has was
+        // deleted from another device.
+        (productLocal.syncedCleanIds().toSet() - serverIds - justPushed)
+            .forEach { productLocal.hardDelete(it) }
+        return null
+    }
+
     // ---- invoices ------------------------------------------------------------------------------
 
     /** Local soft-deletes replay as DELETE /invoices/:id (idempotent; 404 counts as done). */
@@ -272,7 +367,9 @@ class SyncManager(
         var firstError: AppError? = null
         val tombstones = invoiceLocal.dirtyRecords().filter { it.deletedAtMillis != null }
         for (record in tombstones) {
-            when (val result = api.deleteInvoice(record.id)) {
+            // Send the moment the user actually deleted it, not the moment we got around to
+            // pushing — a queued delete can be hours old, and the sync cursor orders by this.
+            when (val result = api.deleteInvoice(record.id, record.deletedAtMillis)) {
                 is AppResult.Success -> invoiceLocal.hardDelete(record.id)
                 is AppResult.Failure -> {
                     val err = result.error
@@ -343,6 +440,7 @@ class SyncManager(
     private suspend fun hasPendingWork(): Boolean =
         invoiceLocal.dirtyRecords().isNotEmpty() ||
             customerLocal.dirtyRows().isNotEmpty() ||
+            productLocal.dirtyRows().isNotEmpty() ||
             profileLocal.isCompanyDirty() ||
             profileLocal.isSettingsDirty()
 

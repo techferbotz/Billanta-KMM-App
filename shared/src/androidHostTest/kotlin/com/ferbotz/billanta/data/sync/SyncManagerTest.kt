@@ -10,12 +10,14 @@ import com.ferbotz.billanta.data.api.CustomerDto
 import com.ferbotz.billanta.data.api.Envelope
 import com.ferbotz.billanta.data.api.InvoiceDto
 import com.ferbotz.billanta.data.api.PageDto
+import com.ferbotz.billanta.data.api.ProductDto
 import com.ferbotz.billanta.data.api.SettingsDto
 import com.ferbotz.billanta.data.api.SyncConflictDto
 import com.ferbotz.billanta.data.api.SyncRequestDto
 import com.ferbotz.billanta.data.api.SyncResponseDto
 import com.ferbotz.billanta.data.db.BillantaDb
 import com.ferbotz.billanta.data.local.CustomerLocalDataSource
+import com.ferbotz.billanta.data.local.ProductLocalDataSource
 import com.ferbotz.billanta.data.local.InvoiceLocalDataSource
 import com.ferbotz.billanta.data.local.ProfileLocalDataSource
 import com.ferbotz.billanta.data.local.SyncMetaLocal
@@ -64,6 +66,7 @@ class SyncManagerTest {
     private class Harness(
         val invoiceLocal: InvoiceLocalDataSource,
         val customerLocal: CustomerLocalDataSource,
+        val productLocal: ProductLocalDataSource,
         val profileLocal: ProfileLocalDataSource,
         val syncMeta: SyncMetaLocal,
         val api: BillantaApi,
@@ -87,6 +90,8 @@ class SyncManagerTest {
                     captured += body
                     ok(BillantaJson.encodeToString(Envelope(success = true, data = responder.fn(body))))
                 }
+                path == "/products" && request.method == HttpMethod.Get ->
+                    ok(BillantaJson.encodeToString(Envelope(success = true, data = PageDto<ProductDto>(emptyList(), null, false))))
                 path == "/customers" && request.method == HttpMethod.Get ->
                     ok(BillantaJson.encodeToString(Envelope(success = true, data = PageDto<CustomerDto>(emptyList(), null, false))))
                 path == "/company" && request.method == HttpMethod.Get ->
@@ -104,6 +109,7 @@ class SyncManagerTest {
         return Harness(
             invoiceLocal = InvoiceLocalDataSource(db, dispatcher),
             customerLocal = CustomerLocalDataSource(db, dispatcher),
+            productLocal = ProductLocalDataSource(db, dispatcher),
             profileLocal = ProfileLocalDataSource(db, dispatcher),
             syncMeta = SyncMetaLocal(db, dispatcher),
             api = BillantaApi(client),
@@ -117,6 +123,7 @@ class SyncManagerTest {
         authState = MutableStateFlow<AuthState>(AuthState.SignedIn(UserAccount(id = "user-1", email = "a@b.com"))),
         invoiceLocal = h.invoiceLocal,
         customerLocal = h.customerLocal,
+        productLocal = h.productLocal,
         profileLocal = h.profileLocal,
         syncMeta = h.syncMeta,
         connectivity = AlwaysOnlineConnectivity,

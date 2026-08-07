@@ -2,6 +2,8 @@ package com.ferbotz.billanta.data.api
 
 import com.ferbotz.billanta.domain.model.CompanySnapshot
 import com.ferbotz.billanta.domain.model.CustomerSnapshot
+import kotlinx.serialization.EncodeDefault
+import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.Serializable
 
 // ---- auth --------------------------------------------------------------------------------------
@@ -92,6 +94,29 @@ data class CustomerDto(
     val updatedAt: String? = null,
 )
 
+// ---- products ----------------------------------------------------------------------------------
+
+/**
+ * Same shape and rules as [CustomerDto]: client uuid, idempotent by (userId, id).
+ *
+ * `unitPrice` and `taxRatePercent` are force-encoded: our Json drops values equal to their default,
+ * which would silently omit a "18" tax rate or a zero price and let the server substitute its own.
+ * They keep defaults so a response that omits them still decodes.
+ */
+@OptIn(ExperimentalSerializationApi::class)
+@Serializable
+data class ProductDto(
+    val id: String? = null,
+    val name: String,
+    val hsnSac: String? = null,
+    /** Paise, as a decimal string, like every other money field. */
+    @EncodeDefault val unitPrice: String = "0",
+    @EncodeDefault val taxRatePercent: String = "18",
+    val unit: String? = null,
+    val createdAt: String? = null,
+    val updatedAt: String? = null,
+)
+
 // ---- pagination --------------------------------------------------------------------------------
 
 @Serializable
@@ -129,14 +154,15 @@ data class GstSplitDto(
  * inbound, totals/gstSplit are the server's authoritative values. `updatedAt` is the client's
  * edit time and drives last-write-wins in `/invoices/sync`.
  */
+@OptIn(ExperimentalSerializationApi::class)
 @Serializable
 data class InvoiceDto(
     val id: String,
     val invoiceNumber: String,
     val invoiceDate: String,
     val dueDate: String? = null,
-    val currency: String = "INR",
-    val status: String = "Draft",
+    @EncodeDefault val currency: String = "INR",
+    @EncodeDefault val status: String = "Draft",
     val templateId: String? = null,
     val templateVersion: Long? = null,
     val customerId: String? = null,
@@ -145,7 +171,8 @@ data class InvoiceDto(
     val notes: String? = null,
     val discountType: String? = null,
     val discountValue: String? = null,
-    val discountBeforeTax: Boolean = true,
+    /** Force-encoded: it selects the tax mode, so it must never be inferred. */
+    @EncodeDefault val discountBeforeTax: Boolean = true,
     val items: List<InvoiceItemDto> = emptyList(),
     val subtotal: String? = null,
     val discountTotal: String? = null,
@@ -191,11 +218,6 @@ data class TemplateDto(
     val currentVersion: Long = 1,
     val checksum: String = "",
     val isActive: Boolean = true,
-)
-
-@Serializable
-data class TemplateListDto(
-    val items: List<TemplateDto> = emptyList(),
 )
 
 // ---- media -------------------------------------------------------------------------------------

@@ -7,6 +7,7 @@ import com.ferbotz.billanta.domain.model.CustomerRecord
 import com.ferbotz.billanta.domain.model.InvoiceDocStatus
 import com.ferbotz.billanta.domain.model.InvoiceItemRecord
 import com.ferbotz.billanta.domain.model.InvoiceRecord
+import com.ferbotz.billanta.domain.model.ProductRecord
 import com.ferbotz.billanta.domain.model.TemplateInfo
 import com.ferbotz.billanta.domain.model.UserAccount
 import com.ferbotz.billanta.domain.model.UserSettings
@@ -104,6 +105,38 @@ fun CustomerRecord.toPatchBody(): JsonObject = buildJsonObject {
     putNullable("stateCode", stateCode)
     putNullable("pincode", pincode)
     putNullable("country", country)
+}
+
+// ---- products ----------------------------------------------------------------------------------
+
+fun ProductDto.toDomain(fallbackUpdatedAtMillis: Long): ProductRecord = ProductRecord(
+    id = requireNotNull(id) { "product from server has no id" },
+    name = name,
+    hsnSac = hsnSac,
+    unitPricePaise = paiseOrZero(unitPrice),
+    taxRatePercent = taxRatePercent,
+    unit = unit,
+    createdAtMillis = isoToMillis(createdAt),
+    updatedAtMillis = isoToMillis(updatedAt) ?: fallbackUpdatedAtMillis,
+    pendingSync = false,
+)
+
+fun ProductRecord.toDto() = ProductDto(
+    id = id,
+    name = name,
+    hsnSac = hsnSac,
+    unitPrice = unitPricePaise.toString(),
+    taxRatePercent = taxRatePercent,
+    unit = unit,
+)
+
+/** Full-field patch (explicit nulls) so clearing a field offline clears it on the server too. */
+fun ProductRecord.toPatchBody(): JsonObject = buildJsonObject {
+    put("name", JsonPrimitive(name))
+    putNullable("hsnSac", hsnSac)
+    put("unitPrice", JsonPrimitive(unitPricePaise.toString()))
+    put("taxRatePercent", JsonPrimitive(taxRatePercent))
+    putNullable("unit", unit)
 }
 
 // ---- invoices ----------------------------------------------------------------------------------

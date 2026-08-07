@@ -108,6 +108,7 @@ class AppContainer(
         authState = userManager.authState,
         invoiceLocal = invoiceLocal,
         customerLocal = customerLocal,
+        productLocal = productLocal,
         profileLocal = profileLocal,
         syncMeta = syncMetaLocal,
         connectivity = connectivity,

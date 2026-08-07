@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.dp
 import com.ferbotz.billanta.domain.model.InvoiceRecord
 import com.ferbotz.billanta.render.TemplateDoc
 import com.ferbotz.billanta.state.BillantaState
+import com.ferbotz.billanta.render.CustomisationControl
 import com.ferbotz.billanta.state.PremiumSheet
 import com.ferbotz.billanta.theme.BillantaTheme
 import com.ferbotz.billanta.ui.AppIcon
@@ -56,94 +57,102 @@ fun EditInvoiceSheetContent(
     ) {
         Text("Invoice design", style = BillantaTheme.type.sectionTitle, color = c.textPrimary)
 
-        Column {
-            Overline("Template")
-            Spacer(Modifier.height(10.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                state.templates.take(4).forEach { template ->
-                    TemplateChoice(
-                        name = template.name,
-                        premium = template.isPremium,
-                        selected = template.id == (record.templateId ?: state.selectedTemplateId),
-                        onClick = {
-                            if (template.isPremium && !state.isPremium) state.openSheet(PremiumSheet(template.id))
-                            else state.setInvoiceTemplate(record.id, template)
-                        },
-                        modifier = Modifier.weight(1f),
-                    )
-                }
-            }
-        }
-
-        val tokens = doc?.themeTokens.orEmpty()
-        if (tokens.isNotEmpty()) {
-            tokens.forEach { token ->
-                Column {
-                    Overline(token.label)
+        // The template decides which controls exist, what they are called and what order they come
+        // in; this only decides how each kind is drawn. A control naming a token or section the
+        // template does not declare is skipped rather than rendered dead.
+        val template = doc
+        if (template != null) template.controls.forEach { control ->
+            when (control) {
+                is CustomisationControl.TemplatePicker -> Column {
+                    Overline(control.title)
                     Spacer(Modifier.height(10.dp))
-                    val current = record.themeOverrides[token.name] ?: token.defaultArgb
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        (listOf(token.defaultArgb) + PALETTE.filterNot { it == token.defaultArgb })
-                            .take(7)
-                            .forEach { argb ->
-                                ColorChoice(
-                                    argb = argb,
-                                    selected = current == argb,
-                                    isTemplateDefault = argb == token.defaultArgb,
-                                    onClick = {
-                                        val overrides = record.themeOverrides.toMutableMap()
-                                        // Choosing the template's own colour clears the override
-                                        // rather than pinning it, so the invoice follows the
-                                        // template if its palette is ever revised.
-                                        if (argb == token.defaultArgb) overrides.remove(token.name)
-                                        else overrides[token.name] = argb
-                                        state.setInvoiceCustomisation(record.id, overrides, record.hiddenSections)
-                                    },
-                                )
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        state.templates.take(4).forEach { template ->
+                            TemplateChoice(
+                                name = template.name,
+                                premium = template.isPremium,
+                                selected = template.id == (record.templateId ?: state.selectedTemplateId),
+                                onClick = {
+                                    if (template.isPremium && !state.isPremium) {
+                                        state.openSheet(PremiumSheet(template.id))
+                                    } else {
+                                        state.setInvoiceTemplate(record.id, template)
+                                    }
+                                },
+                                modifier = Modifier.weight(1f),
+                            )
+                        }
+                    }
+                }
+
+                is CustomisationControl.Color -> {
+                    val token = template.themeTokens.firstOrNull { it.name == control.token }
+                    if (token != null) {
+                        Column {
+                            Overline(control.title)
+                            Spacer(Modifier.height(10.dp))
+                            val current = record.themeOverrides[token.name] ?: token.defaultArgb
+                            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                (listOf(token.defaultArgb) + PALETTE.filterNot { it == token.defaultArgb })
+                                    .take(7)
+                                    .forEach { argb ->
+                                        ColorChoice(
+                                            argb = argb,
+                                            selected = current == argb,
+                                            isTemplateDefault = argb == token.defaultArgb,
+                                            onClick = {
+                                                val overrides = record.themeOverrides.toMutableMap()
+                                                // Choosing the template's own colour clears the
+                                                // override rather than pinning it, so the invoice
+                                                // follows the template if its palette is revised.
+                                                if (argb == token.defaultArgb) overrides.remove(token.name)
+                                                else overrides[token.name] = argb
+                                                state.setInvoiceCustomisation(record.id, overrides, record.hiddenSections)
+                                            },
+                                        )
+                                    }
                             }
+                        }
+                    }
+                }
+
+                is CustomisationControl.SectionToggle -> {
+                    val section = template.sections.firstOrNull { it.id == control.section }
+                    if (section != null && section.hidable) {
+                        val visible = section.id !in record.hiddenSections
+                        Row(
+                            Modifier.fillMaxWidth().padding(vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                control.title,
+                                style = BillantaTheme.type.bodyStrong,
+                                color = c.textPrimary,
+                                modifier = Modifier.weight(1f),
+                            )
+                            Switch(
+                                checked = visible,
+                                onCheckedChange = { show ->
+                                    val hidden = record.hiddenSections.toMutableSet()
+                                    if (show) hidden.remove(section.id) else hidden.add(section.id)
+                                    state.setInvoiceCustomisation(record.id, record.themeOverrides, hidden)
+                                },
+                                colors = SwitchDefaults.colors(
+                                    checkedThumbColor = c.onPrimary,
+                                    checkedTrackColor = c.primary,
+                                    uncheckedTrackColor = c.surfaceAlt,
+                                    uncheckedBorderColor = c.border,
+                                    uncheckedThumbColor = c.textMuted,
+                                ),
+                            )
+                        }
                     }
                 }
             }
         }
 
-        val hidable = doc?.sections?.filter { it.hidable }.orEmpty()
-        if (hidable.isNotEmpty()) {
-            Column {
-                Overline("Sections")
-                Spacer(Modifier.height(4.dp))
-                hidable.forEach { section ->
-                    val visible = section.id !in record.hiddenSections
-                    Row(
-                        Modifier.fillMaxWidth().padding(vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(
-                            section.label,
-                            style = BillantaTheme.type.bodyStrong,
-                            color = c.textPrimary,
-                            modifier = Modifier.weight(1f),
-                        )
-                        Switch(
-                            checked = visible,
-                            onCheckedChange = { show ->
-                                val hidden = record.hiddenSections.toMutableSet()
-                                if (show) hidden.remove(section.id) else hidden.add(section.id)
-                                state.setInvoiceCustomisation(record.id, record.themeOverrides, hidden)
-                            },
-                            colors = SwitchDefaults.colors(
-                                checkedThumbColor = c.onPrimary,
-                                checkedTrackColor = c.primary,
-                                uncheckedTrackColor = c.surfaceAlt,
-                                uncheckedBorderColor = c.border,
-                                uncheckedThumbColor = c.textMuted,
-                            ),
-                        )
-                    }
-                }
-            }
-        }
-
-        if (doc != null && tokens.isEmpty() && hidable.isEmpty()) {
+        // A template with nothing but a switcher would otherwise show an unexplained empty sheet.
+        if (template != null && template.controls.none { it !is CustomisationControl.TemplatePicker }) {
             Text(
                 "This template doesn't offer colour or section options yet. Other templates might.",
                 style = BillantaTheme.type.caption,

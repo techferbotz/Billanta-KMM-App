@@ -42,6 +42,12 @@ WHERE isDeleted = 0
 ORDER BY usageCount DESC, lastUsedAtMillis DESC
 LIMIT :limit;
 
+byIdIncludingDeleted:
+SELECT * FROM productRow WHERE id = ?;
+
+syncedCleanIds:
+SELECT id FROM productRow WHERE dirty = 0 AND isSynced = 1;
+
 dirtyRows:
 SELECT * FROM productRow WHERE dirty = 1;
 

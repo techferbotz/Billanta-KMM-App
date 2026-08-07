@@ -17,11 +17,54 @@ data class TemplateDoc(
     val themeTokens: List<ThemeToken> = emptyList(),
     /** Blocks the user may switch off. Empty on templates that predate theming. */
     val sections: List<TemplateSection> = emptyList(),
+    /**
+     * The controls the edit sheet should offer, in the order the template lists them. Empty when
+     * the template does not declare any, in which case [controls] synthesises a sensible default.
+     */
+    val declaredControls: List<CustomisationControl> = emptyList(),
 ) {
     val isCustomisable: Boolean get() = themeTokens.isNotEmpty() || sections.any { it.hidable }
 
     fun defaultColorFor(token: String): Long? =
         themeTokens.firstOrNull { it.name == token }?.defaultArgb
+
+    /**
+     * What the edit sheet actually renders. A template that declares its own controls decides the
+     * order, the titles and which of its tokens and sections are exposed at all; one that does not
+     * falls back to everything it declared under [themeTokens] and [sections], which is what the
+     * app did before templates could describe their own controls.
+     */
+    val controls: List<CustomisationControl>
+        get() = declaredControls.ifEmpty {
+            buildList {
+                add(CustomisationControl.TemplatePicker("Template"))
+                themeTokens.forEach { add(CustomisationControl.Color(it.label, it.name)) }
+                sections.filter { it.hidable }
+                    .forEach { add(CustomisationControl.SectionToggle(it.label, it.id)) }
+            }
+        }
+}
+
+/**
+ * A control the template asks the app to show, so that what is customisable travels with the
+ * template rather than being hard-coded per template in the app.
+ *
+ * The template says *what* is needed and what to call it; the app decides *how* to present it —
+ * which swatches are in the palette, which templates are on offer. An unrecognised `type` is
+ * dropped at parse time, so a backend can introduce a new kind of control before the app can
+ * render it without breaking anything.
+ */
+sealed interface CustomisationControl {
+    val title: String
+
+    /** Pick a colour for the named theme token. */
+    data class Color(override val title: String, val token: String) : CustomisationControl
+
+    /** Show or hide the named section. */
+    data class SectionToggle(override val title: String, val section: String) : CustomisationControl
+
+    /** Switch to another template. The list of templates comes from the app. */
+    data class TemplatePicker(override val title: String) : CustomisationControl
 }
 
 /** A named colour the template exposes, e.g. `accent`. */
