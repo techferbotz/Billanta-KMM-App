@@ -67,6 +67,8 @@ class InvoiceLocalDataSource(
                 updatedAtMillis = record.updatedAtMillis,
                 dirty = dirty.toDbLong(),
                 syncError = if (dirty) null else record.syncError,
+                themeOverridesJson = encodeThemeOverrides(record.themeOverrides),
+                hiddenSectionsJson = encodeHiddenSections(record.hiddenSections),
             )
             itemsQ.deleteForInvoice(record.id)
             record.items.forEachIndexed { idx, item ->

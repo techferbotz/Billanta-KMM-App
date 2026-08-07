@@ -22,8 +22,12 @@ class InvoiceRenderer(
     private val imageSizes: Map<String, SizePt> = emptyMap(),
 ) {
 
-    fun render(doc: TemplateDoc, record: InvoiceRecord): RenderedDocument {
-        val tree = TemplateFlattener.flatten(doc, contextFor(record))
+    fun render(
+        doc: TemplateDoc,
+        record: InvoiceRecord,
+        theme: InvoiceTheme = InvoiceTheme.NONE,
+    ): RenderedDocument {
+        val tree = TemplateFlattener.flatten(doc, contextFor(record), theme)
         val engine = LayoutEngine(shaper, imageSizes)
         val root = engine.layout(tree, LayoutEngine.pageContentWidth(doc.page))
         return Paginator(engine).paginate(root, doc.page)

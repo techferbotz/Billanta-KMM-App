@@ -1,0 +1,26 @@
+-- Schema 1 -> 2
+--   * per-invoice template customisation (accent colours, switched-off sections)
+--   * the reusable product catalogue
+
+ALTER TABLE invoiceRow ADD COLUMN themeOverridesJson TEXT;
+ALTER TABLE invoiceRow ADD COLUMN hiddenSectionsJson TEXT;
+
+CREATE TABLE productRow (
+    id TEXT NOT NULL PRIMARY KEY,
+    name TEXT NOT NULL,
+    nameKey TEXT NOT NULL,
+    hsnSac TEXT,
+    unitPrice INTEGER NOT NULL,
+    taxRatePercent TEXT NOT NULL,
+    unit TEXT,
+    usageCount INTEGER NOT NULL DEFAULT 1,
+    lastUsedAtMillis INTEGER NOT NULL,
+    createdAtMillis INTEGER,
+    updatedAtMillis INTEGER NOT NULL,
+    dirty INTEGER NOT NULL DEFAULT 0,
+    isDeleted INTEGER NOT NULL DEFAULT 0,
+    isSynced INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE UNIQUE INDEX idx_product_name_key ON productRow(nameKey);
+CREATE INDEX idx_product_recent ON productRow(lastUsedAtMillis);

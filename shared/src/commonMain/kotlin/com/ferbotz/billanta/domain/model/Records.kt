@@ -113,7 +113,37 @@ data class InvoiceRecord(
     val pendingSync: Boolean = false,
     /** Server-reported sync conflict (e.g. duplicate invoice number), shown to the user. */
     val syncError: String? = null,
+    /** Template colour tokens the user has changed: token name → ARGB. */
+    val themeOverrides: Map<String, Long> = emptyMap(),
+    /** Template sections the user has switched off, by section id. */
+    val hiddenSections: Set<String> = emptySet(),
 )
+
+/**
+ * A reusable product or service, built from the line items actually invoiced and offered back
+ * when adding the next one. [nameKey] is the normalised name used to recognise a repeat.
+ */
+data class ProductRecord(
+    val id: String,
+    val name: String,
+    val hsnSac: String? = null,
+    val unitPricePaise: Long = 0,
+    val taxRatePercent: String = "18",
+    val unit: String? = null,
+    val usageCount: Long = 1,
+    val lastUsedAtMillis: Long = 0,
+    val createdAtMillis: Long? = null,
+    val updatedAtMillis: Long = 0,
+    val pendingSync: Boolean = false,
+) {
+    companion object {
+        /** Case- and whitespace-insensitive identity, so "Logo design " repeats "logo  design". */
+        fun nameKeyOf(name: String): String =
+            name.trim().lowercase().replace(WHITESPACE, " ")
+
+        private val WHITESPACE = Regex("\\s+")
+    }
+}
 
 /** What the user edits in the create/edit flow — totals are computed, never entered. */
 data class InvoiceDraft(

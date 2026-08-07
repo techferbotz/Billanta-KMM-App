@@ -28,7 +28,11 @@ CREATE TABLE invoiceRow (
     createdAtMillis INTEGER,
     updatedAtMillis INTEGER NOT NULL,
     dirty INTEGER NOT NULL DEFAULT 0,
-    syncError TEXT
+    syncError TEXT,
+    -- Template customisation: token name -> "#rrggbb", and the section ids switched off.
+    -- Local-only until the backend accepts them (contract request APP-003).
+    themeOverridesJson TEXT,
+    hiddenSectionsJson TEXT
 );
 
 CREATE INDEX idx_invoice_status ON invoiceRow(status);
@@ -41,8 +45,9 @@ INSERT OR REPLACE INTO invoiceRow(
     id, invoiceNumber, invoiceDateMillis, dueDateMillis, currency, status, templateId,
     templateVersion, customerId, customerName, customerSnapshotJson, companySnapshotJson, notes,
     discountType, discountValue, discountBeforeTax, subtotal, discountTotal, taxTotal, grandTotal,
-    pdfPath, deletedAtMillis, createdAtMillis, updatedAtMillis, dirty, syncError
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+    pdfPath, deletedAtMillis, createdAtMillis, updatedAtMillis, dirty, syncError,
+    themeOverridesJson, hiddenSectionsJson
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
 byId:
 SELECT * FROM invoiceRow WHERE id = ?;

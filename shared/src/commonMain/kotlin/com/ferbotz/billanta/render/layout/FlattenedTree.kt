@@ -1,6 +1,7 @@
 package com.ferbotz.billanta.render.layout
 
 import com.ferbotz.billanta.render.BindingContext
+import com.ferbotz.billanta.render.InvoiceTheme
 import com.ferbotz.billanta.render.PageSpec
 import com.ferbotz.billanta.render.TBox
 import com.ferbotz.billanta.render.TCell
@@ -76,9 +77,31 @@ fun LNode.imageUrls(): List<String> {
 
 object TemplateFlattener {
 
-    fun flatten(doc: TemplateDoc, ctx: BindingContext): LNode {
-        val nodes = flattenNode(doc.root, ctx, emptyMap(), doc.page)
+    fun flatten(doc: TemplateDoc, ctx: BindingContext, theme: InvoiceTheme = InvoiceTheme.NONE): LNode {
+        val nodes = flattenNode(doc.root, ctx, emptyMap(), doc.page, theme)
         return nodes.singleOrNull() ?: LBox(doc.root.style, nodes)
+    }
+
+    /**
+     * Replaces the colours the user has overridden. The template's own hex stays in `style`, so a
+     * node with no token mapping — or a token the user has not touched — is untouched.
+     */
+    private fun themed(style: TStyle, tokens: Map<String, String>?, theme: InvoiceTheme): TStyle {
+        if (tokens.isNullOrEmpty() || theme.colorOverrides.isEmpty()) return style
+        var themed = style
+        tokens.forEach { (styleKey, token) ->
+            val color = theme.colorOverrides[token] ?: return@forEach
+            themed = when (styleKey) {
+                "color" -> themed.copy(color = color)
+                "backgroundColor" -> themed.copy(backgroundColor = color)
+                "borderTopColor" -> themed.copy(borderTopColor = color)
+                "borderRightColor" -> themed.copy(borderRightColor = color)
+                "borderBottomColor" -> themed.copy(borderBottomColor = color)
+                "borderLeftColor" -> themed.copy(borderLeftColor = color)
+                else -> themed // unknown style key: ignore, same as the parser does
+            }
+        }
+        return themed
     }
 
     /** Returns a list because `repeat` expands to many nodes and `conditional` may drop to none. */
@@ -87,27 +110,36 @@ object TemplateFlattener {
         ctx: BindingContext,
         aliases: Map<String, Any?>,
         page: PageSpec,
+        theme: InvoiceTheme,
     ): List<LNode> {
         if (node.style.isHidden) return emptyList()
+        // A section the user switched off disappears along with everything inside it.
+        if (node.section != null && node.section in theme.hiddenSections) return emptyList()
         return when (node) {
             is TRepeat -> {
                 val items = ctx.resolveRaw(node.path, aliases) as? List<*> ?: emptyList<Any?>()
                 items.flatMap { item ->
-                    flattenNode(node.child, ctx, aliases + (node.alias to item), page)
+                    flattenNode(node.child, ctx, aliases + (node.alias to item), page, theme)
                 }
             }
 
             is TConditional ->
-                if (ctx.isTruthy(node.path, aliases)) flattenNode(node.child, ctx, aliases, page)
+                if (ctx.isTruthy(node.path, aliases)) flattenNode(node.child, ctx, aliases, page, theme)
                 else emptyList()
 
-            is TBox -> listOf(LBox(node.style, node.children.flatMap { flattenNode(it, ctx, aliases, page) }))
+            is TBox -> listOf(
+                LBox(
+                    themed(node.style, node.tokens, theme),
+                    node.children.flatMap { flattenNode(it, ctx, aliases, page, theme) },
+                ),
+            )
 
             is TText -> {
-                val runs = buildRuns(node, ctx, aliases, page)
+                val style = themed(node.style, node.tokens, theme)
+                val runs = buildRuns(node, style, ctx, aliases, page)
                 // An element whose text resolves to nothing generates no line box in CSS, so it
                 // must not leave a gap behind — this is how absent optional fields disappear.
-                if (runs.isEmpty()) emptyList() else listOf(LText(node.style, runs, paragraphStyleOf(node.style, page)))
+                if (runs.isEmpty()) emptyList() else listOf(LText(style, runs, paragraphStyleOf(style, page)))
             }
 
             is TImage -> {
@@ -118,20 +150,20 @@ object TemplateFlattener {
                 if (url.isBlank()) emptyList() else listOf(LImage(node.style, url, node.fit == "cover"))
             }
 
-            is TDivider -> listOf(LDivider(node.style))
+            is TDivider -> listOf(LDivider(themed(node.style, node.tokens, theme)))
 
             is TTable -> listOf(
                 LTable(
-                    style = node.style,
+                    style = themed(node.style, node.tokens, theme),
                     columns = node.columns,
-                    header = node.header.mapNotNull { flattenRow(it, ctx, aliases, page) },
-                    body = flattenBody(node.body, ctx, aliases, page),
-                    footer = node.footer.mapNotNull { flattenRow(it, ctx, aliases, page) },
+                    header = node.header.mapNotNull { flattenRow(it, ctx, aliases, page, theme) },
+                    body = flattenBody(node.body, ctx, aliases, page, theme),
+                    footer = node.footer.mapNotNull { flattenRow(it, ctx, aliases, page, theme) },
                 ),
             )
 
-            is TRow -> listOfNotNull(flattenRow(node, ctx, aliases, page))
-            is TCell -> listOf(flattenCell(node, ctx, aliases, page))
+            is TRow -> listOfNotNull(flattenRow(node, ctx, aliases, page, theme))
+            is TCell -> listOf(flattenCell(node, ctx, aliases, page, theme))
         }
     }
 
@@ -140,13 +172,14 @@ object TemplateFlattener {
         ctx: BindingContext,
         aliases: Map<String, Any?>,
         page: PageSpec,
+        theme: InvoiceTheme,
     ): List<LRow> = when (body) {
         null -> emptyList()
-        is TTableBody.Rows -> body.rows.mapNotNull { flattenRow(it, ctx, aliases, page) }
+        is TTableBody.Rows -> body.rows.mapNotNull { flattenRow(it, ctx, aliases, page, theme) }
         is TTableBody.Repeat -> {
             val items = ctx.resolveRaw(body.path, aliases) as? List<*> ?: emptyList<Any?>()
             items.mapNotNull { item ->
-                flattenRow(body.row, ctx, aliases + (body.alias to item), page)
+                flattenRow(body.row, ctx, aliases + (body.alias to item), page, theme)
             }
         }
     }
@@ -156,9 +189,14 @@ object TemplateFlattener {
         ctx: BindingContext,
         aliases: Map<String, Any?>,
         page: PageSpec,
+        theme: InvoiceTheme,
     ): LRow? {
         if (row.style.isHidden) return null
-        return LRow(row.style, row.cells.map { flattenCell(it, ctx, aliases, page) })
+        if (row.section != null && row.section in theme.hiddenSections) return null
+        return LRow(
+            themed(row.style, row.tokens, theme),
+            row.cells.map { flattenCell(it, ctx, aliases, page, theme) },
+        )
     }
 
     private fun flattenCell(
@@ -166,10 +204,11 @@ object TemplateFlattener {
         ctx: BindingContext,
         aliases: Map<String, Any?>,
         page: PageSpec,
+        theme: InvoiceTheme,
     ) = LCell(
-        style = cell.style,
+        style = themed(cell.style, cell.tokens, theme),
         colSpan = cell.colSpan.coerceAtLeast(1),
-        children = cell.children.flatMap { flattenNode(it, ctx, aliases, page) },
+        children = cell.children.flatMap { flattenNode(it, ctx, aliases, page, theme) },
     )
 
     /**
@@ -178,6 +217,7 @@ object TemplateFlattener {
      */
     private fun buildRuns(
         node: TText,
+        nodeStyle: TStyle,
         ctx: BindingContext,
         aliases: Map<String, Any?>,
         page: PageSpec,
@@ -188,10 +228,10 @@ object TemplateFlattener {
                 is TValue.Literal -> value.text
                 is TValue.Bind -> ctx.resolveText(value, aliases)
             }
-            val transform = span.style?.textTransform ?: node.style.textTransform
+            val transform = span.style?.textTransform ?: nodeStyle.textTransform
             val text = applyTransform(raw, transform)
             if (text.isEmpty()) return@forEach
-            runs += StyledRun(text, runStyleOf(node.style, span.style, page))
+            runs += StyledRun(text, runStyleOf(nodeStyle, span.style, page))
         }
         // A paragraph of nothing but whitespace still occupies a line, but one of pure empties
         // does not — mirroring how the browser the template was authored against behaves.

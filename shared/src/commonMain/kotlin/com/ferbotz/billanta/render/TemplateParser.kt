@@ -28,6 +28,8 @@ object TemplateParser {
             compilerVersion = root["compilerVersion"]?.jsonPrimitive?.intOrNull ?: 1,
             page = parsePage(root["page"] as? JsonObject),
             root = rootNode,
+            themeTokens = parseThemeTokens(root["theme"] as? JsonObject),
+            sections = parseSections(root["sections"] as? JsonArray),
         )
     } catch (e: CancellationException) {
         throw e
@@ -49,17 +51,53 @@ object TemplateParser {
         )
     }
 
+    /**
+     * Colour tokens a template exposes. Absent on templates compiled before theming existed, which
+     * simply means nothing is customisable — never an error.
+     */
+    private fun parseThemeTokens(obj: JsonObject?): List<ThemeToken> {
+        val tokens = obj?.get("tokens") as? JsonObject ?: return emptyList()
+        return tokens.mapNotNull { (name, value) ->
+            val entry = value as? JsonObject ?: return@mapNotNull null
+            val argb = entry.str("default")?.let { parseHexColor(it) } ?: return@mapNotNull null
+            ThemeToken(name = name, defaultArgb = argb, label = entry.str("label") ?: name)
+        }
+    }
+
+    private fun parseSections(array: JsonArray?): List<TemplateSection> =
+        array?.mapNotNull { element ->
+            val obj = element as? JsonObject ?: return@mapNotNull null
+            val id = obj.str("id") ?: return@mapNotNull null
+            TemplateSection(
+                id = id,
+                label = obj.str("label") ?: id,
+                hidable = (obj["hidable"] as? JsonPrimitive)?.booleanOrNull ?: true,
+            )
+        } ?: emptyList()
+
+    /** Style key → token name, for the colours the user may change. */
+    private fun parseTokens(obj: JsonObject): Map<String, String>? {
+        val tokens = obj["tokens"] as? JsonObject ?: return null
+        val mapped = tokens.mapNotNull { (key, value) ->
+            val name = (value as? JsonPrimitive)?.takeIf { it.isString }?.contentOrNull
+            if (name == null) null else key to name
+        }.toMap()
+        return mapped.ifEmpty { null }
+    }
+
     /** Returns null for unknown/broken nodes — the caller renders nothing for them. */
     fun parseNode(obj: JsonObject): TNode? {
         val style = parseStyle(obj["style"] as? JsonObject)
+        val section = obj.str("section")
+        val tokens = parseTokens(obj)
         return when (obj.str("type")) {
-            "box" -> TBox(style, parseChildren(obj["children"]))
-            "text" -> TText(style, parseSpans(obj["spans"]))
+            "box" -> TBox(style, parseChildren(obj["children"]), section, tokens)
+            "text" -> TText(style, parseSpans(obj["spans"]), section, tokens)
             "image" -> {
                 val source = (obj["source"] as? JsonObject)?.let { parseValue(it) } ?: return null
-                TImage(style, source, obj.str("fit") ?: "contain")
+                TImage(style, source, obj.str("fit") ?: "contain", section, tokens)
             }
-            "divider" -> TDivider(style)
+            "divider" -> TDivider(style, section, tokens)
             "table" -> parseTable(obj, style)
             "row" -> parseRow(obj)
             "cell" -> parseCell(obj)
@@ -124,6 +162,8 @@ object TemplateParser {
             header = parseRows(obj["header"]),
             body = body,
             footer = parseRows(obj["footer"]),
+            section = obj.str("section"),
+            tokens = parseTokens(obj),
         )
     }
 
@@ -133,7 +173,7 @@ object TemplateParser {
     private fun parseRow(obj: JsonObject): TRow? {
         if (obj.str("type") != "row") return null
         val cells = (obj["cells"] as? JsonArray)?.mapNotNull { (it as? JsonObject)?.let(::parseCell) } ?: emptyList()
-        return TRow(parseStyle(obj["style"] as? JsonObject), cells)
+        return TRow(parseStyle(obj["style"] as? JsonObject), cells, obj.str("section"), parseTokens(obj))
     }
 
     private fun parseCell(obj: JsonObject): TCell? {
@@ -142,6 +182,8 @@ object TemplateParser {
             style = parseStyle(obj["style"] as? JsonObject),
             colSpan = (obj["colSpan"]?.jsonPrimitive?.intOrNull ?: 1).coerceIn(1, 64),
             children = parseChildren(obj["children"]),
+            section = obj.str("section"),
+            tokens = parseTokens(obj),
         )
     }
 
@@ -222,6 +264,12 @@ object TemplateParser {
 
     private fun JsonObject.color(key: String): Long? =
         (this[key] as? JsonPrimitive)?.takeIf { it.isString }?.contentOrNull?.let { parseHexColor(it) }
+
+    /** ARGB → `#rrggbb`, the form the backend and our own stored overrides use. */
+    fun formatHexColor(argb: Long): String {
+        val rgb = (argb and 0xFFFFFF).toString(16).padStart(6, '0')
+        return "#$rgb"
+    }
 
     /** `#rrggbb` or `#rrggbbaa` (canonical lowercase per the contract) → ARGB. */
     fun parseHexColor(hex: String): Long? {

@@ -7,6 +7,7 @@ import com.ferbotz.billanta.data.db.CompiledTemplateRow
 import com.ferbotz.billanta.data.db.CustomerRow
 import com.ferbotz.billanta.data.db.InvoiceItemRow
 import com.ferbotz.billanta.data.db.InvoiceRow
+import com.ferbotz.billanta.data.db.ProductRow
 import com.ferbotz.billanta.data.db.SettingsRow
 import com.ferbotz.billanta.data.db.TemplateRow
 import com.ferbotz.billanta.domain.model.CompanyProfile
@@ -17,7 +18,9 @@ import com.ferbotz.billanta.domain.model.CustomerSnapshot
 import com.ferbotz.billanta.domain.model.InvoiceDocStatus
 import com.ferbotz.billanta.domain.model.InvoiceItemRecord
 import com.ferbotz.billanta.domain.model.InvoiceRecord
+import com.ferbotz.billanta.domain.model.ProductRecord
 import com.ferbotz.billanta.domain.model.TemplateInfo
+import com.ferbotz.billanta.render.TemplateParser
 import com.ferbotz.billanta.domain.model.UserAccount
 import com.ferbotz.billanta.domain.model.UserSettings
 import com.ferbotz.billanta.domain.money.DiscountSpec
@@ -72,6 +75,30 @@ internal fun InvoiceItemRow.toDomain() = InvoiceItemRecord(
     taxRatePercent = taxRatePercent, lineTotalPaise = lineTotal, taxAmountPaise = taxAmount,
 )
 
+internal fun ProductRow.toDomain() = ProductRecord(
+    id = id, name = name, hsnSac = hsnSac, unitPricePaise = unitPrice,
+    taxRatePercent = taxRatePercent, unit = unit, usageCount = usageCount,
+    lastUsedAtMillis = lastUsedAtMillis, createdAtMillis = createdAtMillis,
+    updatedAtMillis = updatedAtMillis, pendingSync = dirty.toBool(),
+)
+
+/** `{"accent":"#c2410c"}` — hex strings, so the stored form matches what the API will accept. */
+internal fun encodeThemeOverrides(overrides: Map<String, Long>): String? =
+    if (overrides.isEmpty()) null
+    else BillantaJson.encodeToString(overrides.mapValues { TemplateParser.formatHexColor(it.value) })
+
+internal fun decodeThemeOverrides(json: String?): Map<String, Long> =
+    decodeJsonOrNull<Map<String, String>>(json)
+        ?.mapNotNull { (token, hex) -> TemplateParser.parseHexColor(hex)?.let { token to it } }
+        ?.toMap()
+        ?: emptyMap()
+
+internal fun encodeHiddenSections(sections: Set<String>): String? =
+    if (sections.isEmpty()) null else BillantaJson.encodeToString(sections.toList())
+
+internal fun decodeHiddenSections(json: String?): Set<String> =
+    decodeJsonOrNull<List<String>>(json)?.toSet() ?: emptySet()
+
 internal fun InvoiceRow.toDomain(items: List<InvoiceItemRecord> = emptyList()): InvoiceRecord {
     val discountType = discountType?.let { t -> DiscountType.entries.firstOrNull { it.name == t } }
     return InvoiceRecord(
@@ -103,6 +130,8 @@ internal fun InvoiceRow.toDomain(items: List<InvoiceItemRecord> = emptyList()): 
         updatedAtMillis = updatedAtMillis,
         pendingSync = dirty.toBool(),
         syncError = syncError,
+        themeOverrides = decodeThemeOverrides(themeOverridesJson),
+        hiddenSections = decodeHiddenSections(hiddenSectionsJson),
     )
 }
 

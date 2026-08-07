@@ -113,6 +113,15 @@ class InvoiceRepository(
         return record.asSuccess()
     }
 
+    /** Colour and section choices are presentation-only, but belong to this invoice for good. */
+    suspend fun setCustomisation(
+        id: String,
+        themeOverrides: Map<String, Long>,
+        hiddenSections: Set<String>,
+    ): AppResult<InvoiceRecord> = patchScalars(id) {
+        it.copy(themeOverrides = themeOverrides, hiddenSections = hiddenSections)
+    }
+
     /** Template only affects rendering; the change re-syncs as an idempotent re-POST. */
     suspend fun setTemplate(id: String, templateId: String, templateVersion: Long?): AppResult<InvoiceRecord> =
         patchScalars(id) { it.copy(templateId = templateId, templateVersion = templateVersion) }

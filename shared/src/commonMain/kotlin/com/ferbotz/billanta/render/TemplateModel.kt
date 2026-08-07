@@ -13,7 +13,37 @@ data class TemplateDoc(
     val compilerVersion: Int,
     val page: PageSpec,
     val root: TNode,
-)
+    /** Colours the user may change. Empty on templates that predate theming. */
+    val themeTokens: List<ThemeToken> = emptyList(),
+    /** Blocks the user may switch off. Empty on templates that predate theming. */
+    val sections: List<TemplateSection> = emptyList(),
+) {
+    val isCustomisable: Boolean get() = themeTokens.isNotEmpty() || sections.any { it.hidable }
+
+    fun defaultColorFor(token: String): Long? =
+        themeTokens.firstOrNull { it.name == token }?.defaultArgb
+}
+
+/** A named colour the template exposes, e.g. `accent`. */
+data class ThemeToken(val name: String, val defaultArgb: Long, val label: String)
+
+/** A named block of the page, e.g. `payment`. [hidable] false means the invoice needs it. */
+data class TemplateSection(val id: String, val label: String, val hidable: Boolean)
+
+/**
+ * The user's customisation of a template for one invoice: replacement colours by token name, and
+ * the sections they have switched off. Applied when the tree is flattened.
+ */
+data class InvoiceTheme(
+    val colorOverrides: Map<String, Long> = emptyMap(),
+    val hiddenSections: Set<String> = emptySet(),
+) {
+    val isEmpty: Boolean get() = colorOverrides.isEmpty() && hiddenSections.isEmpty()
+
+    companion object {
+        val NONE = InvoiceTheme()
+    }
+}
 
 data class PageSpec(
     val size: String = "A4",
@@ -105,12 +135,47 @@ data class TSpan(val value: TValue, val style: TStyle?)
 
 sealed interface TNode {
     val style: TStyle
+
+    /**
+     * Id of the section this node belongs to, when the template declares one — the unit the user
+     * can switch off. Absent on templates that predate theming, which simply cannot be customised.
+     */
+    val section: String? get() = null
+
+    /**
+     * Style key → theme token name, for the keys whose colour the user may change. `style` still
+     * carries the resolved hex, so a renderer that ignores this draws the template's own colours.
+     */
+    val tokens: Map<String, String>? get() = null
 }
 
-data class TBox(override val style: TStyle, val children: List<TNode>) : TNode
-data class TText(override val style: TStyle, val spans: List<TSpan>) : TNode
-data class TImage(override val style: TStyle, val source: TValue, val fit: String) : TNode
-data class TDivider(override val style: TStyle) : TNode
+data class TBox(
+    override val style: TStyle,
+    val children: List<TNode>,
+    override val section: String? = null,
+    override val tokens: Map<String, String>? = null,
+) : TNode
+
+data class TText(
+    override val style: TStyle,
+    val spans: List<TSpan>,
+    override val section: String? = null,
+    override val tokens: Map<String, String>? = null,
+) : TNode
+
+data class TImage(
+    override val style: TStyle,
+    val source: TValue,
+    val fit: String,
+    override val section: String? = null,
+    override val tokens: Map<String, String>? = null,
+) : TNode
+
+data class TDivider(
+    override val style: TStyle,
+    override val section: String? = null,
+    override val tokens: Map<String, String>? = null,
+) : TNode
 
 data class TColumn(val widthPt: Float?) {
     val isAuto: Boolean get() = widthPt == null
@@ -127,10 +192,24 @@ data class TTable(
     val header: List<TRow>,
     val body: TTableBody?,
     val footer: List<TRow>,
+    override val section: String? = null,
+    override val tokens: Map<String, String>? = null,
 ) : TNode
 
-data class TRow(override val style: TStyle, val cells: List<TCell>) : TNode
-data class TCell(override val style: TStyle, val colSpan: Int, val children: List<TNode>) : TNode
+data class TRow(
+    override val style: TStyle,
+    val cells: List<TCell>,
+    override val section: String? = null,
+    override val tokens: Map<String, String>? = null,
+) : TNode
+
+data class TCell(
+    override val style: TStyle,
+    val colSpan: Int,
+    val children: List<TNode>,
+    override val section: String? = null,
+    override val tokens: Map<String, String>? = null,
+) : TNode
 
 data class TRepeat(val path: String, val alias: String, val child: TNode) : TNode {
     override val style: TStyle get() = TStyle.EMPTY

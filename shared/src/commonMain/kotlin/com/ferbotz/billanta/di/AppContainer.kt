@@ -14,6 +14,7 @@ import com.ferbotz.billanta.data.db.DatabaseDriverFactory
 import com.ferbotz.billanta.data.db.createBillantaDb
 import com.ferbotz.billanta.data.local.CustomerLocalDataSource
 import com.ferbotz.billanta.data.local.InvoiceLocalDataSource
+import com.ferbotz.billanta.data.local.ProductLocalDataSource
 import com.ferbotz.billanta.data.local.ProfileLocalDataSource
 import com.ferbotz.billanta.data.local.SyncMetaLocal
 import com.ferbotz.billanta.data.local.TemplateLocalDataSource
@@ -21,6 +22,7 @@ import com.ferbotz.billanta.data.repo.CompanyRepository
 import com.ferbotz.billanta.data.repo.CustomerRepository
 import com.ferbotz.billanta.data.repo.InvoiceRepository
 import com.ferbotz.billanta.data.repo.MediaRepository
+import com.ferbotz.billanta.data.repo.ProductRepository
 import com.ferbotz.billanta.data.repo.SettingsRepository
 import com.ferbotz.billanta.data.repo.TemplateRepository
 import com.ferbotz.billanta.data.sync.SyncManager
@@ -68,6 +70,7 @@ class AppContainer(
     private val customerLocal = CustomerLocalDataSource(db, ioDispatcher)
     private val profileLocal = ProfileLocalDataSource(db, ioDispatcher)
     private val templateLocal = TemplateLocalDataSource(db, ioDispatcher)
+    private val productLocal = ProductLocalDataSource(db, ioDispatcher)
     private val syncMetaLocal = SyncMetaLocal(db, ioDispatcher)
 
     // ---- network ----
@@ -84,6 +87,7 @@ class AppContainer(
     private val wipeLocalData: suspend () -> Unit = {
         invoiceLocal.clearAll()
         customerLocal.clearAll()
+        productLocal.clearAll()
         profileLocal.clearProfile()
         syncMetaLocal.clearAll()
     }
@@ -115,6 +119,7 @@ class AppContainer(
 
     val invoiceRepository = InvoiceRepository(invoiceLocal, customerLocal, profileLocal, clock, onMutation)
     val customerRepository = CustomerRepository(customerLocal, clock, onMutation)
+    val productRepository = ProductRepository(productLocal, clock, onMutation)
     val companyRepository = CompanyRepository(profileLocal, clock, onMutation)
     val settingsRepository = SettingsRepository(profileLocal, clock, onMutation)
     val templateRepository = TemplateRepository(templateLocal, api, clock)

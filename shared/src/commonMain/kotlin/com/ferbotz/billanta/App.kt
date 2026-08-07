@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.dp
 import com.ferbotz.billanta.di.AppContainer
 import com.ferbotz.billanta.state.BillantaState
 import com.ferbotz.billanta.state.BusinessProfileRoute
+import com.ferbotz.billanta.state.ChooseTemplateRoute
 import com.ferbotz.billanta.state.CreateInvoiceRoute
 import com.ferbotz.billanta.state.EditCustomerRoute
 import com.ferbotz.billanta.state.PreviewRoute
@@ -34,6 +35,7 @@ import com.ferbotz.billanta.ui.components.BottomTab
 import com.ferbotz.billanta.ui.components.BottomTabBar
 import com.ferbotz.billanta.ui.screens.BillantaSheetHost
 import com.ferbotz.billanta.ui.screens.BusinessProfileScreen
+import com.ferbotz.billanta.ui.screens.ChooseTemplateScreen
 import com.ferbotz.billanta.ui.screens.CreateInvoiceScreen
 import com.ferbotz.billanta.ui.screens.CustomersScreen
 import com.ferbotz.billanta.ui.screens.EditCustomerScreen
@@ -86,6 +88,7 @@ private fun TabRootHost(state: BillantaState) {
 private fun RouteHost(state: BillantaState, route: Route) {
     when (route) {
         CreateInvoiceRoute -> CreateInvoiceScreen(state)
+        ChooseTemplateRoute -> ChooseTemplateScreen(state)
         is PreviewRoute -> PreviewScreen(state, route.invoiceId)
         BusinessProfileRoute -> BusinessProfileScreen(state)
         SettingsRoute -> SettingsScreen(state)

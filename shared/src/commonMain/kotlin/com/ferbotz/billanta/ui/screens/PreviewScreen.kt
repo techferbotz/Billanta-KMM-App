@@ -17,6 +17,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.BottomSheetDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -40,6 +43,7 @@ import com.ferbotz.billanta.core.AppError
 import com.ferbotz.billanta.core.AppResult
 import com.ferbotz.billanta.domain.model.InvoiceRecord
 import com.ferbotz.billanta.render.InvoiceRenderer
+import com.ferbotz.billanta.render.InvoiceTheme
 import com.ferbotz.billanta.render.TemplateDoc
 import com.ferbotz.billanta.render.TemplateParser
 import com.ferbotz.billanta.render.layout.RenderedDocument
@@ -74,6 +78,7 @@ private class PreparedInvoice(
     val painters: Map<String, Painter> = images.mapValues { (_, bitmap) -> BitmapPainter(bitmap) }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PreviewScreen(state: BillantaState, invoiceId: String) {
     val c = BillantaTheme.colors
@@ -81,8 +86,11 @@ fun PreviewScreen(state: BillantaState, invoiceId: String) {
     val record = invoice
 
     Column(Modifier.fillMaxSize().background(c.background)) {
+        var editing by remember { mutableStateOf(false) }
+
         StackTopBar("Invoice", onBack = { state.pop() }, actions = {
             if (record != null) {
+                IconButtonBox(AppIcon.Tune, c.textSecondary, onClick = { editing = true })
                 IconButtonBox(AppIcon.Trash, c.danger, onClick = {
                     state.deleteInvoice(record.id)
                     state.pop()
@@ -181,26 +189,19 @@ fun PreviewScreen(state: BillantaState, invoiceId: String) {
                 }
             }
 
-            if (state.templates.isNotEmpty()) {
-                Column {
-                    Overline("Template")
-                    Spacer(Modifier.height(10.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        state.templates.take(4).forEach { t ->
-                            TemplateSwatch(
-                                name = t.name,
-                                premium = t.isPremium,
-                                selected = t.id == (record.templateId ?: state.selectedTemplateId),
-                                onClick = {
-                                    if (t.isPremium && !state.isPremium) state.openSheet(PremiumSheet(t.id))
-                                    else state.setInvoiceTemplate(record.id, t)
-                                },
-                            )
-                        }
-                    }
-                }
-            }
             Spacer(Modifier.height(4.dp))
+        }
+
+        if (editing) {
+            ModalBottomSheet(
+                onDismissRequest = { editing = false },
+                containerColor = c.surface,
+                scrimColor = c.scrim,
+                shape = RoundedCornerShape(topStart = 26.dp, topEnd = 26.dp),
+                dragHandle = { BottomSheetDefaults.DragHandle() },
+            ) {
+                EditInvoiceSheetContent(state, record, (template as? TemplateState.Ready)?.doc)
+            }
         }
 
         BottomActionBar {
@@ -258,8 +259,9 @@ private fun RememberPreparedInvoice(
         value = if (urls.isEmpty()) emptyMap() else state.container.invoiceImageLoader.load(urls)
     }
     val renderer = rememberInvoiceRenderer(images.intrinsicSizes())
-    return remember(doc, record, images, renderer) {
-        PreparedInvoice(renderer.render(doc, record), images)
+    val theme = InvoiceTheme(record.themeOverrides, record.hiddenSections)
+    return remember(doc, record, images, renderer, theme) {
+        PreparedInvoice(renderer.render(doc, record, theme), images)
     }
 }
 

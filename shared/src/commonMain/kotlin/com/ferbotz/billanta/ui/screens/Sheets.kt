@@ -1,8 +1,10 @@
 package com.ferbotz.billanta.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -14,6 +16,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.BottomSheetDefaults
@@ -31,9 +34,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.ferbotz.billanta.core.BigMath
 import com.ferbotz.billanta.core.DecimalString
+import com.ferbotz.billanta.domain.model.ProductRecord
 import com.ferbotz.billanta.model.formatPaise
 import com.ferbotz.billanta.model.initialsOf
 import com.ferbotz.billanta.model.parseRupeesToPaise
@@ -111,6 +116,33 @@ private fun AddItemSheetContent(state: BillantaState) {
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         SheetHeader("Add item")
+
+        // Things already invoiced, most-used first — tapping one fills the whole form.
+        val suggestions = remember(state.products, desc) {
+            val typed = desc.trim()
+            if (typed.isEmpty()) state.products.take(8)
+            else state.products.filter { it.name.contains(typed, ignoreCase = true) }.take(8)
+        }
+        if (suggestions.isNotEmpty()) {
+            LazyRow(
+                Modifier.fillMaxWidth(),
+                contentPadding = PaddingValues(horizontal = 18.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                items(suggestions, key = { it.id }) { product ->
+                    SavedProductChip(
+                        product = product,
+                        onClick = {
+                            desc = product.name
+                            hsn = product.hsnSac.orEmpty()
+                            rate = paiseToRupeeInput(product.unitPricePaise)
+                            taxRate = product.taxRatePercent
+                        },
+                    )
+                }
+            }
+        }
+
         Column(Modifier.padding(horizontal = 18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             BillantaTextField(desc, { desc = it }, label = "Description", placeholder = "e.g. Logo design", modifier = Modifier.fillMaxWidth())
             BillantaTextField(hsn, { hsn = it }, label = "HSN/SAC (optional)", placeholder = "9983", modifier = Modifier.fillMaxWidth())
@@ -141,6 +173,40 @@ private fun AddItemSheetContent(state: BillantaState) {
             )
         }
     }
+}
+
+/** One saved product, shown as a tappable chip above the add-item form. */
+@Composable
+private fun SavedProductChip(product: ProductRecord, onClick: () -> Unit) {
+    val c = BillantaTheme.colors
+    Column(
+        Modifier.clip(RoundedCornerShape(12.dp))
+            .background(c.surfaceAlt)
+            .border(1.dp, c.border, RoundedCornerShape(12.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+    ) {
+        Text(
+            product.name,
+            style = BillantaTheme.type.bodyStrong,
+            color = c.textPrimary,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Text(
+            "${product.unitPricePaise.formatPaise(withPaise = false)} · GST ${product.taxRatePercent}%",
+            style = BillantaTheme.type.caption,
+            color = c.textSecondary,
+            maxLines = 1,
+        )
+    }
+}
+
+/** Paise back into the rupee string the rate field expects, dropping a trailing `.00`. */
+private fun paiseToRupeeInput(paise: Long): String {
+    val whole = paise / 100
+    val fraction = paise % 100
+    return if (fraction == 0L) whole.toString() else "$whole.${fraction.toString().padStart(2, '0')}"
 }
 
 @Composable

@@ -16,6 +16,7 @@ import com.ferbotz.billanta.domain.model.CustomerRecord
 import com.ferbotz.billanta.domain.model.InvoiceDocStatus
 import com.ferbotz.billanta.domain.model.InvoiceDraft
 import com.ferbotz.billanta.domain.model.InvoiceRecord
+import com.ferbotz.billanta.domain.model.ProductRecord
 import com.ferbotz.billanta.domain.model.TemplateInfo
 import com.ferbotz.billanta.domain.model.UserAccount
 import com.ferbotz.billanta.domain.model.UserSettings
@@ -37,6 +38,9 @@ import kotlinx.coroutines.launch
 /** A screen pushed on top of the current tab root. */
 sealed interface Route
 data object CreateInvoiceRoute : Route
+
+/** Shown once, before the first invoice, so the user picks the look they want as their default. */
+data object ChooseTemplateRoute : Route
 data class PreviewRoute(val invoiceId: String) : Route
 data object BusinessProfileRoute : Route
 data object SettingsRoute : Route
@@ -78,7 +82,25 @@ class BillantaState(
     fun pop() { if (stack.isNotEmpty()) stack.removeAt(stack.lastIndex) }
     fun popToRoot() { stack.clear() }
 
-    fun openCreate() { resetDraft(); push(CreateInvoiceRoute) }
+    /**
+     * First time through, the user picks a template and it becomes their default; every invoice
+     * after that goes straight into the create flow.
+     */
+    fun openCreate() {
+        resetDraft()
+        if (settings.defaultTemplateId == null && templates.isNotEmpty()) push(ChooseTemplateRoute)
+        else push(CreateInvoiceRoute)
+    }
+
+    /** Chosen from the first-run picker: remember it, then carry on into the invoice. */
+    fun chooseDefaultTemplate(template: TemplateInfo) {
+        if (template.isPremium && !isPremium) {
+            openSheet(PremiumSheet(template.id))
+            return
+        }
+        saveSettings(settings.copy(defaultTemplateId = template.id))
+        replaceTop(CreateInvoiceRoute)
+    }
     fun openPreview(invoiceId: String) = push(PreviewRoute(invoiceId))
     fun openSignIn() = push(SignInRoute)
 
@@ -129,6 +151,8 @@ class BillantaState(
         private set
     var templates by mutableStateOf<List<TemplateInfo>>(emptyList())
         private set
+    var products by mutableStateOf<List<ProductRecord>>(emptyList())
+        private set
     var settings by mutableStateOf(UserSettings())
         private set
     var company by mutableStateOf<CompanyProfile?>(null)
@@ -165,6 +189,7 @@ class BillantaState(
         scope.launch { container.invoiceRepository.observeInvoices("").collect { allInvoices = it } }
         scope.launch { container.customerRepository.observeCustomers().collect { customers = it } }
         scope.launch { container.templateRepository.observeTemplates().collect { templates = it } }
+        scope.launch { container.productRepository.observeProducts().collect { products = it } }
         scope.launch { container.settingsRepository.observeSettings().collect { settings = it } }
         scope.launch { container.companyRepository.observeCompany().collect { company = it } }
     }
@@ -177,6 +202,14 @@ class BillantaState(
 
     fun setInvoiceTemplate(id: String, template: TemplateInfo) = launchReporting {
         container.invoiceRepository.setTemplate(id, template.id, template.currentVersion)
+    }
+
+    fun setInvoiceCustomisation(
+        id: String,
+        themeOverrides: Map<String, Long>,
+        hiddenSections: Set<String>,
+    ) = launchReporting {
+        container.invoiceRepository.setCustomisation(id, themeOverrides, hiddenSections)
     }
 
     fun gstSplitFor(invoice: InvoiceRecord): GstSplit = container.invoiceRepository.gstSplitFor(invoice)
@@ -339,8 +372,12 @@ class BillantaState(
         draftNumber = settings.formatNextInvoiceNumber()
     }
 
+    /** Adding an item also files it in the catalogue, so the next invoice can just pick it. */
     fun addDraftItem(description: String, hsnSac: String?, quantity: String, unitPricePaise: Long, taxRatePercent: String) {
         draftItems.add(DraftLine(randomUuid(), description, hsnSac, quantity, unitPricePaise, taxRatePercent))
+        scope.launch {
+            container.productRepository.remember(description, hsnSac, unitPricePaise, taxRatePercent)
+        }
     }
 
     fun removeDraftItem(uiId: String) {
