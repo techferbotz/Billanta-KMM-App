@@ -22,6 +22,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -46,7 +47,18 @@ import com.ferbotz.billanta.render.InvoiceRenderer
 import com.ferbotz.billanta.render.InvoiceTheme
 import com.ferbotz.billanta.render.TemplateDoc
 import com.ferbotz.billanta.render.TemplateParser
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.drawscope.Stroke
+import com.ferbotz.billanta.render.emptySectionsFor
+import com.ferbotz.billanta.render.layout.PlaceholderMode
 import com.ferbotz.billanta.render.layout.RenderedDocument
+import com.ferbotz.billanta.render.layout.RenderedPage
 import com.ferbotz.billanta.render.paint.InvoicePageView
 import com.ferbotz.billanta.render.paint.intrinsicSizes
 import com.ferbotz.billanta.render.paint.rememberInvoiceRenderer
@@ -73,6 +85,8 @@ private sealed interface TemplateState {
 /** Everything needed to draw and to share, resolved together so the two can never disagree. */
 private class PreparedInvoice(
     val document: RenderedDocument,
+    /** The same invoice with empty sections held open, for the preview only — never exported. */
+    val editing: RenderedDocument,
     val images: Map<String, ImageBitmap>,
 ) {
     val painters: Map<String, Painter> = images.mapValues { (_, bitmap) -> BitmapPainter(bitmap) }
@@ -90,7 +104,7 @@ fun PreviewScreen(state: BillantaState, invoiceId: String) {
 
         StackTopBar("Invoice", onBack = { state.pop() }, actions = {
             if (record != null) {
-                IconButtonBox(AppIcon.Tune, c.textSecondary, onClick = { editing = true })
+                // Editing lives on the pinned bottom bar, so the top bar keeps only the destructive one.
                 IconButtonBox(AppIcon.Trash, c.danger, onClick = {
                     state.deleteInvoice(record.id)
                     state.pop()
@@ -106,7 +120,13 @@ fun PreviewScreen(state: BillantaState, invoiceId: String) {
         }
 
         val templateId = record.templateId ?: state.selectedTemplateId
-        val templateVersion = if (record.templateId != null) record.templateVersion else null
+        // Make sure "current" is actually current before resolving a version below.
+        LaunchedEffect(Unit) { state.refreshTemplates() }
+        // Render the template's CURRENT version, not the one pinned when the invoice was created.
+        // A compiled tree is cached forever per (id, version), so a pinned version meant an invoice
+        // made before a template gained sections or colour tokens could never gain them — the edit
+        // sheet would offer nothing to hide, or offer controls the old tree has no tags for.
+        val templateVersion = templateId?.let { id -> state.templateById(id)?.currentVersion }
         var reloadKey by remember { mutableIntStateOf(0) }
 
         val template by produceState<TemplateState>(
@@ -163,18 +183,27 @@ fun PreviewScreen(state: BillantaState, invoiceId: String) {
                 prepared == null -> PagePlaceholder("Preparing invoice…")
 
                 else -> {
-                    val document = prepared.document
+                    val document = prepared.editing
+                    val labels = ready.doc.sections.associate { it.id to it.label }
                     document.pages.forEachIndexed { index, page ->
                         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            InvoicePageView(
-                                page = page,
-                                pageWidthPt = document.pageWidthPt,
-                                pageHeightPt = document.pageHeightPt,
-                                modifier = Modifier.fillMaxWidth()
-                                    .clip(RoundedCornerShape(6.dp))
-                                    .border(1.dp, c.border, RoundedCornerShape(6.dp)),
-                                imageFor = { prepared.painters[it] },
-                            )
+                            BoxWithConstraints(Modifier.fillMaxWidth()) {
+                                InvoicePageView(
+                                    page = page,
+                                    pageWidthPt = document.pageWidthPt,
+                                    pageHeightPt = document.pageHeightPt,
+                                    modifier = Modifier.fillMaxWidth()
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .border(1.dp, c.border, RoundedCornerShape(6.dp)),
+                                    imageFor = { prepared.painters[it] },
+                                )
+                                EmptySectionTargets(
+                                    page = page,
+                                    scale = maxWidth.value / document.pageWidthPt,
+                                    labelFor = { labels[it] },
+                                    onTap = { state.openInvoiceData(record.id) },
+                                )
+                            }
                             if (document.pageCount > 1) {
                                 Text(
                                     "Page ${index + 1} of ${document.pageCount}",
@@ -219,15 +248,9 @@ fun PreviewScreen(state: BillantaState, invoiceId: String) {
             }
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 SecondaryButton(
-                    if (exporting == ExportFormat.PNG) "…" else "PNG",
-                    onClick = { shareAs(ExportFormat.PNG) },
-                    enabled = canShare,
-                    modifier = Modifier.weight(1f),
-                )
-                SecondaryButton(
-                    if (exporting == ExportFormat.JPEG) "…" else "JPG",
-                    onClick = { shareAs(ExportFormat.JPEG) },
-                    enabled = canShare,
+                    "Edit",
+                    onClick = { editing = true },
+                    leadingIcon = AppIcon.Tune,
                     modifier = Modifier.weight(1f),
                 )
                 PrimaryButton(
@@ -261,7 +284,60 @@ private fun RememberPreparedInvoice(
     val renderer = rememberInvoiceRenderer(images.intrinsicSizes())
     val theme = InvoiceTheme(record.themeOverrides, record.hiddenSections)
     return remember(doc, record, images, renderer, theme) {
-        PreparedInvoice(renderer.render(doc, record, theme), images)
+        val document = renderer.render(doc, record, theme)
+        // A section with nothing in it collapses to nothing, which leaves the user no way to fill
+        // it. Only the on-screen copy holds the space open; the shared file must never show a gap.
+        val empty = emptySectionsFor(doc, record) - record.hiddenSections
+        val editing =
+            if (empty.isEmpty()) document
+            else renderer.render(doc, record, theme, PlaceholderMode.Reserve(empty))
+        PreparedInvoice(document, editing, images)
+    }
+}
+
+/**
+ * A dashed "tap to add" box over every section the invoice has not filled in yet.
+ *
+ * The rectangles come from the layout engine, not from guesswork: each one is exactly where that
+ * section would have been drawn had it any content, so what the user taps is the empty space they
+ * are looking at. Tapping any of them opens the same section list — the fastest route to whichever
+ * one they meant.
+ */
+@Composable
+private fun EmptySectionTargets(
+    page: RenderedPage,
+    scale: Float,
+    labelFor: (String) -> String?,
+    onTap: () -> Unit,
+) {
+    val c = BillantaTheme.colors
+    val dash = remember { PathEffect.dashPathEffect(floatArrayOf(9f, 7f), 0f) }
+    page.sections.filter { it.isEmpty }.forEach { section ->
+        val label = labelFor(section.id) ?: return@forEach
+        Box(
+            Modifier
+                .offset((section.rect.x * scale).dp, (section.rect.y * scale).dp)
+                .size((section.rect.width * scale).dp, (section.rect.height * scale).dp)
+                .clip(RoundedCornerShape(8.dp))
+                .drawBehind {
+                    drawRoundRect(
+                        color = c.primary,
+                        style = Stroke(width = 1.5.dp.toPx(), pathEffect = dash),
+                        cornerRadius = CornerRadius(8.dp.toPx()),
+                    )
+                }
+                .clickable(onClick = onTap),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                "Add $label",
+                style = BillantaTheme.type.caption,
+                color = c.primary,
+                textAlign = TextAlign.Center,
+                maxLines = 2,
+                modifier = Modifier.padding(horizontal = 8.dp),
+            )
+        }
     }
 }
 

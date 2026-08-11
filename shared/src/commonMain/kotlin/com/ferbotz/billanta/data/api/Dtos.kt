@@ -179,6 +179,13 @@ data class InvoiceDto(
     val taxTotal: String? = null,
     val grandTotal: String? = null,
     val gstSplit: GstSplitDto? = null,
+    /**
+     * Per-invoice customisation (BE-003), stored verbatim by the server: token name → hex, and the
+     * ids of sections switched off. Always sent — an empty map/list is how "cleared" is expressed,
+     * since POST /invoices is a full replace.
+     */
+    val themeOverrides: Map<String, String>? = null,
+    val hiddenSections: List<String>? = null,
     val pdfPath: String? = null,
     val deletedAt: String? = null,
     val createdAt: String? = null,

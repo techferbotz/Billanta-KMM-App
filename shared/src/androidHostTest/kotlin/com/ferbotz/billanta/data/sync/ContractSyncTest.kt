@@ -11,6 +11,7 @@ import com.ferbotz.billanta.data.api.Envelope
 import com.ferbotz.billanta.data.api.PageDto
 import com.ferbotz.billanta.data.api.ProductDto
 import com.ferbotz.billanta.data.api.SettingsDto
+import com.ferbotz.billanta.data.api.SyncRequestDto
 import com.ferbotz.billanta.data.api.SyncResponseDto
 import com.ferbotz.billanta.data.api.TemplateDto
 import com.ferbotz.billanta.data.db.BillantaDb
@@ -82,6 +83,7 @@ class ContractSyncTest {
         dispatcher: CoroutineDispatcher,
         products: List<ProductDto> = emptyList(),
         templatePages: List<PageDto<TemplateDto>> = listOf(PageDto(emptyList(), null, false)),
+        echoInvoices: Boolean = false,
     ): Harness {
         val driver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
         BillantaDb.Schema.create(driver)
@@ -117,8 +119,13 @@ class ContractSyncTest {
                     ok(BillantaJson.encodeToString(Envelope(success = true, data = PageDto(serverProducts.toList(), null, false))))
                 path == "/customers" && request.method == HttpMethod.Get ->
                     ok(BillantaJson.encodeToString(Envelope(success = true, data = PageDto<CustomerDto>(emptyList(), null, false))))
-                path == "/invoices/sync" && request.method == HttpMethod.Post ->
-                    ok(BillantaJson.encodeToString(Envelope(success = true, data = SyncResponseDto())))
+                path == "/invoices/sync" && request.method == HttpMethod.Post -> {
+                    // A real server echoes what it stored back in `changed`.
+                    val pushed = BillantaJson
+                        .decodeFromString<SyncRequestDto>((request.body as TextContent).text).invoices
+                    val response = if (echoInvoices) SyncResponseDto(changed = pushed) else SyncResponseDto()
+                    ok(BillantaJson.encodeToString(Envelope(success = true, data = response)))
+                }
                 path == "/company" && request.method == HttpMethod.Get -> ok("""{"success":true,"data":null}""")
                 path == "/settings" && request.method == HttpMethod.Get ->
                     ok(BillantaJson.encodeToString(Envelope(success = true, data = SettingsDto())))
@@ -184,6 +191,46 @@ class ContractSyncTest {
         )
         // The row is gone once the server has it.
         assertEquals(null, h.invoiceLocal.getById("inv-1"))
+    }
+
+    /**
+     * The regression this exists for: the customisation fields were missing from the invoice DTO,
+     * so a push dropped them, the server echoed the invoice back without them, and the pull
+     * overwrote the local row — a hidden section silently un-hid itself moments after being set.
+     */
+    @Test
+    fun a_sync_round_trip_preserves_the_invoice_customisation() = runTest {
+        val dispatcher = UnconfinedTestDispatcher(testScheduler)
+        val h = harness(dispatcher, echoInvoices = true)
+        h.invoiceLocal.upsert(
+            InvoiceRecord(
+                id = "inv-1",
+                invoiceNumber = "INV-1",
+                invoiceDateMillis = Iso8601.epochMillisFor(2026, 8, 1),
+                themeOverrides = mapOf("accent" to 0xFFC2410C),
+                hiddenSections = setOf("payment", "notes"),
+                updatedAtMillis = fixedNow,
+                pendingSync = true,
+            ),
+            dirty = true,
+        )
+
+        syncManager(h, backgroundScope).syncNow()
+
+        val push = assertNotNull(
+            h.requests.firstOrNull { it.path == "/invoices/sync" }?.body,
+            "the invoice should have been pushed",
+        )
+        assertTrue(push.contains("hiddenSections"), "the push dropped hiddenSections: $push")
+        assertTrue(push.contains("#c2410c"), "the push dropped the colour override: $push")
+
+        val reloaded = assertNotNull(h.invoiceLocal.getById("inv-1"))
+        assertEquals(
+            setOf("payment", "notes"),
+            reloaded.hiddenSections,
+            "the server echo must not wipe the hidden sections",
+        )
+        assertEquals(mapOf("accent" to 0xFFC2410C), reloaded.themeOverrides)
     }
 
     // ---- BE-002 --------------------------------------------------------------------------------

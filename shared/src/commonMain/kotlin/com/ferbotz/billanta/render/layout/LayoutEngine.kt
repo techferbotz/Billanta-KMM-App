@@ -41,11 +41,12 @@ class LayoutEngine(
         val contentWidth = pageContentWidth(page)
         val box = layout(root, contentWidth)
         val commands = ArrayList<DrawCommand>()
-        paint(box, page.marginLeftPt, page.marginTopPt, commands)
+        val sections = ArrayList<SectionBounds>()
+        paint(box, page.marginLeftPt, page.marginTopPt, commands, sections)
         return RenderedDocument(
             pageWidthPt = PageSpec.A4_WIDTH_PT,
             pageHeightPt = PageSpec.A4_HEIGHT_PT,
-            pages = listOf(RenderedPage(commands)),
+            pages = listOf(RenderedPage(commands, sections)),
         )
     }
 
@@ -65,6 +66,7 @@ class LayoutEngine(
         return when (node) {
             is LText -> measureText(node, m, contentWidth)
             is LImage -> measureImage(node, m, contentWidth)
+            is LPlaceholder -> finish(node, m, contentWidth, contentHeight = node.heightPt)
             is LDivider -> finish(node, m, contentWidth, contentHeight = 0f)
             is LBox -> measureBox(node, m, contentWidth)
             is LTable -> measureTable(node, m, contentWidth)
@@ -262,6 +264,7 @@ class LayoutEngine(
         return when (node) {
             is LText -> measureText(node, m, contentWidth)
             is LImage -> measureImage(node, m, contentWidth)
+            is LPlaceholder -> finish(node, m, contentWidth, node.heightPt)
             is LDivider -> finish(node, m, contentWidth, 0f)
             is LBox -> measureBox(node, m, contentWidth)
             is LTable -> measureTable(node, m, contentWidth)
@@ -445,6 +448,7 @@ class LayoutEngine(
         val inner = when (node) {
             is LText -> shaper.intrinsicWidths(node.runs, node.paragraphStyle).maxPt
             is LImage -> imageSizes[node.url]?.width ?: DEFAULT_IMAGE_SIDE
+            is LPlaceholder -> 0f
             is LDivider -> 0f
             is LBox ->
                 if (node.style.display == "flex" && (node.style.flexDirection ?: "row") == "row") {
@@ -466,6 +470,7 @@ class LayoutEngine(
         val inner = when (node) {
             is LText -> shaper.intrinsicWidths(node.runs, node.paragraphStyle).minPt
             is LImage -> imageSizes[node.url]?.width ?: DEFAULT_IMAGE_SIDE
+            is LPlaceholder -> 0f
             is LDivider -> 0f
             is LBox -> node.children.maxOfOrNull { minContentWidth(it, containing) } ?: 0f
             is LCell -> node.children.maxOfOrNull { minContentWidth(it, containing) } ?: 0f
@@ -477,8 +482,19 @@ class LayoutEngine(
 
     // ---- painting ------------------------------------------------------------------------------
 
-    /** Emits draw commands for [box] with its outer top-left corner at ([x], [y]). */
-    fun paint(box: LayoutBox, x: Float, y: Float, out: MutableList<DrawCommand>) {
+    /**
+     * Emits draw commands for [box] with its outer top-left corner at ([x], [y]).
+     *
+     * [sections], when given, collects where each tagged section landed so the editor can overlay
+     * a placeholder on an empty one and know what was tapped.
+     */
+    fun paint(
+        box: LayoutBox,
+        x: Float,
+        y: Float,
+        out: MutableList<DrawCommand>,
+        sections: MutableList<SectionBounds>? = null,
+    ) {
         val m = box.metrics
         val borderBox = RectPt(
             x = x + m.margin.left,
@@ -486,6 +502,10 @@ class LayoutEngine(
             width = (box.size.width - m.margin.horizontal).coerceAtLeast(0f),
             height = (box.size.height - m.margin.vertical).coerceAtLeast(0f),
         )
+
+        box.node.section?.let { id ->
+            sections?.add(SectionBounds(id, borderBox, isEmpty = box.node is LPlaceholder))
+        }
 
         val own = ArrayList<DrawCommand>()
         m.backgroundArgb?.let { own += DrawCommand.Fill(borderBox, it, m.radiusPt) }
@@ -500,7 +520,7 @@ class LayoutEngine(
             else -> Unit
         }
 
-        box.children.forEach { child -> paint(child.box, x + child.dx, y + child.dy, own) }
+        box.children.forEach { child -> paint(child.box, x + child.dx, y + child.dy, own, sections) }
 
         val alpha = m.opacity
         if (alpha != null && alpha < 1f) out += DrawCommand.Group(alpha.coerceIn(0f, 1f), own)

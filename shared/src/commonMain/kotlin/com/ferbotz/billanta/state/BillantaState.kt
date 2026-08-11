@@ -9,6 +9,7 @@ import androidx.compose.runtime.snapshots.SnapshotStateList
 import com.ferbotz.billanta.core.AppResult
 import com.ferbotz.billanta.core.randomUuid
 import com.ferbotz.billanta.core.systemEpochMillis
+import com.ferbotz.billanta.data.repo.InvoiceRepository
 import com.ferbotz.billanta.data.sync.SyncStatus
 import com.ferbotz.billanta.di.AppContainer
 import com.ferbotz.billanta.domain.model.CompanyProfile
@@ -27,6 +28,8 @@ import com.ferbotz.billanta.domain.money.GstSplit
 import com.ferbotz.billanta.domain.money.InvoiceCalculator
 import com.ferbotz.billanta.domain.money.InvoiceTotals
 import com.ferbotz.billanta.model.parseRupeesToPaise
+import com.ferbotz.billanta.render.SectionEdits
+import com.ferbotz.billanta.render.TemplateSection
 import com.ferbotz.billanta.session.AuthState
 import com.ferbotz.billanta.ui.components.BottomTab
 import kotlinx.coroutines.CoroutineScope
@@ -37,11 +40,16 @@ import kotlinx.coroutines.launch
 
 /** A screen pushed on top of the current tab root. */
 sealed interface Route
-data object CreateInvoiceRoute : Route
 
 /** Shown once, before the first invoice, so the user picks the look they want as their default. */
 data object ChooseTemplateRoute : Route
 data class PreviewRoute(val invoiceId: String) : Route
+
+/** The list of sections to fill in, in the order the template declares them. */
+data class EditInvoiceDataRoute(val invoiceId: String) : Route
+
+/** One section's editor. [edits] is what the template says this section is made of. */
+data class EditSectionRoute(val invoiceId: String, val edits: SectionEdits, val label: String) : Route
 data object BusinessProfileRoute : Route
 data object SettingsRoute : Route
 data object SignInRoute : Route
@@ -87,9 +95,8 @@ class BillantaState(
      * after that goes straight into the create flow.
      */
     fun openCreate() {
-        resetDraft()
         if (settings.defaultTemplateId == null && templates.isNotEmpty()) push(ChooseTemplateRoute)
-        else push(CreateInvoiceRoute)
+        else createAndOpenInvoice { push(it) }
     }
 
     /** Chosen from the first-run picker: remember it, then carry on into the invoice. */
@@ -98,8 +105,44 @@ class BillantaState(
             openSheet(PremiumSheet(template.id))
             return
         }
-        saveSettings(settings.copy(defaultTemplateId = template.id))
-        replaceTop(CreateInvoiceRoute)
+        saveSettings(settings.copy(defaultTemplateId = template.id)) {
+            createAndOpenInvoice { replaceTop(it) }
+        }
+    }
+
+    var creatingInvoice by mutableStateOf(false)
+        private set
+
+    /**
+     * The invoice is created empty and opened straight away, so what the user edits already exists.
+     * Nothing can be lost by backing out mid-way, and the preview *is* the form: every unfilled
+     * section is a dashed box on the real template rather than a field in a sheet.
+     */
+    private fun createAndOpenInvoice(open: (Route) -> Unit) {
+        if (creatingInvoice) return
+        scope.launch {
+            creatingInvoice = true
+            val today = todayUtcMidnightMillis()
+            val template = selectedTemplateId?.let { templateById(it) }
+            val number = settings.formatNextInvoiceNumber()
+            val result = container.invoiceRepository.createEmpty(
+                invoiceNumber = number,
+                currency = settings.defaultCurrency,
+                templateId = template?.id,
+                templateVersion = template?.currentVersion,
+                invoiceDateMillis = today,
+                dueDateMillis = today + DEFAULT_DUE_DAYS * MILLIS_PER_DAY,
+                notes = settings.defaultNotes,
+            )
+            creatingInvoice = false
+            when (result) {
+                is AppResult.Success -> {
+                    container.settingsRepository.consumeInvoiceNumberIfMatches(number)
+                    open(PreviewRoute(result.value.id))
+                }
+                is AppResult.Failure -> uiMessage = result.error.userMessage()
+            }
+        }
     }
     fun openPreview(invoiceId: String) = push(PreviewRoute(invoiceId))
     fun openSignIn() = push(SignInRoute)
@@ -313,21 +356,15 @@ class BillantaState(
     )
 
     val draftItems: SnapshotStateList<DraftLine> = mutableStateListOf()
-    var draftNumber by mutableStateOf("")
     var draftCustomerId by mutableStateOf<String?>(null)
-    var draftNotes by mutableStateOf("")
     var draftDiscountType by mutableStateOf<DiscountType?>(null)
     var draftDiscountValue by mutableStateOf("")
     var draftDiscountBeforeTax by mutableStateOf(true)
-    var draftDueDays by mutableStateOf(14)
     var draftError by mutableStateOf<String?>(null)
-    var savingDraft by mutableStateOf(false)
-        private set
 
-    val draftCustomer: CustomerRecord? get() = customerById(draftCustomerId)
 
     /** Percent goes through as typed; Flat is entered in rupees and sent as paise (the wire unit). */
-    private val draftDiscount: DiscountSpec?
+    internal val draftDiscount: DiscountSpec?
         get() {
             val type = draftDiscountType ?: return null
             val raw = draftDiscountValue.trim().takeIf { it.isNotEmpty() } ?: return null
@@ -351,27 +388,6 @@ class BillantaState(
             null
         }
 
-    val draftGstSplit: GstSplit?
-        get() = draftTotals?.let {
-            InvoiceCalculator.gstSplit(it.taxTotal, company?.stateCode, draftCustomer?.stateCode)
-        }
-
-    /** Both state codes known → the CGST/SGST vs IGST rows can be labelled honestly. */
-    val draftGstKnown: Boolean
-        get() = !company?.stateCode.isNullOrBlank() && !draftCustomer?.stateCode.isNullOrBlank()
-
-    private fun resetDraft() {
-        draftItems.clear()
-        draftCustomerId = null
-        draftNotes = settings.defaultNotes ?: ""
-        draftDiscountType = null
-        draftDiscountValue = ""
-        draftDiscountBeforeTax = true
-        draftDueDays = 14
-        draftError = null
-        draftNumber = settings.formatNextInvoiceNumber()
-    }
-
     /** Adding an item also files it in the catalogue, so the next invoice can just pick it. */
     fun addDraftItem(description: String, hsnSac: String?, quantity: String, unitPricePaise: Long, taxRatePercent: String) {
         draftItems.add(DraftLine(randomUuid(), description, hsnSac, quantity, unitPricePaise, taxRatePercent))
@@ -386,49 +402,91 @@ class BillantaState(
 
     fun setDraftCustomer(id: String) { draftCustomerId = id }
 
-    fun saveDraft(onSaved: (InvoiceRecord) -> Unit) {
-        if (savingDraft) return
+    // ---- section-by-section editing ------------------------------------------------------------
+
+    var savingSection by mutableStateOf(false)
+        private set
+
+    fun openInvoiceData(invoiceId: String) = push(EditInvoiceDataRoute(invoiceId))
+
+    fun openSection(invoiceId: String, section: TemplateSection) =
+        push(EditSectionRoute(invoiceId, section.edits, section.label))
+
+    fun setInvoiceCustomer(invoiceId: String, customerId: String, onSaved: () -> Unit = {}) =
+        saveSection(onSaved) { setCustomer(invoiceId, customerId) }
+
+    fun setInvoiceDetails(
+        invoiceId: String,
+        invoiceNumber: String,
+        invoiceDateMillis: Long,
+        dueDateMillis: Long?,
+        onSaved: () -> Unit = {},
+    ) = saveSection(onSaved) {
+        setDetails(invoiceId, invoiceNumber.trim(), invoiceDateMillis, dueDateMillis, settings.defaultCurrency)
+    }
+
+    fun setInvoiceItems(invoiceId: String, onSaved: () -> Unit = {}) = saveSection(onSaved) {
+        setItems(
+            invoiceId,
+            draftItems.map {
+                InvoiceDraft.DraftItem(
+                    description = it.description,
+                    hsnSac = it.hsnSac,
+                    quantity = it.quantity,
+                    unitPricePaise = it.unitPricePaise,
+                    taxRatePercent = it.taxRatePercent,
+                )
+            },
+        )
+    }
+
+    fun setInvoiceDiscount(invoiceId: String, onSaved: () -> Unit = {}) =
+        saveSection(onSaved) { setDiscount(invoiceId, draftDiscount, draftDiscountBeforeTax) }
+
+    fun setInvoiceNotes(invoiceId: String, notes: String, onSaved: () -> Unit = {}) =
+        saveSection(onSaved) { setNotes(invoiceId, notes.trim()) }
+
+    /** Every section editor saves the same way: write, surface any complaint, then step back. */
+    private fun saveSection(
+        onSaved: () -> Unit,
+        write: suspend InvoiceRepository.() -> AppResult<InvoiceRecord>,
+    ) {
+        if (savingSection) return
         scope.launch {
-            savingDraft = true
+            savingSection = true
             draftError = null
-            val today = todayUtcMidnightMillis()
-            val template = selectedTemplateId?.let { templateById(it) }
-            val draft = InvoiceDraft(
-                invoiceNumber = draftNumber.trim(),
-                invoiceDateMillis = today,
-                dueDateMillis = today + draftDueDays * MILLIS_PER_DAY,
-                currency = settings.defaultCurrency,
-                // Status is a wire field the app no longer surfaces — everything is "Draft".
-                status = InvoiceDocStatus.Draft,
-                templateId = template?.id,
-                templateVersion = template?.currentVersion,
-                customerId = draftCustomerId,
-                notes = draftNotes.trim().ifBlank { null },
-                discountType = draftDiscount?.type,
-                discountValue = draftDiscount?.value,
-                discountBeforeTax = draftDiscountBeforeTax,
-                items = draftItems.map {
-                    InvoiceDraft.DraftItem(
-                        description = it.description,
-                        hsnSac = it.hsnSac,
-                        quantity = it.quantity,
-                        unitPricePaise = it.unitPricePaise,
-                        taxRatePercent = it.taxRatePercent,
-                    )
-                },
-            )
-            when (val result = container.invoiceRepository.saveDraft(draft)) {
-                is AppResult.Success -> {
-                    container.settingsRepository.consumeInvoiceNumberIfMatches(draft.invoiceNumber)
-                    savingDraft = false
-                    onSaved(result.value)
-                }
-                is AppResult.Failure -> {
-                    savingDraft = false
-                    draftError = result.error.userMessage()
-                }
+            val result = container.invoiceRepository.write()
+            savingSection = false
+            when (result) {
+                is AppResult.Success -> onSaved()
+                is AppResult.Failure -> draftError = result.error.userMessage()
             }
         }
+    }
+
+    /** Loads an invoice's items into the scratchpad the add-item sheet appends to. */
+    fun seedItemsFrom(record: InvoiceRecord) {
+        draftItems.clear()
+        record.items.forEach {
+            draftItems.add(
+                DraftLine(randomUuid(), it.description, it.hsnSac, it.quantity, it.unitPricePaise, it.taxRatePercent),
+            )
+        }
+        draftError = null
+    }
+
+    fun seedDiscountFrom(record: InvoiceRecord) {
+        draftDiscountType = record.discount?.type
+        // Flat discounts are stored in paise but typed in rupees, so undo the conversion.
+        draftDiscountValue = record.discount?.let {
+            if (it.type != DiscountType.Flat) it.value else {
+                val paise = it.value.toLongOrNull() ?: 0L
+                if (paise % 100 == 0L) (paise / 100).toString()
+                else "${paise / 100}.${(paise % 100).toString().padStart(2, '0')}"
+            }
+        } ?: ""
+        draftDiscountBeforeTax = record.discountBeforeTax
+        draftError = null
     }
 
     // ---- misc ----------------------------------------------------------------------------------
@@ -439,9 +497,12 @@ class BillantaState(
         }
     }
 
-    private companion object {
+    internal companion object {
         const val PREF_DARK = "ui.darkMode"
         const val MILLIS_PER_DAY = 86_400_000L
+
+        /** Net-14 unless the user picks otherwise, as the retired create form defaulted to. */
+        const val DEFAULT_DUE_DAYS = 14L
     }
 }
 

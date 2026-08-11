@@ -73,6 +73,7 @@ object TemplateParser {
                 id = id,
                 label = obj.str("label") ?: id,
                 hidable = (obj["hidable"] as? JsonPrimitive)?.booleanOrNull ?: true,
+                edits = SectionEdits.fromWire(obj.str("edits")),
             )
         } ?: emptyList()
 
@@ -142,7 +143,7 @@ object TemplateParser {
         (el as? JsonArray)?.mapNotNull { spanEl ->
             val span = spanEl as? JsonObject ?: return@mapNotNull null
             val value = (span["value"] as? JsonObject)?.let { parseValue(it) } ?: return@mapNotNull null
-            TSpan(value, (span["style"] as? JsonObject)?.let { parseStyle(it) })
+            TSpan(value, (span["style"] as? JsonObject)?.let { parseStyle(it) }, parseTokens(span))
         } ?: emptyList()
 
     private fun parseValue(obj: JsonObject): TValue? = when (obj.str("kind")) {

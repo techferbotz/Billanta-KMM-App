@@ -3,6 +3,7 @@ package com.ferbotz.billanta.render
 import com.ferbotz.billanta.domain.model.InvoiceRecord
 import com.ferbotz.billanta.render.layout.LayoutEngine
 import com.ferbotz.billanta.render.layout.Paginator
+import com.ferbotz.billanta.render.layout.PlaceholderMode
 import com.ferbotz.billanta.render.layout.RenderedDocument
 import com.ferbotz.billanta.render.layout.SizePt
 import com.ferbotz.billanta.render.layout.TemplateFlattener
@@ -26,8 +27,14 @@ class InvoiceRenderer(
         doc: TemplateDoc,
         record: InvoiceRecord,
         theme: InvoiceTheme = InvoiceTheme.NONE,
+        /**
+         * Reserve space for sections with nothing in them when the invoice is being edited, so the
+         * screen can offer a "tap to add" box. Exports always use [PlaceholderMode.None], so a
+         * shared file never shows a gap where an optional section was left blank.
+         */
+        placeholders: PlaceholderMode = PlaceholderMode.None,
     ): RenderedDocument {
-        val tree = TemplateFlattener.flatten(doc, contextFor(record), theme)
+        val tree = TemplateFlattener.flatten(doc, contextFor(record), theme, placeholders)
         val engine = LayoutEngine(shaper, imageSizes)
         val root = engine.layout(tree, LayoutEngine.pageContentWidth(doc.page))
         return Paginator(engine).paginate(root, doc.page)
@@ -44,3 +51,24 @@ class InvoiceRenderer(
     private fun contextFor(record: InvoiceRecord) =
         BindingContext(bindingDataFor(record), record.currency)
 }
+
+/**
+ * Which of a template's sections have no data behind them yet, so the editor can offer a
+ * "tap to add" box instead of an empty heading.
+ *
+ * Driven by what each section says it edits (APP-007), so a template that names its sections
+ * differently still works. Sections that edit nothing, or whose data lives on the business profile
+ * rather than the invoice, are never reported empty.
+ */
+fun emptySectionsFor(doc: TemplateDoc, record: InvoiceRecord): Set<String> =
+    doc.sections.filter { section ->
+        when (section.edits) {
+            SectionEdits.Customer -> record.customerSnapshot == null
+            SectionEdits.Items -> record.items.isEmpty()
+            SectionEdits.Notes -> record.notes.isNullOrBlank()
+            SectionEdits.InvoiceDetails -> record.invoiceNumber.isBlank()
+            SectionEdits.Company -> record.companySnapshot == null
+            // A discount is a choice, not a gap — an invoice without one is complete.
+            SectionEdits.Discount, SectionEdits.None -> false
+        }
+    }.map { it.id }.toSet()

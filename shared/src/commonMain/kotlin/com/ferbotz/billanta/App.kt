@@ -24,8 +24,9 @@ import com.ferbotz.billanta.di.AppContainer
 import com.ferbotz.billanta.state.BillantaState
 import com.ferbotz.billanta.state.BusinessProfileRoute
 import com.ferbotz.billanta.state.ChooseTemplateRoute
-import com.ferbotz.billanta.state.CreateInvoiceRoute
 import com.ferbotz.billanta.state.EditCustomerRoute
+import com.ferbotz.billanta.state.EditInvoiceDataRoute
+import com.ferbotz.billanta.state.EditSectionRoute
 import com.ferbotz.billanta.state.PreviewRoute
 import com.ferbotz.billanta.state.Route
 import com.ferbotz.billanta.state.SettingsRoute
@@ -36,7 +37,8 @@ import com.ferbotz.billanta.ui.components.BottomTabBar
 import com.ferbotz.billanta.ui.screens.BillantaSheetHost
 import com.ferbotz.billanta.ui.screens.BusinessProfileScreen
 import com.ferbotz.billanta.ui.screens.ChooseTemplateScreen
-import com.ferbotz.billanta.ui.screens.CreateInvoiceScreen
+import com.ferbotz.billanta.ui.screens.EditInvoiceDataScreen
+import com.ferbotz.billanta.ui.screens.EditSectionScreen
 import com.ferbotz.billanta.ui.screens.CustomersScreen
 import com.ferbotz.billanta.ui.screens.EditCustomerScreen
 import com.ferbotz.billanta.ui.screens.InvoicesScreen
@@ -87,9 +89,10 @@ private fun TabRootHost(state: BillantaState) {
 @Composable
 private fun RouteHost(state: BillantaState, route: Route) {
     when (route) {
-        CreateInvoiceRoute -> CreateInvoiceScreen(state)
         ChooseTemplateRoute -> ChooseTemplateScreen(state)
         is PreviewRoute -> PreviewScreen(state, route.invoiceId)
+        is EditInvoiceDataRoute -> EditInvoiceDataScreen(state, route.invoiceId)
+        is EditSectionRoute -> EditSectionScreen(state, route.invoiceId, route.edits, route.label)
         BusinessProfileRoute -> BusinessProfileScreen(state)
         SettingsRoute -> SettingsScreen(state)
         SignInRoute -> SignInScreen(state)

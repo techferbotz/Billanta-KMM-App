@@ -71,7 +71,37 @@ sealed interface CustomisationControl {
 data class ThemeToken(val name: String, val defaultArgb: Long, val label: String)
 
 /** A named block of the page, e.g. `payment`. [hidable] false means the invoice needs it. */
-data class TemplateSection(val id: String, val label: String, val hidable: Boolean)
+data class TemplateSection(
+    val id: String,
+    val label: String,
+    val hidable: Boolean,
+    /** What editing this section actually changes. [SectionEdits.None] means it is display-only. */
+    val edits: SectionEdits = SectionEdits.None,
+) {
+    val isEditable: Boolean get() = edits != SectionEdits.None
+}
+
+/**
+ * The data behind a section, so the app knows which editor to open for it (APP-007).
+ *
+ * An absent or unrecognised value is [None] rather than an error, so the backend can introduce a
+ * new kind of editor before this build knows how to show it.
+ */
+enum class SectionEdits(val wireName: String) {
+    Customer("customer"),
+    InvoiceDetails("invoiceDetails"),
+    Items("items"),
+    Discount("discount"),
+    Notes("notes"),
+    Company("company"),
+    None("none"),
+    ;
+
+    companion object {
+        fun fromWire(value: String?): SectionEdits =
+            entries.firstOrNull { it.wireName == value } ?: None
+    }
+}
 
 /**
  * The user's customisation of a template for one invoice: replacement colours by token name, and
@@ -174,7 +204,12 @@ sealed interface TValue {
     data class Bind(val path: String, val format: String, val fallback: String) : TValue
 }
 
-data class TSpan(val value: TValue, val style: TStyle?)
+data class TSpan(
+    val value: TValue,
+    val style: TStyle?,
+    /** Style key → token name for this run, overriding the text node's (BE-007). */
+    val tokens: Map<String, String>? = null,
+)
 
 sealed interface TNode {
     val style: TStyle

@@ -15,6 +15,7 @@ import com.ferbotz.billanta.domain.model.InvoiceItemRecord
 import com.ferbotz.billanta.domain.model.InvoiceRecord
 import com.ferbotz.billanta.domain.model.toSnapshot
 import com.ferbotz.billanta.domain.money.CalcLine
+import com.ferbotz.billanta.domain.money.DiscountSpec
 import com.ferbotz.billanta.domain.money.GstSplit
 import com.ferbotz.billanta.domain.money.InvoiceCalculator
 import kotlinx.coroutines.flow.Flow
@@ -120,6 +121,141 @@ class InvoiceRepository(
         hiddenSections: Set<String>,
     ): AppResult<InvoiceRecord> = patchScalars(id) {
         it.copy(themeOverrides = themeOverrides, hiddenSections = hiddenSections)
+    }
+
+    // ---- section-by-section editing ------------------------------------------------------------
+
+    /**
+     * Creates the invoice up front, empty, so the user edits something that already exists rather
+     * than filling a form that might be lost. Snapshots the business now; the customer snapshot
+     * follows when one is chosen.
+     */
+    suspend fun createEmpty(
+        invoiceNumber: String,
+        currency: String,
+        templateId: String?,
+        templateVersion: Long?,
+        invoiceDateMillis: Long,
+        dueDateMillis: Long?,
+        notes: String?,
+    ): AppResult<InvoiceRecord> {
+        val now = clock.nowMillis()
+        val record = InvoiceRecord(
+            id = randomUuid(),
+            invoiceNumber = invoiceNumber,
+            invoiceDateMillis = invoiceDateMillis,
+            dueDateMillis = dueDateMillis,
+            currency = currency,
+            templateId = templateId,
+            templateVersion = templateVersion,
+            companySnapshot = profileLocal.getCompany()?.toSnapshot(),
+            notes = notes,
+            createdAtMillis = now,
+            updatedAtMillis = now,
+            pendingSync = true,
+        )
+        local.upsert(record, dirty = true)
+        onLocalMutation()
+        return record.asSuccess()
+    }
+
+    /** Attaches a customer, re-snapshotting them so the invoice keeps what they looked like now. */
+    suspend fun setCustomer(id: String, customerId: String): AppResult<InvoiceRecord> {
+        val customer = customerLocal.getById(customerId)
+            ?: return AppError.Validation("Customer not found").asFailure()
+        return patchScalars(id) {
+            it.copy(
+                customerId = customer.id,
+                customerName = customer.name,
+                customerSnapshot = customer.toSnapshot(),
+            )
+        }
+    }
+
+    suspend fun setDetails(
+        id: String,
+        invoiceNumber: String,
+        invoiceDateMillis: Long,
+        dueDateMillis: Long?,
+        currency: String,
+    ): AppResult<InvoiceRecord> {
+        if (invoiceNumber.isBlank()) {
+            return AppError.Validation("Invoice number is required").asFailure()
+        }
+        if (local.isNumberInUse(invoiceNumber, excludeId = id)) {
+            return AppError.Validation("Invoice number $invoiceNumber is already used").asFailure()
+        }
+        return patchScalars(id) {
+            it.copy(
+                invoiceNumber = invoiceNumber,
+                invoiceDateMillis = invoiceDateMillis,
+                dueDateMillis = dueDateMillis,
+                currency = currency,
+            )
+        }
+    }
+
+    suspend fun setItems(id: String, items: List<InvoiceDraft.DraftItem>): AppResult<InvoiceRecord> =
+        recomputeAndSave(id) { record ->
+            record.copy(
+                items = items.map {
+                    InvoiceItemRecord(
+                        description = it.description,
+                        hsnSac = it.hsnSac,
+                        quantity = it.quantity,
+                        unitPricePaise = it.unitPricePaise,
+                        taxRatePercent = it.taxRatePercent,
+                    )
+                },
+            )
+        }
+
+    suspend fun setDiscount(id: String, discount: DiscountSpec?, beforeTax: Boolean): AppResult<InvoiceRecord> =
+        recomputeAndSave(id) { it.copy(discount = discount, discountBeforeTax = beforeTax) }
+
+    suspend fun setNotes(id: String, notes: String?): AppResult<InvoiceRecord> =
+        patchScalars(id) { it.copy(notes = notes?.takeIf { text -> text.isNotBlank() }) }
+
+    /**
+     * Applies an edit that changes the money, then recomputes every total with the exact server
+     * algorithm — so a partly-filled invoice always shows figures the server will agree with.
+     */
+    private suspend fun recomputeAndSave(
+        id: String,
+        transform: (InvoiceRecord) -> InvoiceRecord,
+    ): AppResult<InvoiceRecord> {
+        val existing = local.getById(id) ?: return AppError.Validation("Invoice not found").asFailure()
+        val edited = transform(existing)
+
+        val totals = try {
+            InvoiceCalculator.compute(
+                items = edited.items.map { CalcLine(it.quantity, it.unitPricePaise, it.taxRatePercent) },
+                discount = edited.discount,
+                discountBeforeTax = edited.discountBeforeTax,
+            )
+        } catch (e: BigMath.MoneyOverflowException) {
+            return AppError.Validation(e.message ?: "Amount too large").asFailure()
+        } catch (e: IllegalArgumentException) {
+            return AppError.Validation(e.message ?: "Invalid amounts").asFailure()
+        }
+
+        val updated = edited.copy(
+            items = edited.items.mapIndexed { i, item ->
+                item.copy(
+                    lineTotalPaise = totals.lines[i].lineTotal,
+                    taxAmountPaise = totals.lines[i].taxAmount,
+                )
+            },
+            subtotalPaise = totals.subtotal,
+            discountTotalPaise = totals.discountTotal,
+            taxTotalPaise = totals.taxTotal,
+            grandTotalPaise = totals.grandTotal,
+            updatedAtMillis = clock.nowMillis(),
+            pendingSync = true,
+        )
+        local.upsert(updated, dirty = true)
+        onLocalMutation()
+        return updated.asSuccess()
     }
 
     /** Template only affects rendering; the change re-syncs as an idempotent re-POST. */

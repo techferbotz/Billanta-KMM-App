@@ -21,7 +21,22 @@ data class RenderedDocument(
     }
 }
 
-data class RenderedPage(val commands: List<DrawCommand>)
+data class RenderedPage(
+    val commands: List<DrawCommand>,
+    /**
+     * Where each of the template's sections ended up on this page. The editor uses it to put a
+     * dashed placeholder over a section that has nothing in it yet, and to know what the user
+     * tapped. Empty on pages that contain no tagged section.
+     */
+    val sections: List<SectionBounds> = emptyList(),
+)
+
+/** A section's footprint on one page. [isEmpty] means the section rendered no content. */
+data class SectionBounds(
+    val id: String,
+    val rect: RectPt,
+    val isEmpty: Boolean,
+)
 
 sealed interface DrawCommand {
 

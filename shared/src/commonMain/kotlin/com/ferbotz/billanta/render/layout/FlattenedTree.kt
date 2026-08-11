@@ -30,9 +30,27 @@ import com.ferbotz.billanta.render.text.TextAlignment
  */
 sealed interface LNode {
     val style: TStyle
+
+    /** Section this node belongs to, carried through so layout can report where it landed. */
+    val section: String? get() = null
 }
 
-data class LBox(override val style: TStyle, val children: List<LNode>) : LNode
+data class LBox(
+    override val style: TStyle,
+    val children: List<LNode>,
+    override val section: String? = null,
+) : LNode
+
+/**
+ * Stands in for a section that resolved to nothing, holding open enough height for the editor to
+ * draw a "tap to add" box over it. Only produced when rendering for editing — an export collapses
+ * the empty section exactly as before, so a shared invoice never shows a gap.
+ */
+data class LPlaceholder(
+    override val style: TStyle,
+    override val section: String?,
+    val heightPt: Float,
+) : LNode
 
 data class LText(
     override val style: TStyle,
@@ -68,7 +86,7 @@ fun LNode.imageUrls(): List<String> {
             is LCell -> node.children.forEach(::visit)
             is LRow -> node.cells.forEach(::visit)
             is LTable -> node.allRows.forEach(::visit)
-            is LText, is LDivider -> Unit
+            is LText, is LDivider, is LPlaceholder -> Unit
         }
     }
     visit(this)
@@ -77,8 +95,13 @@ fun LNode.imageUrls(): List<String> {
 
 object TemplateFlattener {
 
-    fun flatten(doc: TemplateDoc, ctx: BindingContext, theme: InvoiceTheme = InvoiceTheme.NONE): LNode {
-        val nodes = flattenNode(doc.root, ctx, emptyMap(), doc.page, theme)
+    fun flatten(
+        doc: TemplateDoc,
+        ctx: BindingContext,
+        theme: InvoiceTheme = InvoiceTheme.NONE,
+        placeholders: PlaceholderMode = PlaceholderMode.None,
+    ): LNode {
+        val nodes = flattenNode(doc.root, ctx, emptyMap(), doc.page, theme, placeholders)
         return nodes.singleOrNull() ?: LBox(doc.root.style, nodes)
     }
 
@@ -102,6 +125,20 @@ object TemplateFlattener {
             }
         }
         return themed
+    }
+
+    /**
+     * A tagged section that produced no content becomes a placeholder while editing, so the page
+     * has somewhere to show "nothing here yet". Everywhere else it stays collapsed.
+     */
+    private fun placeholderFor(
+        section: String?,
+        placeholders: PlaceholderMode,
+    ): LNode? {
+        if (section == null) return null
+        val reserve = placeholders as? PlaceholderMode.Reserve ?: return null
+        if (section !in reserve.sections) return null
+        return LPlaceholder(TStyle.EMPTY, section, reserve.heightPt)
     }
 
     /**
@@ -134,6 +171,7 @@ object TemplateFlattener {
         aliases: Map<String, Any?>,
         page: PageSpec,
         theme: InvoiceTheme,
+        placeholders: PlaceholderMode,
     ): List<LNode> {
         if (node.style.isHidden) return emptyList()
         // A section the user switched off disappears along with everything inside it.
@@ -142,24 +180,26 @@ object TemplateFlattener {
             is TRepeat -> {
                 val items = ctx.resolveRaw(node.path, aliases) as? List<*> ?: emptyList<Any?>()
                 items.flatMap { item ->
-                    flattenNode(node.child, ctx, aliases + (node.alias to item), page, theme)
+                    flattenNode(node.child, ctx, aliases + (node.alias to item), page, theme, placeholders)
                 }
             }
 
             is TConditional ->
-                if (ctx.isTruthy(node.path, aliases)) flattenNode(node.child, ctx, aliases, page, theme)
+                if (ctx.isTruthy(node.path, aliases)) flattenNode(node.child, ctx, aliases, page, theme, placeholders)
                 else emptyList()
 
-            is TBox -> listOf(
-                LBox(
-                    themed(node.style, node.tokens, theme),
-                    node.children.flatMap { flattenNode(it, ctx, aliases, page, theme) },
-                ),
-            )
+            is TBox -> {
+                // A section the caller flagged as empty is replaced wholesale, label and all —
+                // otherwise the user would see a lone "BILL TO" heading with nothing under it and
+                // no obvious way to fill it in.
+                placeholderFor(node.section, placeholders)?.let { return listOf(it) }
+                val children = node.children.flatMap { flattenNode(it, ctx, aliases, page, theme, placeholders) }
+                listOf(LBox(themed(node.style, node.tokens, theme), children, node.section))
+            }
 
             is TText -> {
                 val style = themed(node.style, node.tokens, theme)
-                val runs = buildRuns(node, style, ctx, aliases, page)
+                val runs = buildRuns(node, style, ctx, aliases, page, theme)
                 // An element whose text resolves to nothing generates no line box in CSS, so it
                 // must not leave a gap behind — this is how absent optional fields disappear.
                 if (runs.isEmpty()) emptyList()
@@ -180,14 +220,14 @@ object TemplateFlattener {
                 LTable(
                     style = themed(node.style, node.tokens, theme),
                     columns = node.columns,
-                    header = node.header.mapNotNull { flattenRow(it, ctx, aliases, page, theme) },
-                    body = flattenBody(node.body, ctx, aliases, page, theme),
-                    footer = node.footer.mapNotNull { flattenRow(it, ctx, aliases, page, theme) },
+                    header = node.header.mapNotNull { flattenRow(it, ctx, aliases, page, theme, placeholders) },
+                    body = flattenBody(node.body, ctx, aliases, page, theme, placeholders),
+                    footer = node.footer.mapNotNull { flattenRow(it, ctx, aliases, page, theme, placeholders) },
                 ),
             )
 
-            is TRow -> listOfNotNull(flattenRow(node, ctx, aliases, page, theme))
-            is TCell -> listOf(flattenCell(node, ctx, aliases, page, theme))
+            is TRow -> listOfNotNull(flattenRow(node, ctx, aliases, page, theme, placeholders))
+            is TCell -> listOf(flattenCell(node, ctx, aliases, page, theme, placeholders))
         }
     }
 
@@ -197,13 +237,14 @@ object TemplateFlattener {
         aliases: Map<String, Any?>,
         page: PageSpec,
         theme: InvoiceTheme,
+        placeholders: PlaceholderMode,
     ): List<LRow> = when (body) {
         null -> emptyList()
-        is TTableBody.Rows -> body.rows.mapNotNull { flattenRow(it, ctx, aliases, page, theme) }
+        is TTableBody.Rows -> body.rows.mapNotNull { flattenRow(it, ctx, aliases, page, theme, placeholders) }
         is TTableBody.Repeat -> {
             val items = ctx.resolveRaw(body.path, aliases) as? List<*> ?: emptyList<Any?>()
             items.mapNotNull { item ->
-                flattenRow(body.row, ctx, aliases + (body.alias to item), page, theme)
+                flattenRow(body.row, ctx, aliases + (body.alias to item), page, theme, placeholders)
             }
         }
     }
@@ -214,12 +255,13 @@ object TemplateFlattener {
         aliases: Map<String, Any?>,
         page: PageSpec,
         theme: InvoiceTheme,
+        placeholders: PlaceholderMode,
     ): LRow? {
         if (row.style.isHidden) return null
         if (row.section != null && row.section in theme.hiddenSections) return null
         return LRow(
             themed(row.style, row.tokens, theme),
-            row.cells.map { flattenCell(it, ctx, aliases, page, theme) },
+            row.cells.map { flattenCell(it, ctx, aliases, page, theme, placeholders) },
         )
     }
 
@@ -229,10 +271,11 @@ object TemplateFlattener {
         aliases: Map<String, Any?>,
         page: PageSpec,
         theme: InvoiceTheme,
+        placeholders: PlaceholderMode,
     ) = LCell(
         style = themed(cell.style, cell.tokens, theme),
         colSpan = cell.colSpan.coerceAtLeast(1),
-        children = cell.children.flatMap { flattenNode(it, ctx, aliases, page, theme) },
+        children = cell.children.flatMap { flattenNode(it, ctx, aliases, page, theme, placeholders) },
     )
 
     /**
@@ -245,6 +288,7 @@ object TemplateFlattener {
         ctx: BindingContext,
         aliases: Map<String, Any?>,
         page: PageSpec,
+        theme: InvoiceTheme,
     ): List<StyledRun> {
         val runs = ArrayList<StyledRun>(node.spans.size)
         node.spans.forEach { span ->
@@ -255,7 +299,9 @@ object TemplateFlattener {
             val transform = span.style?.textTransform ?: nodeStyle.textTransform
             val text = applyTransform(raw, transform)
             if (text.isEmpty()) return@forEach
-            runs += StyledRun(text, runStyleOf(node.style, nodeStyle, span.style, page))
+            val spanStyle = themed(span.style ?: TStyle.EMPTY, span.tokens, theme)
+                .takeIf { span.style != null || span.tokens != null }
+            runs += StyledRun(text, runStyleOf(node.style, nodeStyle, spanStyle, page))
         }
         // A paragraph of nothing but whitespace still occupies a line, but one of pure empties
         // does not — mirroring how the browser the template was authored against behaves.
@@ -277,12 +323,12 @@ object TemplateFlattener {
     )
 
     /**
-     * A span carries its own resolved colour, and `tokens` only exists on nodes — so an inline run
-     * (`<strong>{{ invoice.total }}</strong>`) would keep the template's original colour while the
-     * text around it recoloured, which is how the invoice total ended up stranded in the old accent.
+     * A span with its own `tokens` (BE-007) has already been recoloured by the caller, so its value
+     * is exact and simply wins.
      *
-     * A span whose colour merely restates the one it inherited was not expressing a choice, so it
-     * follows the themed colour. A span that genuinely differs is left alone.
+     * The fallback below covers spans the compiler has not tagged: one whose colour merely restates
+     * what it inherited was not expressing a choice, so it follows the themed colour. A span that
+     * genuinely differs is left alone.
      */
     private fun spanColorOf(originalNodeStyle: TStyle, nodeStyle: TStyle, spanStyle: TStyle?): Long {
         val spanColor = spanStyle?.color ?: return nodeStyle.color ?: DEFAULT_INK
@@ -315,4 +361,23 @@ object TemplateFlattener {
     }
 
     private const val DEFAULT_INK = 0xFF000000
+}
+
+/**
+ * Whether an empty section should hold space open.
+ *
+ * Editing reserves room so a dashed "tap to add" box has somewhere to sit; exporting never does, so
+ * the file a customer receives has no gaps where optional sections were left blank.
+ */
+sealed interface PlaceholderMode {
+    data object None : PlaceholderMode
+
+    /**
+     * Replace each of [sections] with an empty box [heightPt] tall.
+     *
+     * Which sections are empty is a question about the invoice's *data*, not about the tree — a
+     * template's "Bill to" block still renders its heading when no customer has been chosen, so the
+     * layout alone cannot tell. The caller decides; see `emptySectionsFor`.
+     */
+    data class Reserve(val sections: Set<String>, val heightPt: Float = 56f) : PlaceholderMode
 }

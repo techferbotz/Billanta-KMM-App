@@ -22,8 +22,9 @@ class Paginator(private val engine: LayoutEngine) {
             val split = split(current, budget, atPageStart = true)
             val head = split.head ?: current
             val commands = ArrayList<DrawCommand>()
-            engine.paint(head, page.marginLeftPt, page.marginTopPt, commands)
-            pages += RenderedPage(commands)
+            val sections = ArrayList<SectionBounds>()
+            engine.paint(head, page.marginLeftPt, page.marginTopPt, commands, sections)
+            pages += RenderedPage(commands, sections)
             remainder = split.tail
         }
 

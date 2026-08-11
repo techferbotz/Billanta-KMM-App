@@ -13,6 +13,7 @@ import com.ferbotz.billanta.domain.model.UserAccount
 import com.ferbotz.billanta.domain.model.UserSettings
 import com.ferbotz.billanta.domain.money.DiscountSpec
 import com.ferbotz.billanta.domain.money.DiscountType
+import com.ferbotz.billanta.render.TemplateParser
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonObjectBuilder
@@ -178,6 +179,11 @@ fun InvoiceDto.toDomain(): InvoiceRecord {
         discountTotalPaise = paiseOrZero(discountTotal),
         taxTotalPaise = paiseOrZero(taxTotal),
         grandTotalPaise = paiseOrZero(grandTotal),
+        themeOverrides = themeOverrides
+            ?.mapNotNull { (token, hex) -> TemplateParser.parseHexColor(hex)?.let { token to it } }
+            ?.toMap()
+            ?: emptyMap(),
+        hiddenSections = hiddenSections?.toSet() ?: emptySet(),
         pdfPath = pdfPath,
         deletedAtMillis = isoToMillis(deletedAt),
         createdAtMillis = isoToMillis(createdAt),
@@ -204,6 +210,8 @@ fun InvoiceRecord.toDto() = InvoiceDto(
     discountValue = discount?.value,
     discountBeforeTax = discountBeforeTax,
     items = items.map { it.toDto() },
+    themeOverrides = themeOverrides.mapValues { TemplateParser.formatHexColor(it.value) },
+    hiddenSections = hiddenSections.toList(),
     updatedAt = Iso8601.format(updatedAtMillis),
 )
 
