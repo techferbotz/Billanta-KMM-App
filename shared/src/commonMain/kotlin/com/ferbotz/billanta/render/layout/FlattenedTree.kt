@@ -18,6 +18,7 @@ import com.ferbotz.billanta.render.TTableBody
 import com.ferbotz.billanta.render.TText
 import com.ferbotz.billanta.render.TValue
 import com.ferbotz.billanta.render.TemplateDoc
+import com.ferbotz.billanta.render.containsEditorOnly
 import com.ferbotz.billanta.render.text.ParagraphStyle
 import com.ferbotz.billanta.render.text.RunStyle
 import com.ferbotz.billanta.render.text.StyledRun
@@ -68,13 +69,23 @@ data class LTable(
     val header: List<LRow>,
     val body: List<LRow>,
     val footer: List<LRow>,
+    override val section: String? = null,
 ) : LNode {
     val allRows: List<LRow> get() = header + body + footer
 }
 
-data class LRow(override val style: TStyle, val cells: List<LCell>) : LNode
+data class LRow(
+    override val style: TStyle,
+    val cells: List<LCell>,
+    override val section: String? = null,
+) : LNode
 
-data class LCell(override val style: TStyle, val colSpan: Int, val children: List<LNode>) : LNode
+data class LCell(
+    override val style: TStyle,
+    val colSpan: Int,
+    val children: List<LNode>,
+    override val section: String? = null,
+) : LNode
 
 /** Every image URL in the tree, so the export path can preload them before laying out. */
 fun LNode.imageUrls(): List<String> {
@@ -133,12 +144,27 @@ object TemplateFlattener {
      */
     private fun placeholderFor(
         section: String?,
+        theme: InvoiceTheme,
         placeholders: PlaceholderMode,
     ): LNode? {
-        if (section == null) return null
+        // A section the user switched off stays off — never offer to fill in something they hid.
+        if (section == null || section in theme.hiddenSections) return null
         val reserve = placeholders as? PlaceholderMode.Reserve ?: return null
         if (section !in reserve.sections) return null
         return LPlaceholder(TStyle.EMPTY, section, reserve.heightPt)
+    }
+
+    /**
+     * The section a gated subtree would have carried, seen through the gate.
+     *
+     * Templates express "only show notes if there are notes" as a `conditional` wrapping the tagged
+     * box, so the gate closes on exactly the data whose absence we want to offer to fill in. Without
+     * looking through it, the notes and payment sections could never show a placeholder.
+     */
+    private tailrec fun sectionBehind(node: TNode): String? = when (node) {
+        is TConditional -> sectionBehind(node.child)
+        is TRepeat -> sectionBehind(node.child)
+        else -> node.section
     }
 
     /**
@@ -176,23 +202,47 @@ object TemplateFlattener {
         if (node.style.isHidden) return emptyList()
         // A section the user switched off disappears along with everything inside it.
         if (node.section != null && node.section in theme.hiddenSections) return emptyList()
+        // The hard guarantee behind BE-009: a template's editing-only content — its own empty-state
+        // placeholders — never reaches an export. The same tree draws the preview and the PDF the
+        // customer receives, so this check is the only thing stopping "Add an item" being printed
+        // on a real invoice.
+        if (node.editorOnly && !placeholders.isEditing) return emptyList()
+        // A section the caller flagged as empty is replaced wholesale, heading and all — otherwise
+        // the user sees a lone "BILL TO" label with nothing under it and no way to fill it in.
+        //
+        // This is checked for every node type, not just `box`: the templates tag `items` on the
+        // `table` itself, so a box-only check silently skipped the one section a new invoice most
+        // needs to offer. Rows and cells reach layout through flattenRow/flattenCell instead, so a
+        // placeholder can never appear where a table expects an LRow.
+        // A template that ships its own empty state (BE-009) wins: replacing it with the app's
+        // generic box would throw away the design its author chose, and the app's idea of "empty"
+        // is a guess where the template's `data-unless` gate is exact.
+        if (!node.containsEditorOnly()) {
+            placeholderFor(node.section, theme, placeholders)?.let { return listOf(it) }
+        }
         return when (node) {
             is TRepeat -> {
                 val items = ctx.resolveRaw(node.path, aliases) as? List<*> ?: emptyList<Any?>()
-                items.flatMap { item ->
+                if (items.isEmpty()) listOfNotNull(placeholderFor(sectionBehind(node.child), theme, placeholders))
+                else items.flatMap { item ->
                     flattenNode(node.child, ctx, aliases + (node.alias to item), page, theme, placeholders)
                 }
             }
 
+            // `negate` is BE-009's `data-unless`: the same gate, inverted.
             is TConditional ->
-                if (ctx.isTruthy(node.path, aliases)) flattenNode(node.child, ctx, aliases, page, theme, placeholders)
-                else emptyList()
+                if (ctx.isTruthy(node.path, aliases) != node.negate) {
+                    flattenNode(node.child, ctx, aliases, page, theme, placeholders)
+                } else if (node.child.containsEditorOnly()) {
+                    // The template has its own empty state for this branch; it simply is not this
+                    // one, so nothing is missing and there is nothing to stand in for.
+                    emptyList()
+                } else {
+                    // The gate closed on the very data the section is for, so offer to add it.
+                    listOfNotNull(placeholderFor(sectionBehind(node.child), theme, placeholders))
+                }
 
             is TBox -> {
-                // A section the caller flagged as empty is replaced wholesale, label and all —
-                // otherwise the user would see a lone "BILL TO" heading with nothing under it and
-                // no obvious way to fill it in.
-                placeholderFor(node.section, placeholders)?.let { return listOf(it) }
                 val children = node.children.flatMap { flattenNode(it, ctx, aliases, page, theme, placeholders) }
                 listOf(LBox(themed(node.style, node.tokens, theme), children, node.section))
             }
@@ -223,6 +273,7 @@ object TemplateFlattener {
                     header = node.header.mapNotNull { flattenRow(it, ctx, aliases, page, theme, placeholders) },
                     body = flattenBody(node.body, ctx, aliases, page, theme, placeholders),
                     footer = node.footer.mapNotNull { flattenRow(it, ctx, aliases, page, theme, placeholders) },
+                    section = node.section,
                 ),
             )
 
@@ -262,6 +313,7 @@ object TemplateFlattener {
         return LRow(
             themed(row.style, row.tokens, theme),
             row.cells.map { flattenCell(it, ctx, aliases, page, theme, placeholders) },
+            section = row.section,
         )
     }
 
@@ -276,6 +328,7 @@ object TemplateFlattener {
         style = themed(cell.style, cell.tokens, theme),
         colSpan = cell.colSpan.coerceAtLeast(1),
         children = cell.children.flatMap { flattenNode(it, ctx, aliases, page, theme, placeholders) },
+        section = cell.section,
     )
 
     /**
@@ -369,7 +422,17 @@ object TemplateFlattener {
  * Editing reserves room so a dashed "tap to add" box has somewhere to sit; exporting never does, so
  * the file a customer receives has no gaps where optional sections were left blank.
  */
+/**
+ * Whether this render is the editor's copy or the final artefact.
+ *
+ * [None] means "this is what the customer receives": no reserved gaps, and no `editorOnly` content
+ * from the template. [Reserve] means the on-screen editor, where both are wanted.
+ */
 sealed interface PlaceholderMode {
+
+    /** True for the editing copy; the export path must always be [None]. */
+    val isEditing: Boolean get() = this is Reserve
+
     data object None : PlaceholderMode
 
     /**

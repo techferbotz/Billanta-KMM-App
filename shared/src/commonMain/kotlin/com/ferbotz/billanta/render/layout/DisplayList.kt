@@ -56,6 +56,7 @@ sealed interface DrawCommand {
         val widths: EdgesPt,
         val colors: EdgeColors,
         val radiusPt: Float = 0f,
+        val styles: EdgeStyles = EdgeStyles.SOLID,
     ) : DrawCommand
 
     /** A shaped paragraph placed at its top-left corner. */

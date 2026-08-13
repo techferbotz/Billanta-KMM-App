@@ -70,8 +70,8 @@ class LayoutEngine(
             is LDivider -> finish(node, m, contentWidth, contentHeight = 0f)
             is LBox -> measureBox(node, m, contentWidth)
             is LTable -> measureTable(node, m, contentWidth)
-            is LRow -> measureBox(LBox(node.style, node.cells), m, contentWidth)
-            is LCell -> measureBox(LBox(node.style, node.children), m, contentWidth)
+            is LRow -> measureBox(LBox(node.style, node.cells, node.section), m, contentWidth)
+            is LCell -> measureBox(LBox(node.style, node.children, node.section), m, contentWidth)
         }
     }
 
@@ -268,8 +268,8 @@ class LayoutEngine(
             is LDivider -> finish(node, m, contentWidth, 0f)
             is LBox -> measureBox(node, m, contentWidth)
             is LTable -> measureTable(node, m, contentWidth)
-            is LRow -> measureBox(LBox(node.style, node.cells), m, contentWidth)
-            is LCell -> measureBox(LBox(node.style, node.children), m, contentWidth)
+            is LRow -> measureBox(LBox(node.style, node.cells, node.section), m, contentWidth)
+            is LCell -> measureBox(LBox(node.style, node.children, node.section), m, contentWidth)
         }
     }
 
@@ -510,7 +510,7 @@ class LayoutEngine(
         val own = ArrayList<DrawCommand>()
         m.backgroundArgb?.let { own += DrawCommand.Fill(borderBox, it, m.radiusPt) }
         if (!m.border.isEmpty && !m.borderColors.isEmpty) {
-            own += DrawCommand.Borders(borderBox, m.border, m.borderColors, m.radiusPt)
+            own += DrawCommand.Borders(borderBox, m.border, m.borderColors, m.radiusPt, m.borderStyles)
         }
 
         val content = borderBox.deflate(m.contentInset)

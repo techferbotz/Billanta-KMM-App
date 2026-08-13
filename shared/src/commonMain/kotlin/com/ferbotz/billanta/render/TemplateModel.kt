@@ -25,6 +25,9 @@ data class TemplateDoc(
 ) {
     val isCustomisable: Boolean get() = themeTokens.isNotEmpty() || sections.any { it.hidable }
 
+    /** Whether the template ships any editing-only content, e.g. its own empty-state placeholders. */
+    val hasEditorOnly: Boolean by lazy { root.containsEditorOnly() }
+
     fun defaultColorFor(token: String): Long? =
         themeTokens.firstOrNull { it.name == token }?.defaultArgb
 
@@ -134,6 +137,22 @@ data class PageSpec(
     }
 }
 
+/**
+ * How an edge is stroked. The compiler emits `border*Style` as a keyword; anything this build does
+ * not know is read as [Solid], the CSS initial value, rather than dropping the border entirely.
+ */
+enum class BorderStyle(val wireName: String) {
+    Solid("solid"),
+    Dashed("dashed"),
+    Dotted("dotted"),
+    ;
+
+    companion object {
+        fun fromWire(value: String?): BorderStyle? =
+            value?.let { name -> entries.firstOrNull { it.wireName == name } ?: Solid }
+    }
+}
+
 /** A length that may be absolute points, a parent-relative percentage, or `auto` (margins). */
 sealed interface Dim {
     data class Pt(val v: Float) : Dim
@@ -172,6 +191,10 @@ data class TStyle(
     val borderRightWidthPt: Float? = null,
     val borderBottomWidthPt: Float? = null,
     val borderLeftWidthPt: Float? = null,
+    val borderTopStyle: BorderStyle? = null,
+    val borderRightStyle: BorderStyle? = null,
+    val borderBottomStyle: BorderStyle? = null,
+    val borderLeftStyle: BorderStyle? = null,
     val borderTopColor: Long? = null,       // ARGB
     val borderRightColor: Long? = null,
     val borderBottomColor: Long? = null,
@@ -225,6 +248,34 @@ sealed interface TNode {
      * carries the resolved hex, so a renderer that ignores this draws the template's own colours.
      */
     val tokens: Map<String, String>? get() = null
+
+    /**
+     * True when this node exists only while the invoice is being edited — a template's own
+     * empty-state placeholder (BE-009).
+     *
+     * The app guarantees these never reach an export. The same compiled tree draws the preview and
+     * the PDF the customer receives, so without that guarantee a template's "Add an item" prompt
+     * would be printed on a real invoice.
+     */
+    val editorOnly: Boolean get() = false
+}
+
+/** Whether anything in this subtree only exists while editing. */
+fun TNode.containsEditorOnly(): Boolean {
+    if (editorOnly) return true
+    return when (this) {
+        is TBox -> children.any { it.containsEditorOnly() }
+        is TCell -> children.any { it.containsEditorOnly() }
+        is TRow -> cells.any { it.containsEditorOnly() }
+        is TTable -> (header + footer).any { it.containsEditorOnly() } || when (val b = body) {
+            is TTableBody.Repeat -> b.row.containsEditorOnly()
+            is TTableBody.Rows -> b.rows.any { it.containsEditorOnly() }
+            null -> false
+        }
+        is TRepeat -> child.containsEditorOnly()
+        is TConditional -> child.containsEditorOnly()
+        is TText, is TImage, is TDivider -> false
+    }
 }
 
 data class TBox(
@@ -232,6 +283,7 @@ data class TBox(
     val children: List<TNode>,
     override val section: String? = null,
     override val tokens: Map<String, String>? = null,
+    override val editorOnly: Boolean = false,
 ) : TNode
 
 data class TText(
@@ -239,6 +291,7 @@ data class TText(
     val spans: List<TSpan>,
     override val section: String? = null,
     override val tokens: Map<String, String>? = null,
+    override val editorOnly: Boolean = false,
 ) : TNode
 
 data class TImage(
@@ -247,12 +300,14 @@ data class TImage(
     val fit: String,
     override val section: String? = null,
     override val tokens: Map<String, String>? = null,
+    override val editorOnly: Boolean = false,
 ) : TNode
 
 data class TDivider(
     override val style: TStyle,
     override val section: String? = null,
     override val tokens: Map<String, String>? = null,
+    override val editorOnly: Boolean = false,
 ) : TNode
 
 data class TColumn(val widthPt: Float?) {
@@ -272,6 +327,7 @@ data class TTable(
     val footer: List<TRow>,
     override val section: String? = null,
     override val tokens: Map<String, String>? = null,
+    override val editorOnly: Boolean = false,
 ) : TNode
 
 data class TRow(
@@ -279,6 +335,7 @@ data class TRow(
     val cells: List<TCell>,
     override val section: String? = null,
     override val tokens: Map<String, String>? = null,
+    override val editorOnly: Boolean = false,
 ) : TNode
 
 data class TCell(
@@ -287,12 +344,18 @@ data class TCell(
     val children: List<TNode>,
     override val section: String? = null,
     override val tokens: Map<String, String>? = null,
+    override val editorOnly: Boolean = false,
 ) : TNode
 
 data class TRepeat(val path: String, val alias: String, val child: TNode) : TNode {
     override val style: TStyle get() = TStyle.EMPTY
 }
 
-data class TConditional(val path: String, val child: TNode) : TNode {
+/** [negate] inverts the gate: render [child] only when [path] is FALSY (BE-009's `data-unless`). */
+data class TConditional(
+    val path: String,
+    val child: TNode,
+    val negate: Boolean = false,
+) : TNode {
     override val style: TStyle get() = TStyle.EMPTY
 }

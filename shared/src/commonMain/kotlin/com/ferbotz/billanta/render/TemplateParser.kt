@@ -113,14 +113,17 @@ object TemplateParser {
         val style = parseStyle(obj["style"] as? JsonObject)
         val section = obj.str("section")
         val tokens = parseTokens(obj)
+        // Anything other than a literal `true` means "not editor-only" — an unrecognised value must
+        // never accidentally hide content from an export.
+        val editorOnly = (obj["editorOnly"] as? JsonPrimitive)?.booleanOrNull == true
         return when (obj.str("type")) {
-            "box" -> TBox(style, parseChildren(obj["children"]), section, tokens)
-            "text" -> TText(style, parseSpans(obj["spans"]), section, tokens)
+            "box" -> TBox(style, parseChildren(obj["children"]), section, tokens, editorOnly)
+            "text" -> TText(style, parseSpans(obj["spans"]), section, tokens, editorOnly)
             "image" -> {
                 val source = (obj["source"] as? JsonObject)?.let { parseValue(it) } ?: return null
-                TImage(style, source, obj.str("fit") ?: "contain", section, tokens)
+                TImage(style, source, obj.str("fit") ?: "contain", section, tokens, editorOnly)
             }
-            "divider" -> TDivider(style, section, tokens)
+            "divider" -> TDivider(style, section, tokens, editorOnly)
             "table" -> parseTable(obj, style)
             "row" -> parseRow(obj)
             "cell" -> parseCell(obj)
@@ -130,7 +133,11 @@ object TemplateParser {
             }
             "conditional" -> {
                 val child = (obj["child"] as? JsonObject)?.let { parseNode(it) } ?: return null
-                TConditional(obj.str("path") ?: return null, child)
+                TConditional(
+                    path = obj.str("path") ?: return null,
+                    child = child,
+                    negate = (obj["negate"] as? JsonPrimitive)?.booleanOrNull == true,
+                )
             }
             else -> null
         }
@@ -236,6 +243,10 @@ object TemplateParser {
             maxWidth = obj.dim("maxWidth"),
             minHeight = obj.dim("minHeight"),
             maxHeight = obj.dim("maxHeight"),
+            borderTopStyle = BorderStyle.fromWire(obj.str("borderTopStyle")),
+            borderRightStyle = BorderStyle.fromWire(obj.str("borderRightStyle")),
+            borderBottomStyle = BorderStyle.fromWire(obj.str("borderBottomStyle")),
+            borderLeftStyle = BorderStyle.fromWire(obj.str("borderLeftStyle")),
             borderTopWidthPt = obj.num("borderTopWidth"),
             borderRightWidthPt = obj.num("borderRightWidth"),
             borderBottomWidthPt = obj.num("borderBottomWidth"),

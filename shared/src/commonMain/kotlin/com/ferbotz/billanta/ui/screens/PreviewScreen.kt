@@ -47,7 +47,6 @@ import com.ferbotz.billanta.render.InvoiceRenderer
 import com.ferbotz.billanta.render.InvoiceTheme
 import com.ferbotz.billanta.render.TemplateDoc
 import com.ferbotz.billanta.render.TemplateParser
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
@@ -55,10 +54,13 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.pointerInput
 import com.ferbotz.billanta.render.emptySectionsFor
 import com.ferbotz.billanta.render.layout.PlaceholderMode
 import com.ferbotz.billanta.render.layout.RenderedDocument
 import com.ferbotz.billanta.render.layout.RenderedPage
+import com.ferbotz.billanta.render.layout.SectionBounds
 import com.ferbotz.billanta.render.paint.InvoicePageView
 import com.ferbotz.billanta.render.paint.intrinsicSizes
 import com.ferbotz.billanta.render.paint.rememberInvoiceRenderer
@@ -188,20 +190,37 @@ fun PreviewScreen(state: BillantaState, invoiceId: String) {
                     document.pages.forEachIndexed { index, page ->
                         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                             BoxWithConstraints(Modifier.fillMaxWidth()) {
+                                val scale = maxWidth.value / document.pageWidthPt
                                 InvoicePageView(
                                     page = page,
                                     pageWidthPt = document.pageWidthPt,
                                     pageHeightPt = document.pageHeightPt,
                                     modifier = Modifier.fillMaxWidth()
                                         .clip(RoundedCornerShape(6.dp))
-                                        .border(1.dp, c.border, RoundedCornerShape(6.dp)),
+                                        .border(1.dp, c.border, RoundedCornerShape(6.dp))
+                                        .pointerInput(page, scale, ready.doc) {
+                                            detectTapGestures { offset ->
+                                                val tapped = page
+                                                    .sectionAt(
+                                                        offset.x.toDp().value / scale,
+                                                        offset.y.toDp().value / scale,
+                                                    )
+                                                    ?.let { hit ->
+                                                        ready.doc.sections.firstOrNull { it.id == hit.id }
+                                                    }
+                                                    ?.takeIf { it.isEditable }
+                                                // A tap in the margins between sections has no one
+                                                // editor to mean, so it opens the list instead.
+                                                if (tapped == null) state.openInvoiceData(record.id)
+                                                else state.openSectionViaList(record.id, tapped)
+                                            }
+                                        },
                                     imageFor = { prepared.painters[it] },
                                 )
-                                EmptySectionTargets(
+                                EmptySectionHints(
                                     page = page,
-                                    scale = maxWidth.value / document.pageWidthPt,
+                                    scale = scale,
                                     labelFor = { labels[it] },
-                                    onTap = { state.openInvoiceData(record.id) },
                                 )
                             }
                             if (document.pageCount > 1) {
@@ -288,27 +307,38 @@ private fun RememberPreparedInvoice(
         // A section with nothing in it collapses to nothing, which leaves the user no way to fill
         // it. Only the on-screen copy holds the space open; the shared file must never show a gap.
         val empty = emptySectionsFor(doc, record) - record.hiddenSections
+        // A template may also carry its own editing-only content (BE-009), which the export render
+        // above has correctly dropped — so a second pass is needed for that too, not just for gaps.
         val editing =
-            if (empty.isEmpty()) document
+            if (empty.isEmpty() && !doc.hasEditorOnly) document
             else renderer.render(doc, record, theme, PlaceholderMode.Reserve(empty))
         PreparedInvoice(document, editing, images)
     }
 }
 
 /**
- * A dashed "tap to add" box over every section the invoice has not filled in yet.
+ * The section under a tap, preferring the most specific one.
  *
- * The rectangles come from the layout engine, not from guesswork: each one is exactly where that
- * section would have been drawn had it any content, so what the user taps is the empty space they
- * are looking at. Tapping any of them opens the same section list — the fastest route to whichever
- * one they meant.
+ * Sections nest — classic tags `totals` on a row inside the `items` table — so a point can fall
+ * inside more than one rect. The smallest one containing it is what the user aimed at.
+ */
+private fun RenderedPage.sectionAt(xPt: Float, yPt: Float): SectionBounds? = sections
+    .filter { xPt >= it.rect.x && xPt <= it.rect.right && yPt >= it.rect.y && yPt <= it.rect.bottom }
+    .minByOrNull { it.rect.width * it.rect.height }
+
+/**
+ * A dashed "add this" box over every section the invoice has not filled in yet.
+ *
+ * The rectangles come from the layout engine, not from guesswork: each is exactly where that
+ * section would have been drawn had it any content. They carry no click handling of their own —
+ * the page underneath handles every tap uniformly — so they are purely a hint about what is
+ * missing, and must not intercept the gesture.
  */
 @Composable
-private fun EmptySectionTargets(
+private fun EmptySectionHints(
     page: RenderedPage,
     scale: Float,
     labelFor: (String) -> String?,
-    onTap: () -> Unit,
 ) {
     val c = BillantaTheme.colors
     val dash = remember { PathEffect.dashPathEffect(floatArrayOf(9f, 7f), 0f) }
@@ -325,8 +355,7 @@ private fun EmptySectionTargets(
                         style = Stroke(width = 1.5.dp.toPx(), pathEffect = dash),
                         cornerRadius = CornerRadius(8.dp.toPx()),
                     )
-                }
-                .clickable(onClick = onTap),
+                },
             contentAlignment = Alignment.Center,
         ) {
             Text(

@@ -1,5 +1,7 @@
 package com.ferbotz.billanta.render.layout
 
+import com.ferbotz.billanta.render.BorderStyle
+
 /**
  * Geometry for the layout engine. Every value is absolute points (1pt = 1/72in) in page space —
  * there are no pixels, no dp and no density anywhere below this line.
@@ -52,6 +54,18 @@ data class EdgesPt(
 }
 
 /** Per-side border colours as ARGB, null meaning "no colour given" (defaults to black). */
+/** Per-edge stroke pattern. Null means the template said nothing, so the edge is solid. */
+data class EdgeStyles(
+    val top: BorderStyle? = null,
+    val right: BorderStyle? = null,
+    val bottom: BorderStyle? = null,
+    val left: BorderStyle? = null,
+) {
+    companion object {
+        val SOLID = EdgeStyles()
+    }
+}
+
 data class EdgeColors(
     val top: Long? = null,
     val right: Long? = null,

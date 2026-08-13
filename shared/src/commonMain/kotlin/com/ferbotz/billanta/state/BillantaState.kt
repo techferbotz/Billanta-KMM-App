@@ -412,6 +412,16 @@ class BillantaState(
     fun openSection(invoiceId: String, section: TemplateSection) =
         push(EditSectionRoute(invoiceId, section.edits, section.label))
 
+    /**
+     * Tapping a section on the invoice itself goes straight into its editor, but pushes the section
+     * list underneath first — so backing out lands on the list of everything still to fill in,
+     * rather than returning to the invoice after every single edit.
+     */
+    fun openSectionViaList(invoiceId: String, section: TemplateSection) {
+        push(EditInvoiceDataRoute(invoiceId))
+        push(EditSectionRoute(invoiceId, section.edits, section.label))
+    }
+
     fun setInvoiceCustomer(invoiceId: String, customerId: String, onSaved: () -> Unit = {}) =
         saveSection(onSaved) { setCustomer(invoiceId, customerId) }
 

@@ -11,6 +11,7 @@ import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
@@ -70,11 +71,32 @@ class SectionBoundsTest {
             assertTrue(section.rect.width > 0f, "${section.id} has no width")
             assertTrue(section.rect.height > 0f, "${section.id} has no height")
         }
-        // The sections a full invoice fills should all be reported as non-empty.
-        assertTrue(
-            bounds.filter { it.id == "items" }.all { !it.isEmpty },
-            "the items section should not be reported empty on a filled invoice",
-        )
+        // Not `all {}` — that passes vacuously when nothing reports at all, which is exactly how
+        // the missing table bounds hid: `items` is tagged on the `table` node, and LTable carried
+        // no section, so a filled invoice reported no items rect for the editor to hit-test.
+        val items = bounds.filter { it.id == "items" }
+        assertTrue(items.isNotEmpty(), "the items section reported no bounds on a filled invoice")
+        assertTrue(items.none { it.isEmpty }, "items has content, so it must not be reported empty")
+    }
+
+    /**
+     * Tapping the invoice has to land somewhere for every section the user can edit, whatever node
+     * type the template tagged — a box, a table or a row.
+     */
+    @Test
+    fun every_editable_section_reports_bounds_on_a_filled_invoice() {
+        listOf("classic", "minimal").forEach { name ->
+            val doc = template(name)
+            val document = renderer.render(doc, full())
+            val reported = document.pages.flatMap { it.sections }.map { it.id }.toSet()
+
+            doc.sections.filter { it.isEditable }.forEach { section ->
+                assertTrue(
+                    section.id in reported,
+                    "$name: '${section.id}' is editable but reported no bounds, so it cannot be tapped",
+                )
+            }
+        }
     }
 
     @Test
@@ -198,6 +220,70 @@ class SectionBoundsTest {
     }
 
     /**
+     * Every empty section must end up somewhere the user can see and tap — whatever node type the
+     * template tagged it on, and whichever side supplied the empty state.
+     *
+     * This asserts the outcome rather than the mechanism, because since BE-009 there are two ways
+     * to get there: the template authors its own empty state (classic's items), or the app
+     * synthesises one (everything else). Both are correct; a section with neither is the bug.
+     *
+     * The regression it was written for: `items` used to be tagged on the `table` node, and the
+     * placeholder check only ran for boxes, so a new invoice offered a dashed box for "Bill to" and
+     * nothing at all for the items — the section it most needs to offer.
+     */
+    @Test
+    fun every_empty_section_lands_somewhere_tappable() {
+        listOf("classic", "minimal").forEach { name ->
+            val doc = template(name)
+            val expected = emptySectionsFor(doc, empty())
+            assertTrue(expected.isNotEmpty(), "$name: a blank invoice should have empty sections")
+
+            val document = renderer.render(
+                doc,
+                empty(),
+                placeholders = PlaceholderMode.Reserve(expected, heightPt = 56f),
+            )
+            val bounds = document.pages.flatMap { it.sections }
+
+            expected.forEach { id ->
+                val forSection = bounds.filter { it.id == id }
+                assertTrue(forSection.isNotEmpty(), "$name: '$id' is empty but landed nowhere to tap")
+                assertTrue(
+                    forSection.any { it.rect.width > 0f && it.rect.height > 0f },
+                    "$name: '$id' reported a zero-sized rect, so it cannot be tapped",
+                )
+            }
+            // A synthesised placeholder still has to be big enough to hit comfortably.
+            bounds.filter { it.isEmpty }.forEach {
+                assertTrue(it.rect.height >= 56f - 0.5f, "$name: ${it.id} reserved only ${it.rect.height}pt")
+                assertTrue(it.rect.width > 0f, "$name: ${it.id} reserved no width")
+            }
+        }
+    }
+
+    /** The items section specifically — the one a new invoice most needs to offer. */
+    @Test
+    fun an_invoice_with_no_items_can_still_reach_the_items_section() {
+        listOf("classic", "minimal").forEach { name ->
+            val doc = template(name)
+            val items = doc.sections.firstOrNull { it.edits == SectionEdits.Items }
+            assertNotNull(items, "$name declares no items section")
+
+            val document = renderer.render(
+                doc,
+                empty(),
+                placeholders = PlaceholderMode.Reserve(setOf(items.id), heightPt = 56f),
+            )
+            val bounds = document.pages.flatMap { it.sections }.filter { it.id == items.id }
+            assertTrue(bounds.isNotEmpty(), "$name: the items section reported nothing to tap")
+            assertTrue(
+                bounds.any { it.rect.height > 0f },
+                "$name: the items section collapsed to nothing on an empty invoice",
+            )
+        }
+    }
+
+    /**
      * Tolerant on purpose: the seed templates do not declare `edits` yet (APP-007 is open), so this
      * asserts consistency for whatever they do declare rather than demanding a value that has not
      * shipped. It starts doing real work the moment the backend tags them.
@@ -215,6 +301,50 @@ class SectionBoundsTest {
                 )
             }
         }
+    }
+
+    // ---- tapping the invoice --------------------------------------------------------------------
+
+    /** Mirrors the preview's hit test: the smallest rect containing the point wins. */
+    private fun com.ferbotz.billanta.render.layout.RenderedPage.sectionAt(x: Float, y: Float) =
+        sections.filter { x >= it.rect.x && x <= it.rect.right && y >= it.rect.y && y <= it.rect.bottom }
+            .minByOrNull { it.rect.width * it.rect.height }
+
+    /**
+     * Classic tags `totals` on a row *inside* the items table, so a tap on the totals row falls in
+     * both rects. Picking the larger one would send the user to the item list instead of the
+     * discount editor, which is why the hit test takes the smallest.
+     */
+    @Test
+    fun a_tap_resolves_to_the_most_specific_section() {
+        val doc = template("classic")
+        val document = renderer.render(doc, full())
+        val page = document.pages.first()
+
+        val totals = page.sections.firstOrNull { it.id == "totals" }
+        assertNotNull(totals, "classic should report bounds for its totals row")
+        val items = page.sections.firstOrNull { it.id == "items" }
+        assertNotNull(items, "classic should report bounds for its items table")
+
+        // Only meaningful if they really do overlap — otherwise this proves nothing.
+        val nested = totals.rect.x >= items.rect.x - 0.5f && totals.rect.right <= items.rect.right + 0.5f &&
+            totals.rect.y >= items.rect.y - 0.5f && totals.rect.bottom <= items.rect.bottom + 0.5f
+        if (nested) {
+            val hit = page.sectionAt(totals.rect.x + totals.rect.width / 2, totals.rect.y + totals.rect.height / 2)
+            assertEquals("totals", hit?.id, "a tap on the totals row resolved to the enclosing section")
+        }
+
+        // A tap in the middle of the items table, above the totals row, still means items.
+        val insideItems = page.sectionAt(items.rect.x + items.rect.width / 2, items.rect.y + 1f)
+        assertEquals("items", insideItems?.id, "a tap inside the items table should mean items")
+    }
+
+    /** A tap in the page margin belongs to no section, so the caller falls back to the list. */
+    @Test
+    fun a_tap_outside_every_section_resolves_to_nothing() {
+        val doc = template("classic")
+        val page = renderer.render(doc, full()).pages.first()
+        assertNull(page.sectionAt(2f, 2f), "the top-left page margin should not resolve to a section")
     }
 
     // ---- APP-007: what each section edits -------------------------------------------------------

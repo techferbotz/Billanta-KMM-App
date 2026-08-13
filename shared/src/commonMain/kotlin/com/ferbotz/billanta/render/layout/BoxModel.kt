@@ -16,6 +16,7 @@ data class BoxMetrics(
     val marginAutoRight: Boolean,
     val border: EdgesPt,
     val borderColors: EdgeColors,
+    val borderStyles: EdgeStyles,
     val padding: EdgesPt,
     val radiusPt: Float,
     val backgroundArgb: Long?,
@@ -78,6 +79,12 @@ data class BoxMetrics(
                 right = style.borderRightColor,
                 bottom = style.borderBottomColor,
                 left = style.borderLeftColor,
+            ),
+            borderStyles = EdgeStyles(
+                top = style.borderTopStyle,
+                right = style.borderRightStyle,
+                bottom = style.borderBottomStyle,
+                left = style.borderLeftStyle,
             ),
             padding = EdgesPt(
                 top = style.paddingTopPt ?: 0f,

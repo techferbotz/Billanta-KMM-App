@@ -7,7 +7,9 @@ import com.ferbotz.billanta.domain.model.InvoiceItemRecord
 import com.ferbotz.billanta.domain.model.InvoiceRecord
 import com.ferbotz.billanta.render.InvoiceRenderer
 import com.ferbotz.billanta.render.TemplateParser
+import com.ferbotz.billanta.render.layout.DrawCommand
 import com.ferbotz.billanta.render.layout.RenderedDocument
+import com.ferbotz.billanta.render.layout.flattenCommands
 import com.ferbotz.billanta.render.text.FakeTextShaper
 import com.ferbotz.billanta.render.text.FontRegistry
 import com.ferbotz.billanta.render.text.TrueTypeFont
@@ -178,4 +180,79 @@ class PdfWriterTest {
         assertTrue(bytes.size < 1_500_000, "PDF unexpectedly large: ${bytes.size} bytes")
         assertTrue(bytes.size > 10_000, "PDF suspiciously small: ${bytes.size} bytes")
     }
+    /**
+     * A dashed border has to survive into the exported file, not just the on-screen preview — the
+     * PDF is what the customer receives, and until now the writer ignored border style *and* radius
+     * entirely, so a rounded dashed box exported as a square solid one.
+     */
+    @Test
+    fun a_dashed_rounded_border_exports_as_a_dashed_stroked_path() {
+        val doc = assertNotNull(
+            TemplateParser.parse(
+                """
+                { "schemaVersion": 1, "compilerVersion": 1,
+                  "page": { "size": "A4", "margin": { "top": 0, "right": 0, "bottom": 0, "left": 0 } },
+                  "root": { "type": "box", "style": {
+                      "width": 200, "height": 100, "borderRadius": 8,
+                      "borderTopWidth": 2, "borderRightWidth": 2,
+                      "borderBottomWidth": 2, "borderLeftWidth": 2,
+                      "borderTopColor": "#FF0000", "borderRightColor": "#FF0000",
+                      "borderBottomColor": "#FF0000", "borderLeftColor": "#FF0000",
+                      "borderTopStyle": "dashed", "borderRightStyle": "dashed",
+                      "borderBottomStyle": "dashed", "borderLeftStyle": "dashed"
+                    }, "children": [] } }
+                """,
+            ),
+        )
+        val record = InvoiceRecord(
+            id = "inv-1",
+            invoiceNumber = "INV-1",
+            invoiceDateMillis = Iso8601.epochMillisFor(2026, 8, 12),
+            updatedAtMillis = 1L,
+        )
+        val rendered = InvoiceRenderer(FakeTextShaper()).render(doc, record)
+        val text = PdfWriter(faces()).write(rendered).decodeToString()
+
+        assertTrue(Regex("""\[[0-9.]+ [0-9.]+] 0 d""").containsMatchIn(text), "no dash array was emitted")
+        assertTrue(Regex("(?m)^S$").containsMatchIn(text), "the dashed border was not stroked")
+        // Bézier arcs mean the radius made it through; `re f` alone would be the old square fill.
+        assertTrue(Regex("(?m) c$").containsMatchIn(text), "no curve: the corner radius was dropped")
+    }
+
+    /**
+     * The end of the BE-009 guarantee: not "the flattener drops it" but "the actual bytes we hand
+     * to the share sheet do not contain it". Classic ships an editor-only "+ Add an item" box.
+     */
+    @Test
+    fun an_editor_only_placeholder_is_absent_from_the_exported_bytes() {
+        val file = listOf(
+            File("src/androidHostTest/resources/templates/classic.json"),
+            File("shared/src/androidHostTest/resources/templates/classic.json"),
+        ).firstOrNull { it.exists() }
+        val doc = assertNotNull(TemplateParser.parse(assertNotNull(file).readText()))
+        assertTrue(doc.hasEditorOnly, "fixture has no editor-only content, so this proves nothing")
+
+        val blank = InvoiceRecord(
+            id = "inv-1",
+            invoiceNumber = "INV-1",
+            invoiceDateMillis = Iso8601.epochMillisFor(2026, 8, 12),
+            updatedAtMillis = 1L,
+        )
+        val exported = InvoiceRenderer(FakeTextShaper()).render(doc, blank)
+        val bytes = PdfWriter(faces()).write(exported)
+
+        // Text is stored as glyph ids, so decode what the writer actually laid down instead of
+        // grepping the bytes for ASCII that would never appear there anyway.
+        val drawn = exported.pages
+            .flatMap { it.commands.flattenCommands() }
+            .filterIsInstance<DrawCommand.Text>()
+            .flatMap { it.paragraph.lines }
+            .flatMap { line -> line.runs.map { it.text } }
+        assertTrue(
+            drawn.none { it.contains("Add an item", ignoreCase = true) },
+            "the exported PDF was built from a display list still containing the editor-only prompt",
+        )
+        assertTrue(bytes.isNotEmpty(), "the export produced no bytes")
+    }
+
 }

@@ -1,5 +1,9 @@
 package com.ferbotz.billanta.render.export
 
+import com.ferbotz.billanta.render.BorderStyle
+import com.ferbotz.billanta.render.layout.EdgeStyles
+import com.ferbotz.billanta.render.layout.dashPatternFor
+import com.ferbotz.billanta.render.layout.dashRuns
 import com.ferbotz.billanta.render.layout.DrawCommand
 import com.ferbotz.billanta.render.layout.EdgeColors
 import com.ferbotz.billanta.render.layout.EdgesPt
@@ -236,7 +240,8 @@ class PdfWriter(
                     if (command.radiusPt > 0f) roundRectPath(command.rect, command.radiusPt) else rectPath(command.rect)
                     op("f")
                 }
-                is DrawCommand.Borders -> emitBorders(command.rect, command.widths, command.colors)
+                is DrawCommand.Borders ->
+                    emitBorders(command.rect, command.widths, command.colors, command.radiusPt, command.styles)
                 is DrawCommand.Text -> emitText(command)
                 is DrawCommand.Image -> emitImage(command)
                 is DrawCommand.Group -> {
@@ -251,17 +256,80 @@ class PdfWriter(
         }
 
         /** Borders are filled bands, exactly as the on-screen painter draws them. */
-        private fun emitBorders(rect: RectPt, widths: EdgesPt, colors: EdgeColors) {
-            fun band(width: Float, argb: Long?, x: Float, y: Float, w: Float, h: Float) {
+        private fun emitBorders(
+            rect: RectPt,
+            widths: EdgesPt,
+            colors: EdgeColors,
+            radiusPt: Float,
+            styles: EdgeStyles,
+        ) {
+            val uniformWidth = widths.top
+            val uniform = widths.right == uniformWidth && widths.bottom == uniformWidth &&
+                widths.left == uniformWidth
+            val distinctColors = listOfNotNull(colors.top, colors.right, colors.bottom, colors.left).distinct()
+            // Absent means solid, matching the on-screen painter's rule exactly.
+            val distinctStyles = listOf(styles.top, styles.right, styles.bottom, styles.left)
+                .map { it ?: BorderStyle.Solid }.distinct()
+
+            if (uniform && uniformWidth > 0f && distinctColors.size <= 1 && distinctStyles.size == 1 &&
+                radiusPt > 0f
+            ) {
+                // Mirrors the on-screen painter's rounded case: one stroked path, so dashes carry
+                // round the corners. Stroking (rather than filling bands) is also the only way to
+                // follow a curve, and the inset by half the width matches Compose's stroke centre.
+                val pattern = dashPatternFor(uniformWidth, distinctStyles.single())
+                op("q")
+                pattern?.let { op("[${num(it[0])} ${num(it[1])}] 0 d") }
+                op(colorOp(distinctColors.firstOrNull() ?: 0xFF000000, stroke = true))
+                op("${num(uniformWidth)} w")
+                roundRectPath(
+                    RectPt(
+                        rect.x + uniformWidth / 2f,
+                        rect.y + uniformWidth / 2f,
+                        rect.width - uniformWidth,
+                        rect.height - uniformWidth,
+                    ),
+                    radiusPt,
+                )
+                op("S")
+                op("Q")
+                return
+            }
+
+            fun band(
+                width: Float,
+                argb: Long?,
+                style: BorderStyle?,
+                x: Float,
+                y: Float,
+                w: Float,
+                h: Float,
+                horizontal: Boolean,
+            ) {
                 if (width <= 0f || w <= 0f || h <= 0f) return
                 op(colorOp(argb ?: 0xFF000000, stroke = false))
-                rectPath(RectPt(x, y, w, h))
-                op("f")
+                val pattern = dashPatternFor(width, style)
+                if (pattern == null) {
+                    rectPath(RectPt(x, y, w, h))
+                    op("f")
+                    return
+                }
+                dashRuns(if (horizontal) w else h, pattern).forEach { (start, len) ->
+                    if (horizontal) rectPath(RectPt(x + start, y, len, h))
+                    else rectPath(RectPt(x, y + start, w, len))
+                    op("f")
+                }
             }
-            band(widths.top, colors.top, rect.x, rect.y, rect.width, widths.top)
-            band(widths.bottom, colors.bottom, rect.x, rect.bottom - widths.bottom, rect.width, widths.bottom)
-            band(widths.left, colors.left, rect.x, rect.y, widths.left, rect.height)
-            band(widths.right, colors.right, rect.right - widths.right, rect.y, widths.right, rect.height)
+            band(widths.top, colors.top, styles.top, rect.x, rect.y, rect.width, widths.top, true)
+            band(
+                widths.bottom, colors.bottom, styles.bottom,
+                rect.x, rect.bottom - widths.bottom, rect.width, widths.bottom, true,
+            )
+            band(widths.left, colors.left, styles.left, rect.x, rect.y, widths.left, rect.height, false)
+            band(
+                widths.right, colors.right, styles.right,
+                rect.right - widths.right, rect.y, widths.right, rect.height, false,
+            )
         }
 
         private fun emitText(command: DrawCommand.Text) {
