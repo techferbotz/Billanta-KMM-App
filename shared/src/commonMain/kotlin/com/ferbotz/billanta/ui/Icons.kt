@@ -1,5 +1,9 @@
 package com.ferbotz.billanta.ui
 
+import kotlin.math.PI
+import kotlin.math.cos
+import kotlin.math.sin
+
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
@@ -24,7 +28,7 @@ import androidx.compose.ui.unit.dp
 enum class AppIcon {
     Search, Bell, Tune, Plus, Receipt, People, Grid, Person,
     ChevronRight, ChevronDown, ArrowLeft, Check, Share, Download,
-    Pencil, Trash, Close, Lock, CloudOff, Star, Camera, Qr, Info, Plane, Copy, Dot, Google, Sun, Moon, Search2, Catalogue,
+    Pencil, Trash, Close, Lock, CloudOff, Star, Camera, Qr, Info, Plane, Copy, Dot, Google, Sun, Moon, Search2, Catalogue, Gear,
 }
 
 @Composable
@@ -80,6 +84,17 @@ fun BillantaIcon(
                 p { moveTo(4.5f * k, 18.5f * k); cubicTo(4.5f * k, 14f * k, 13.5f * k, 14f * k, 13.5f * k, 18.5f * k) }
                 drawCircle(tint, 2.2f * k, Offset(16f * k, 9f * k), style = stroke)
                 p { moveTo(15f * k, 14.2f * k); cubicTo(19.5f * k, 14.5f * k, 19.8f * k, 16.5f * k, 19.8f * k, 18.5f * k) }
+            }
+            AppIcon.Gear -> {
+                drawCircle(tint, 2.8f * k, Offset(12f * k, 12f * k), style = stroke)
+                drawCircle(tint, 6.6f * k, Offset(12f * k, 12f * k), style = stroke)
+                repeat(8) { i ->
+                    val a = i * 45f * PI.toFloat() / 180f
+                    p {
+                        moveTo(12f * k + cos(a) * 6.6f * k, 12f * k + sin(a) * 6.6f * k)
+                        lineTo(12f * k + cos(a) * 9.4f * k, 12f * k + sin(a) * 9.4f * k)
+                    }
+                }
             }
             AppIcon.Catalogue -> {
                 drawRoundRectStroke(4f, 4f, 16f, 16f, 2.4f, k, tint, stroke)

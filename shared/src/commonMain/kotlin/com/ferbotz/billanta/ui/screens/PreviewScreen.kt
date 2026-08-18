@@ -34,6 +34,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.painter.BitmapPainter
 import androidx.compose.ui.graphics.painter.Painter
@@ -43,6 +44,9 @@ import androidx.compose.ui.unit.dp
 import com.ferbotz.billanta.core.AppError
 import com.ferbotz.billanta.core.AppResult
 import com.ferbotz.billanta.domain.model.InvoiceRecord
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.layout.width
+import com.ferbotz.billanta.render.CustomisationControl
 import com.ferbotz.billanta.render.InvoiceRenderer
 import com.ferbotz.billanta.render.InvoiceTheme
 import com.ferbotz.billanta.render.TemplateDoc
@@ -102,11 +106,25 @@ fun PreviewScreen(state: BillantaState, invoiceId: String) {
     val record = invoice
 
     Column(Modifier.fillMaxSize().background(c.background)) {
-        var editing by remember { mutableStateOf(false) }
+        var choosingColor by remember { mutableStateOf(false) }
+        var showingSettings by remember { mutableStateOf(false) }
+        // Resolved once the template loads, below — the bar is drawn first so that "invoice not
+        // found" still gets a back button.
+        var accentArgb by remember(invoiceId) { mutableStateOf<Long?>(null) }
 
         StackTopBar("Invoice", onBack = { state.pop() }, actions = {
             if (record != null) {
-                // Editing lives on the pinned bottom bar, so the top bar keeps only the destructive one.
+                // The swatch *is* the button: the current colour is the only useful label for it.
+                accentArgb?.let { argb ->
+                    Box(
+                        Modifier.size(24.dp).clip(CircleShape)
+                            .background(Color(argb.toInt()))
+                            .border(1.5.dp, c.border, CircleShape)
+                            .clickable { choosingColor = true },
+                    )
+                    Spacer(Modifier.width(14.dp))
+                }
+                IconButtonBox(AppIcon.Gear, c.textSecondary, onClick = { showingSettings = true })
                 IconButtonBox(AppIcon.Trash, c.danger, onClick = {
                     state.deleteInvoice(record.id)
                     state.pop()
@@ -158,6 +176,16 @@ fun PreviewScreen(state: BillantaState, invoiceId: String) {
         }
 
         val ready = template as? TemplateState.Ready
+        LaunchedEffect(ready?.doc, record.themeOverrides) {
+            accentArgb = ready?.doc?.let { doc ->
+                doc.controls.filterIsInstance<CustomisationControl.Color>()
+                    .firstOrNull { control -> doc.themeTokens.any { it.name == control.token } }
+                    ?.let { control ->
+                        record.themeOverrides[control.token]
+                            ?: doc.themeTokens.first { it.name == control.token }.defaultArgb
+                    }
+            }
+        }
         val prepared = ready?.let { RememberPreparedInvoice(state, it.doc, record) }
         var exporting by remember { mutableStateOf<ExportFormat?>(null) }
         val scope = rememberCoroutineScope()
@@ -198,19 +226,25 @@ fun PreviewScreen(state: BillantaState, invoiceId: String) {
                                         .border(1.dp, c.border, RoundedCornerShape(6.dp))
                                         .pointerInput(page, scale, ready.doc) {
                                             detectTapGestures { offset ->
-                                                val tapped = page
-                                                    .sectionAt(
-                                                        offset.x.toDp().value / scale,
-                                                        offset.y.toDp().value / scale,
-                                                    )
-                                                    ?.let { hit ->
-                                                        ready.doc.sections.firstOrNull { it.id == hit.id }
-                                                    }
-                                                    ?.takeIf { it.isEditable }
-                                                // A tap in the margins between sections has no one
-                                                // editor to mean, so it opens the list instead.
-                                                if (tapped == null) state.openInvoiceData(record.id)
-                                                else state.openSectionViaList(record.id, tapped)
+                                                val hit = page.sectionAt(
+                                                    offset.x.toDp().value / scale,
+                                                    offset.y.toDp().value / scale,
+                                                )
+                                                val section = hit?.let { bounds ->
+                                                    ready.doc.sections.firstOrNull { it.id == bounds.id }
+                                                }
+                                                // Straight to the editor only for a section that
+                                                // already has something in it. A dashed box means
+                                                // nothing is there yet, and a tap on one is usually
+                                                // "let me fill this invoice in" rather than a
+                                                // considered choice of that section — so it opens
+                                                // the list, where everything still missing is
+                                                // visible at once. Margins do the same.
+                                                if (hit != null && !hit.isEmpty && section?.isEditable == true) {
+                                                    state.openSectionViaList(record.id, section)
+                                                } else {
+                                                    state.openInvoiceData(record.id)
+                                                }
                                             }
                                         },
                                     imageFor = { prepared.painters[it] },
@@ -238,15 +272,21 @@ fun PreviewScreen(state: BillantaState, invoiceId: String) {
             Spacer(Modifier.height(4.dp))
         }
 
-        if (editing) {
+        if (choosingColor) {
+            val doc = (template as? TemplateState.Ready)?.doc
+            if (doc == null) choosingColor = false
+            else InvoiceColorDialog(state, record, doc, onDismiss = { choosingColor = false })
+        }
+
+        if (showingSettings) {
             ModalBottomSheet(
-                onDismissRequest = { editing = false },
+                onDismissRequest = { showingSettings = false },
                 containerColor = c.surface,
                 scrimColor = c.scrim,
                 shape = RoundedCornerShape(topStart = 26.dp, topEnd = 26.dp),
                 dragHandle = { BottomSheetDefaults.DragHandle() },
             ) {
-                EditInvoiceSheetContent(state, record, (template as? TemplateState.Ready)?.doc)
+                InvoiceSettingsSheetContent(state, record)
             }
         }
 
@@ -266,8 +306,8 @@ fun PreviewScreen(state: BillantaState, invoiceId: String) {
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 SecondaryButton(
                     "Edit",
-                    onClick = { editing = true },
-                    leadingIcon = AppIcon.Tune,
+                    onClick = { state.openInvoiceData(record.id) },
+                    leadingIcon = AppIcon.Pencil,
                     modifier = Modifier.weight(1f),
                 )
                 PrimaryButton(

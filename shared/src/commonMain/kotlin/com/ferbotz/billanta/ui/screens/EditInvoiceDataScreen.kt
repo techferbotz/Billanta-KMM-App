@@ -16,6 +16,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.clickable
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -62,7 +64,11 @@ import com.ferbotz.billanta.theme.BillantaTheme
  *
  * The list is the template's own `sections` — the backend decides which blocks exist, what to call
  * them and what each one edits, so a template that gains a section gains an editor for it without
- * an app release. Anything the template marks as not editable is display-only and never listed.
+ * an app release.
+ *
+ * A section appears here if it can be edited *or* hidden. Hiding lives on the same row as editing
+ * because they are the same decision from the user's side — what goes on this invoice — and a
+ * hidden section has to stay visible here, or there would be no way to bring it back.
  */
 @Composable
 fun EditInvoiceDataScreen(state: BillantaState, invoiceId: String) {
@@ -79,8 +85,7 @@ fun EditInvoiceDataScreen(state: BillantaState, invoiceId: String) {
             return@Column
         }
 
-        val sections = doc?.sections.orEmpty()
-            .filter { it.isEditable && it.id !in invoice.hiddenSections }
+        val sections = doc?.sections.orEmpty().filter { it.isEditable || it.hidable }
 
         if (doc == null) {
             CenteredNote("Loading template…")
@@ -96,15 +101,16 @@ fun EditInvoiceDataScreen(state: BillantaState, invoiceId: String) {
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             items(sections, key = { it.id }) { section ->
-                val summary = section.edits.summarise(invoice)
-                SurfaceCard(onClick = { state.openSection(invoiceId, section) }, padding = 0) {
-                    ListRow(
-                        title = section.label,
-                        subtitle = summary ?: "Not added yet",
-                        leading = { FilledDot(filled = summary != null) },
-                        onClick = { state.openSection(invoiceId, section) },
-                    )
-                }
+                SectionRow(
+                    section = section,
+                    invoice = invoice,
+                    onEdit = { state.openSection(invoiceId, section) },
+                    onVisibilityChange = { show ->
+                        val hidden = invoice.hiddenSections.toMutableSet()
+                        if (show) hidden.remove(section.id) else hidden.add(section.id)
+                        state.setInvoiceCustomisation(invoice.id, invoice.themeOverrides, hidden)
+                    },
+                )
             }
         }
     }
@@ -123,6 +129,69 @@ private fun SectionEdits.summarise(invoice: InvoiceRecord): String? = when (this
     SectionEdits.Notes -> invoice.notes?.takeIf { it.isNotBlank() }
     SectionEdits.Company -> invoice.companySnapshot?.name
     SectionEdits.None -> null
+}
+
+/**
+ * One section: what it holds, whether it is on the invoice, and a way into its editor.
+ *
+ * A hidden section is not editable from here — it is not on the invoice, so filling it in would be
+ * a confusing thing to offer. Switch it back on first.
+ */
+@Composable
+private fun SectionRow(
+    section: TemplateSection,
+    invoice: InvoiceRecord,
+    onEdit: () -> Unit,
+    onVisibilityChange: (Boolean) -> Unit,
+) {
+    val c = BillantaTheme.colors
+    val visible = section.id !in invoice.hiddenSections
+    val summary = section.edits.summarise(invoice)
+    val canEdit = section.isEditable && visible
+
+    SurfaceCard(padding = 0) {
+        Row(
+            Modifier.fillMaxWidth()
+                .let { if (canEdit) it.clickable(onClick = onEdit) else it }
+                .padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            FilledDot(filled = visible && summary != null)
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    section.label,
+                    style = BillantaTheme.type.bodyStrong,
+                    color = if (visible) c.textPrimary else c.textMuted,
+                )
+                Text(
+                    when {
+                        !visible -> "Hidden from this invoice"
+                        summary != null -> summary
+                        section.isEditable -> "Not added yet"
+                        else -> "Shown on the invoice"
+                    },
+                    style = BillantaTheme.type.caption,
+                    color = c.textSecondary,
+                )
+            }
+            if (section.hidable) {
+                Switch(
+                    checked = visible,
+                    onCheckedChange = onVisibilityChange,
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = c.onPrimary,
+                        checkedTrackColor = c.primary,
+                        uncheckedTrackColor = c.surfaceAlt,
+                        uncheckedBorderColor = c.border,
+                        uncheckedThumbColor = c.textMuted,
+                    ),
+                )
+            } else if (canEdit) {
+                BillantaIcon(AppIcon.ChevronRight, c.textMuted, size = 18.dp)
+            }
+        }
+    }
 }
 
 @Composable
