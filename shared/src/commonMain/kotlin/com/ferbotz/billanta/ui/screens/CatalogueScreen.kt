@@ -48,9 +48,10 @@ import com.ferbotz.billanta.ui.components.PrimaryButton
 import com.ferbotz.billanta.ui.components.SurfaceCard
 import kotlinx.coroutines.launch
 
+/** Declaration order is the pane order, left to right. */
 private enum class CataloguePane(val label: String) {
-    CUSTOMERS("Customers"),
     PRODUCTS("Products"),
+    CUSTOMERS("Customers"),
 }
 
 /**
