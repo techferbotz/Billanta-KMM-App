@@ -103,30 +103,10 @@ fun ProfileScreen(state: BillantaState) {
                                     trailingIcon = null,
                                     modifier = Modifier.padding(horizontal = 8.dp),
                                 )
-                                RowDivider()
-                                val sync = state.syncStatus
-                                ListRow(
-                                    title = when {
-                                        sync.running -> "Syncing…"
-                                        sync.lastError != null -> "Sync issue — tap to retry"
-                                        sync.lastSuccessAtMillis != null ->
-                                            "Backed up · ${Iso8601.formatDisplayDate(sync.lastSuccessAtMillis)}"
-                                        else -> "Waiting for first sync"
-                                    },
-                                    leading = {
-                                        IconTile(
-                                            AppIcon.CloudOff,
-                                            tint = if (sync.lastError != null) c.warning else c.textSecondary,
-                                        )
-                                    },
-                                    trailingIcon = null,
-                                    onClick = { state.requestSyncNow() },
-                                    modifier = Modifier.padding(horizontal = 8.dp),
-                                )
                             } else {
                                 ListRow(
-                                    title = "Sign in to back up",
-                                    subtitle = "Optional · sync across devices",
+                                    title = "Sign in",
+                                    subtitle = "Optional",
                                     leading = { IconTile(AppIcon.CloudOff, tint = c.warning, bg = c.warningBg) },
                                     onClick = { state.push(SignInRoute) },
                                     modifier = Modifier.padding(horizontal = 8.dp),
@@ -355,7 +335,7 @@ fun SettingsScreen(state: BillantaState) {
                         )
                     } else {
                         ListRow(
-                            "Sign in to back up",
+                            "Sign in",
                             leading = { IconTile(AppIcon.Lock) },
                             onClick = { state.push(SignInRoute) },
                             modifier = Modifier.padding(horizontal = 8.dp),

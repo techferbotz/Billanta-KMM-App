@@ -20,6 +20,10 @@ class ProductLocalDataSource(
         q.list(q = query.trim(), limit = limit).asFlow().mapToList(dispatcher)
             .map { rows -> rows.map { it.toDomain() } }
 
+    suspend fun getById(id: String): ProductRecord? = withContext(dispatcher) {
+        q.byId(id).executeAsOneOrNull()?.toDomain()
+    }
+
     suspend fun byNameKey(nameKey: String): ProductRecord? = withContext(dispatcher) {
         q.byNameKey(nameKey).executeAsOneOrNull()?.toDomain()
     }

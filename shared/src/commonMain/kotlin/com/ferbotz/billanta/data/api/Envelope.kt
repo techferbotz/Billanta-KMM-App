@@ -1,10 +1,12 @@
 package com.ferbotz.billanta.data.api
 
 import com.ferbotz.billanta.core.AppError
+import com.ferbotz.billanta.core.logWarn
 import com.ferbotz.billanta.core.AppResult
 import com.ferbotz.billanta.core.asFailure
 import io.ktor.client.call.body
 import io.ktor.client.statement.HttpResponse
+import io.ktor.client.statement.request
 import io.ktor.http.isSuccess
 import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.Serializable
@@ -37,7 +39,16 @@ suspend fun httpErrorOf(response: HttpResponse): AppError.Http {
     } catch (_: Throwable) {
         null
     }
-    return AppError.Http(response.status.value, err?.code, err?.message)
+    val error = AppError.Http(response.status.value, err?.code, err?.message)
+    // Every HTTP failure in the app funnels through here, so this is the one place that can name
+    // the exact call. Sync is silent by design and its step names cover several endpoints each —
+    // without the method and path, a 500 says only "something, somewhere, failed".
+    // Method, path and status only: never headers or bodies, which carry tokens and customer data.
+    logWarn(
+        "Api",
+        "${response.request.method.value} ${response.request.url.encodedPath} → ${error.diagnostic()}",
+    )
+    return error
 }
 
 /** Runs a request and unwraps the envelope. `data` must be present on success. */

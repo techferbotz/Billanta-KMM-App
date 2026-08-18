@@ -50,68 +50,6 @@ import com.ferbotz.billanta.ui.components.SurfaceCard
 import com.ferbotz.billanta.ui.components.TextButtonLink
 
 @Composable
-fun CustomersScreen(state: BillantaState) {
-    val c = BillantaTheme.colors
-    Column(Modifier.fillMaxSize().background(c.background)) {
-        LargeTopBar("Customers", actions = {
-            IconButtonBox(AppIcon.Plus, c.primary, onClick = { state.push(EditCustomerRoute(null)) })
-        })
-        LazyColumn(
-            Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = 6.dp, bottom = BottomBarSpace),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
-        ) {
-            if (state.customers.isEmpty()) {
-                item { EmptyCustomers(onAdd = { state.push(EditCustomerRoute(null)) }) }
-            } else {
-                item {
-                    SurfaceCard(Modifier.fillMaxWidth(), padding = 4) {
-                        Column {
-                            state.customers.forEachIndexed { i, cust ->
-                                ListRow(
-                                    title = cust.name,
-                                    subtitle = listOfNotNull(cust.phone, cust.email, cust.city).firstOrNull(),
-                                    leading = { Avatar(initialsOf(cust.name), size = 44) },
-                                    trailingText = "${state.invoiceCountFor(cust.id)} inv",
-                                    onClick = { state.push(EditCustomerRoute(cust.id)) },
-                                    modifier = Modifier.padding(horizontal = 8.dp),
-                                )
-                                if (i < state.customers.size - 1) {
-                                    Spacer(Modifier.height(1.dp).fillMaxWidth().padding(start = 66.dp).background(c.border))
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun EmptyCustomers(onAdd: () -> Unit) {
-    val c = BillantaTheme.colors
-    Column(
-        Modifier.fillMaxWidth().padding(top = 60.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Box(
-            Modifier.size(76.dp).clip(RoundedCornerShape(22.dp)).background(c.primaryMuted),
-            contentAlignment = Alignment.Center,
-        ) { BillantaIcon(AppIcon.People, c.primary, size = 34.dp) }
-        Spacer(Modifier.height(18.dp))
-        Text("No customers yet", style = BillantaTheme.type.sectionTitle, color = c.textPrimary)
-        Spacer(Modifier.height(6.dp))
-        Text(
-            "Add a customer once and reuse them on every invoice.",
-            style = BillantaTheme.type.body, color = c.textSecondary, textAlign = TextAlign.Center,
-        )
-        Spacer(Modifier.height(20.dp))
-        PrimaryButton("Add customer", onAdd, leadingIcon = AppIcon.Plus)
-    }
-}
-
-@Composable
 fun EditCustomerScreen(state: BillantaState, customerId: String?) {
     val c = BillantaTheme.colors
     val existing = state.customerById(customerId)

@@ -24,7 +24,7 @@ import androidx.compose.ui.unit.dp
 enum class AppIcon {
     Search, Bell, Tune, Plus, Receipt, People, Grid, Person,
     ChevronRight, ChevronDown, ArrowLeft, Check, Share, Download,
-    Pencil, Trash, Close, Lock, CloudOff, Star, Camera, Qr, Info, Plane, Copy, Dot, Google, Sun, Moon, Search2,
+    Pencil, Trash, Close, Lock, CloudOff, Star, Camera, Qr, Info, Plane, Copy, Dot, Google, Sun, Moon, Search2, Catalogue,
 }
 
 @Composable
@@ -80,6 +80,12 @@ fun BillantaIcon(
                 p { moveTo(4.5f * k, 18.5f * k); cubicTo(4.5f * k, 14f * k, 13.5f * k, 14f * k, 13.5f * k, 18.5f * k) }
                 drawCircle(tint, 2.2f * k, Offset(16f * k, 9f * k), style = stroke)
                 p { moveTo(15f * k, 14.2f * k); cubicTo(19.5f * k, 14.5f * k, 19.8f * k, 16.5f * k, 19.8f * k, 18.5f * k) }
+            }
+            AppIcon.Catalogue -> {
+                drawRoundRectStroke(4f, 4f, 16f, 16f, 2.4f, k, tint, stroke)
+                p { moveTo(9f * k, 4.5f * k); lineTo(9f * k, 19.5f * k) }
+                p { moveTo(12f * k, 9.5f * k); lineTo(16.8f * k, 9.5f * k) }
+                p { moveTo(12f * k, 14f * k); lineTo(16.8f * k, 14f * k) }
             }
             AppIcon.Grid -> {
                 fun sq(x: Float, y: Float) = drawRoundRectStroke(x, y, 7.5f, 7.5f, 1.6f, k, tint, stroke)

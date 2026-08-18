@@ -34,7 +34,7 @@ import com.ferbotz.billanta.ui.BillantaIcon
 
 enum class BottomTab(val icon: AppIcon, val label: String) {
     INVOICES(AppIcon.Receipt, "Invoices"),
-    CUSTOMERS(AppIcon.People, "Customers"),
+    CATALOGUE(AppIcon.Catalogue, "Catalogue"),
     TEMPLATES(AppIcon.Grid, "Templates"),
     PROFILE(AppIcon.Person, "Profile"),
 }
@@ -95,39 +95,6 @@ fun StackTopBar(
     }
 }
 
-/** Thin status strip under the top bar: offline / sign-in nudge / sync progress. */
-@Composable
-fun StatusBanner(
-    text: String,
-    modifier: Modifier = Modifier,
-    dotColor: Color? = null,
-    actionLabel: String? = null,
-    onAction: (() -> Unit)? = null,
-) {
-    val c = BillantaTheme.colors
-    Row(
-        modifier
-            .fillMaxWidth()
-            .background(c.surfaceAlt)
-            .padding(horizontal = 18.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        ColorDot(dotColor ?: c.accentDot, size = 7)
-        Text(text, style = BillantaTheme.type.caption, color = c.textSecondary)
-        if (actionLabel != null && onAction != null) {
-            Text("·", style = BillantaTheme.type.caption, color = c.textMuted)
-            Text(
-                actionLabel,
-                style = BillantaTheme.type.caption,
-                color = c.textSecondary,
-                modifier = Modifier.clip(RoundedCornerShape(4.dp)).clickable(onClick = onAction),
-            )
-        }
-    }
-}
-
-/** Bottom navigation bar with the centered, elevated FAB straddling its top edge. */
 @Composable
 fun BottomTabBar(
     current: BottomTab,
@@ -146,7 +113,7 @@ fun BottomTabBar(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             TabItem(BottomTab.INVOICES, current, onSelect, Modifier.weight(1f))
-            TabItem(BottomTab.CUSTOMERS, current, onSelect, Modifier.weight(1f))
+            TabItem(BottomTab.CATALOGUE, current, onSelect, Modifier.weight(1f))
             Spacer(Modifier.weight(1f)) // gap under the FAB
             TabItem(BottomTab.TEMPLATES, current, onSelect, Modifier.weight(1f))
             TabItem(BottomTab.PROFILE, current, onSelect, Modifier.weight(1f))

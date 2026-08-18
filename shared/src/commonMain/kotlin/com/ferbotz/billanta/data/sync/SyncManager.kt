@@ -5,6 +5,7 @@ import com.ferbotz.billanta.core.AppResult
 import com.ferbotz.billanta.core.ConnectivityObserver
 import com.ferbotz.billanta.core.EpochClock
 import com.ferbotz.billanta.core.Iso8601
+import com.ferbotz.billanta.core.logWarn
 import com.ferbotz.billanta.data.api.BillantaApi
 import com.ferbotz.billanta.data.api.SyncRequestDto
 import com.ferbotz.billanta.data.api.toDomain
@@ -120,26 +121,36 @@ class SyncManager(
         return@withLock error?.let { AppResult.Failure(it) } ?: AppResult.Success(Unit)
     }
 
-    /** Best-effort through all steps; returns the first error (null = clean pass). */
+    /**
+     * Best-effort through all steps; returns the first error (null = clean pass).
+     *
+     * Each step is logged by name when it fails. Sync is invisible to the user by design, so
+     * without this a failure leaves no trace anywhere — and because the pass continues after an
+     * error, knowing *which* step broke is the whole diagnosis.
+     */
     private suspend fun doFullSync(): AppError? {
         var firstError: AppError? = null
-        fun note(error: AppError?) {
-            if (firstError == null && error != null) firstError = error
+        suspend fun step(name: String, block: suspend () -> AppError?) {
+            val error = block()
+            if (error != null) {
+                logWarn(LOG_TAG, "$name failed — ${error.diagnostic()}")
+                if (firstError == null) firstError = error
+            }
         }
 
-        note(pushCompany())
-        note(pushSettings())
-        note(pushCustomers())
-        note(pullCustomers())
+        step("pushCompany") { pushCompany() }
+        step("pushSettings") { pushSettings() }
+        step("pushCustomers") { pushCustomers() }
+        step("pullCustomers") { pullCustomers() }
         // Ids pushed in this pass are shielded from the pull's "deleted elsewhere" reconcile: a
         // server that has not yet made the write visible would otherwise look like a deletion.
         val justPushedProducts = mutableSetOf<String>()
-        note(pushProducts(justPushedProducts))
-        note(pullProducts(justPushedProducts))
-        note(pushInvoiceTombstones())
-        note(syncInvoicesWithServer())
-        note(pullCompanyIfClean())
-        note(pullSettingsIfClean())
+        step("pushProducts") { pushProducts(justPushedProducts) }
+        step("pullProducts") { pullProducts(justPushedProducts) }
+        step("pushInvoiceTombstones") { pushInvoiceTombstones() }
+        step("syncInvoices") { syncInvoicesWithServer() }
+        step("pullCompany") { pullCompanyIfClean() }
+        step("pullSettings") { pullSettingsIfClean() }
         return firstError
     }
 
@@ -402,6 +413,7 @@ class SyncManager(
             // retrying — the row keeps its data plus a visible syncError.
             val conflictIds = response.conflicts.map { it.id }.toSet()
             response.conflicts.forEach { conflict ->
+                logWarn(LOG_TAG, "invoice ${conflict.id} rejected: ${conflict.reason ?: "no reason given"}")
                 invoiceLocal.setSyncError(conflict.id, conflict.reason ?: "Sync conflict")
             }
 
@@ -447,5 +459,6 @@ class SyncManager(
     private companion object {
         const val DEBOUNCE_MILLIS = 1_500L
         const val PUSH_BATCH_SIZE = 100
+        const val LOG_TAG = "Sync"
     }
 }

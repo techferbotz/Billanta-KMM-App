@@ -30,6 +30,20 @@ sealed class AppError {
         is SessionExpired -> "Your session has expired. Please sign in again."
         is Unexpected -> "Something went wrong." + (detail?.let { " ($it)" } ?: "")
     }
+
+    /**
+     * Everything known about the failure, for logs rather than for people.
+     *
+     * [userMessage] deliberately hides the status code and drops the server's error code once it
+     * has a message to show — which is exactly what you need when diagnosing one.
+     */
+    fun diagnostic(): String = when (this) {
+        is Network -> "Network(${detail ?: "unreachable"})"
+        is Http -> "HTTP $status" + (code?.let { " [$it]" } ?: "") + (serverMessage?.let { " $it" } ?: "")
+        is Validation -> "Validation($message)"
+        is SessionExpired -> "SessionExpired"
+        is Unexpected -> "Unexpected(${detail ?: "no detail"})"
+    }
 }
 
 sealed class AppResult<out T> {

@@ -157,8 +157,6 @@ fun PreviewScreen(state: BillantaState, invoiceId: String) {
             }
         }
 
-        SyncStrip(record)
-
         val ready = template as? TemplateState.Ready
         val prepared = ready?.let { RememberPreparedInvoice(state, it.doc, record) }
         var exporting by remember { mutableStateOf<ExportFormat?>(null) }
@@ -367,27 +365,6 @@ private fun EmptySectionHints(
                 modifier = Modifier.padding(horizontal = 8.dp),
             )
         }
-    }
-}
-
-@Composable
-private fun SyncStrip(record: InvoiceRecord) {
-    val c = BillantaTheme.colors
-    val (background, foreground, message) = when {
-        record.syncError != null -> Triple(c.dangerBg, c.danger, record.syncError!!)
-        record.pendingSync -> Triple(c.surfaceAlt, c.textSecondary, "Saved on this device")
-        else -> Triple(c.successBg, c.success, "Backed up")
-    }
-    Row(
-        Modifier.fillMaxWidth().padding(horizontal = 18.dp).padding(bottom = 8.dp)
-            .clip(RoundedCornerShape(10.dp))
-            .background(background)
-            .padding(horizontal = 12.dp, vertical = 9.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        BillantaIcon(if (record.syncError != null) AppIcon.Info else AppIcon.Check, foreground, size = 16.dp)
-        Text(message, style = BillantaTheme.type.caption, color = foreground)
     }
 }
 

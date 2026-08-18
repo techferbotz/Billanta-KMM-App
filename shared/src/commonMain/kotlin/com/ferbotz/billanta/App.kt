@@ -25,6 +25,7 @@ import com.ferbotz.billanta.state.BillantaState
 import com.ferbotz.billanta.state.BusinessProfileRoute
 import com.ferbotz.billanta.state.ChooseTemplateRoute
 import com.ferbotz.billanta.state.EditCustomerRoute
+import com.ferbotz.billanta.state.EditProductRoute
 import com.ferbotz.billanta.state.EditInvoiceDataRoute
 import com.ferbotz.billanta.state.EditSectionRoute
 import com.ferbotz.billanta.state.PreviewRoute
@@ -39,8 +40,9 @@ import com.ferbotz.billanta.ui.screens.BusinessProfileScreen
 import com.ferbotz.billanta.ui.screens.ChooseTemplateScreen
 import com.ferbotz.billanta.ui.screens.EditInvoiceDataScreen
 import com.ferbotz.billanta.ui.screens.EditSectionScreen
-import com.ferbotz.billanta.ui.screens.CustomersScreen
+import com.ferbotz.billanta.ui.screens.CatalogueScreen
 import com.ferbotz.billanta.ui.screens.EditCustomerScreen
+import com.ferbotz.billanta.ui.screens.EditProductScreen
 import com.ferbotz.billanta.ui.screens.InvoicesScreen
 import com.ferbotz.billanta.ui.screens.PreviewScreen
 import com.ferbotz.billanta.ui.screens.ProfileScreen
@@ -73,7 +75,7 @@ private fun TabRootHost(state: BillantaState) {
     Box(Modifier.fillMaxSize()) {
         when (state.tab) {
             BottomTab.INVOICES -> InvoicesScreen(state)
-            BottomTab.CUSTOMERS -> CustomersScreen(state)
+            BottomTab.CATALOGUE -> CatalogueScreen(state)
             BottomTab.TEMPLATES -> TemplatesScreen(state)
             BottomTab.PROFILE -> ProfileScreen(state)
         }
@@ -97,6 +99,7 @@ private fun RouteHost(state: BillantaState, route: Route) {
         SettingsRoute -> SettingsScreen(state)
         SignInRoute -> SignInScreen(state)
         is EditCustomerRoute -> EditCustomerScreen(state, route.customerId)
+        is EditProductRoute -> EditProductScreen(state, route.productId)
     }
 }
 

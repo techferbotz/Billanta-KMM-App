@@ -10,7 +10,6 @@ import com.ferbotz.billanta.core.AppResult
 import com.ferbotz.billanta.core.randomUuid
 import com.ferbotz.billanta.core.systemEpochMillis
 import com.ferbotz.billanta.data.repo.InvoiceRepository
-import com.ferbotz.billanta.data.sync.SyncStatus
 import com.ferbotz.billanta.di.AppContainer
 import com.ferbotz.billanta.domain.model.CompanyProfile
 import com.ferbotz.billanta.domain.model.CustomerRecord
@@ -54,6 +53,7 @@ data object BusinessProfileRoute : Route
 data object SettingsRoute : Route
 data object SignInRoute : Route
 data class EditCustomerRoute(val customerId: String?) : Route
+data class EditProductRoute(val productId: String?) : Route
 
 /** A modal bottom sheet layered above everything. */
 sealed interface SheetRoute
@@ -168,12 +168,6 @@ class BillantaState(
         private set
     var signInError by mutableStateOf<String?>(null)
 
-    // ---- connectivity & sync -------------------------------------------------------------------
-    var isOnline by mutableStateOf(true)
-        private set
-    var syncStatus by mutableStateOf(SyncStatus())
-        private set
-
     // ---- theme ---------------------------------------------------------------------------------
     var isDark by mutableStateOf(container.prefs.getBoolean(PREF_DARK) ?: false)
         private set
@@ -219,8 +213,6 @@ class BillantaState(
 
     init {
         scope.launch { container.userManager.authState.collect { auth = it } }
-        scope.launch { container.connectivity.isOnline.collect { isOnline = it } }
-        scope.launch { container.syncManager.status.collect { syncStatus = it } }
         scope.launch {
             container.userManager.sessionExpired.collect { uiMessage = "Session expired — please sign in again." }
         }
@@ -270,6 +262,53 @@ class BillantaState(
 
     fun deleteCustomer(id: String) {
         scope.launch { container.customerRepository.delete(id) }
+    }
+
+    // ---- product catalogue ---------------------------------------------------------------------
+
+    var savingProduct by mutableStateOf(false)
+        private set
+    var productError by mutableStateOf<String?>(null)
+
+    fun productById(id: String?): ProductRecord? = id?.let { pid -> products.firstOrNull { it.id == pid } }
+
+    /** [price] is what the user typed, in rupees; the catalogue stores paise. */
+    fun saveProduct(
+        id: String?,
+        name: String,
+        hsnSac: String,
+        price: String,
+        taxRatePercent: String,
+        unit: String,
+        onSaved: () -> Unit = {},
+    ) {
+        if (savingProduct) return
+        val paise = price.trim().ifBlank { "0" }.let(::parseRupeesToPaise)
+        if (paise == null) {
+            productError = "Enter a valid rate"
+            return
+        }
+        scope.launch {
+            savingProduct = true
+            productError = null
+            val result = container.productRepository.save(
+                id = id,
+                name = name,
+                hsnSac = hsnSac,
+                unitPricePaise = paise,
+                taxRatePercent = taxRatePercent.trim().ifBlank { "0" },
+                unit = unit,
+            )
+            savingProduct = false
+            when (result) {
+                is AppResult.Success -> onSaved()
+                is AppResult.Failure -> productError = result.error.userMessage()
+            }
+        }
+    }
+
+    fun deleteProduct(id: String) {
+        scope.launch { container.productRepository.delete(id) }
     }
 
     // ---- template / settings / company actions -------------------------------------------------
@@ -338,10 +377,6 @@ class BillantaState(
                 is AppResult.Failure -> uiMessage = result.error.userMessage()
             }
         }
-    }
-
-    fun requestSyncNow() {
-        scope.launch { container.syncManager.syncNow() }
     }
 
     // ---- create-invoice draft ------------------------------------------------------------------

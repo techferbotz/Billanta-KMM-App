@@ -1,6 +1,10 @@
 package com.ferbotz.billanta.data.repo
 
+import com.ferbotz.billanta.core.AppError
+import com.ferbotz.billanta.core.AppResult
 import com.ferbotz.billanta.core.EpochClock
+import com.ferbotz.billanta.core.asFailure
+import com.ferbotz.billanta.core.asSuccess
 import com.ferbotz.billanta.core.randomUuid
 import com.ferbotz.billanta.data.local.ProductLocalDataSource
 import com.ferbotz.billanta.domain.model.ProductRecord
@@ -64,6 +68,60 @@ class ProductRepository(
         local.upsert(record, dirty = true, isSynced = existing?.pendingSync?.not() ?: false)
         onLocalMutation()
         return record
+    }
+
+    suspend fun getById(id: String): ProductRecord? = local.getById(id)
+
+    /**
+     * Creates or edits a product from the catalogue screen.
+     *
+     * Deliberately not [remember]: that matches on the name so repeated invoicing updates one row,
+     * and bumps the usage count. Editing by hand has to key on the id instead, or renaming a
+     * product would silently create a second one and leave the original behind.
+     */
+    suspend fun save(
+        id: String?,
+        name: String,
+        hsnSac: String?,
+        unitPricePaise: Long,
+        taxRatePercent: String,
+        unit: String?,
+    ): AppResult<ProductRecord> {
+        val trimmed = name.trim()
+        if (trimmed.isBlank()) return AppError.Validation("Name is required").asFailure()
+
+        // Two rows sharing a name would make the auto-capture lookup ambiguous, so refuse rather
+        // than let the catalogue drift into near-duplicates.
+        local.byNameKey(ProductRecord.nameKeyOf(trimmed))?.let { clash ->
+            if (clash.id != id) {
+                return AppError.Validation("\"$trimmed\" is already in the catalogue").asFailure()
+            }
+        }
+
+        val now = clock.nowMillis()
+        val existing = id?.let { local.getById(it) }
+        val record = existing?.copy(
+            name = trimmed,
+            hsnSac = hsnSac?.takeIf { it.isNotBlank() },
+            unitPricePaise = unitPricePaise,
+            taxRatePercent = taxRatePercent,
+            unit = unit?.takeIf { it.isNotBlank() },
+            updatedAtMillis = now,
+        ) ?: ProductRecord(
+            id = id ?: randomUuid(),
+            name = trimmed,
+            hsnSac = hsnSac?.takeIf { it.isNotBlank() },
+            unitPricePaise = unitPricePaise,
+            taxRatePercent = taxRatePercent,
+            unit = unit?.takeIf { it.isNotBlank() },
+            usageCount = 0,
+            lastUsedAtMillis = 0,
+            createdAtMillis = now,
+            updatedAtMillis = now,
+        )
+        local.upsert(record, dirty = true, isSynced = existing?.pendingSync?.not() ?: false)
+        onLocalMutation()
+        return record.asSuccess()
     }
 
     suspend fun delete(id: String) {

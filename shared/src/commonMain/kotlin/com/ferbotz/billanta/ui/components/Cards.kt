@@ -92,11 +92,6 @@ fun InvoiceCard(
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f, fill = false),
                     )
-                    // Sync at a glance: red = server rejected it, amber = waiting to push.
-                    when {
-                        invoice.syncError != null -> ColorDot(c.danger, size = 7)
-                        invoice.pendingSync -> ColorDot(c.accentDot, size = 7)
-                    }
                 }
                 Spacer(Modifier.height(4.dp))
                 Text(

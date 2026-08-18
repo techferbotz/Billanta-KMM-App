@@ -39,7 +39,6 @@ import com.ferbotz.billanta.ui.BillantaIcon
 import com.ferbotz.billanta.ui.components.BottomBarSpace
 import com.ferbotz.billanta.ui.components.InvoiceCard
 import com.ferbotz.billanta.ui.components.LargeTopBar
-import com.ferbotz.billanta.ui.components.StatusBanner
 import com.ferbotz.billanta.ui.components.TextButtonLink
 
 @Composable
@@ -51,26 +50,6 @@ fun InvoicesScreen(state: BillantaState) {
                 TextButtonLink("Sign in", onClick = { state.push(SignInRoute) })
             }
         })
-        when {
-            !state.signedIn ->
-                StatusBanner(
-                    "Working offline",
-                    actionLabel = "Sign in to back up",
-                    onAction = { state.push(SignInRoute) },
-                )
-            !state.isOnline ->
-                StatusBanner("You're offline — changes will sync when you're back", dotColor = c.warning)
-            state.syncStatus.running ->
-                StatusBanner("Syncing…", dotColor = c.primary)
-            state.syncStatus.lastError != null ->
-                StatusBanner(
-                    "Sync issue",
-                    dotColor = c.danger,
-                    actionLabel = "Retry",
-                    onAction = { state.requestSyncNow() },
-                )
-        }
-
         val list = state.invoices
         LazyColumn(
             Modifier.fillMaxSize(),
