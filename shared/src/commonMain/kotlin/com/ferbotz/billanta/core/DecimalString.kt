@@ -15,6 +15,25 @@ data class DecimalString(val unscaled: Long, val scale: Int) {
     /** Rounds to a whole integer (HALF-UP) — e.g. a Flat discount amount in paise. */
     fun toLongHalfUp(): Long = BigMath.mulDivHalfUp(unscaled, 1, scaleDivisor)
 
+    /**
+     * Adds [whole] units, keeping the fraction exactly as it was — 2.5 stepped up is 3.5.
+     *
+     * Returns null if the result would be zero or negative, which the caller reads as "this line
+     * is gone" rather than clamping to a quantity no invoice should carry.
+     */
+    fun plusWhole(whole: Int): DecimalString? {
+        val stepped = unscaled + whole.toLong() * scaleDivisor
+        return if (stepped <= 0L) null else DecimalString(stepped, scale)
+    }
+
+    /** Back to the wire form: no trailing zeros, no trailing dot. */
+    override fun toString(): String {
+        if (scale == 0) return unscaled.toString()
+        val whole = unscaled / scaleDivisor
+        val frac = (unscaled % scaleDivisor).toString().padStart(scale, '0').trimEnd('0')
+        return if (frac.isEmpty()) whole.toString() else "$whole.$frac"
+    }
+
     companion object {
         private val POW10 = longArrayOf(
             1, 10, 100, 1_000, 10_000, 100_000, 1_000_000, 10_000_000, 100_000_000,

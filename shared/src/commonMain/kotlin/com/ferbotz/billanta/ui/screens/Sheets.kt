@@ -44,7 +44,6 @@ import com.ferbotz.billanta.model.initialsOf
 import com.ferbotz.billanta.model.parseRupeesToPaise
 import com.ferbotz.billanta.state.AddItemSheet
 import com.ferbotz.billanta.state.BillantaState
-import com.ferbotz.billanta.state.CustomerPickerSheet
 import com.ferbotz.billanta.state.EditCustomerRoute
 import com.ferbotz.billanta.state.PremiumSheet
 import com.ferbotz.billanta.state.SignInRoute
@@ -70,8 +69,7 @@ fun BillantaSheetHost(state: BillantaState) {
         dragHandle = { BottomSheetDefaults.DragHandle() },
     ) {
         when (sheet) {
-            AddItemSheet -> AddItemSheetContent(state)
-            CustomerPickerSheet -> CustomerPickerSheetContent(state)
+            is AddItemSheet -> AddItemSheetContent(state, sheet.invoiceId)
             is PremiumSheet -> PremiumSheetContent(state, sheet.templateId)
         }
     }
@@ -89,7 +87,7 @@ private fun SheetHeader(title: String) {
 
 /** Item entry in the API's shape: description + HSN/SAC, decimal qty, rate in ₹, per-item GST %. */
 @Composable
-private fun AddItemSheetContent(state: BillantaState) {
+private fun AddItemSheetContent(state: BillantaState, invoiceId: String) {
     val c = BillantaTheme.colors
     var desc by remember { mutableStateOf("") }
     var hsn by remember { mutableStateOf("") }
@@ -159,7 +157,8 @@ private fun AddItemSheetContent(state: BillantaState) {
                 "Add item",
                 onClick = {
                     if (valid && ratePaise != null) {
-                        state.addDraftItem(
+                        state.addInvoiceItem(
+                            invoiceId = invoiceId,
                             description = desc.trim(),
                             hsnSac = hsn.trim().ifBlank { null },
                             quantity = qty.trim(),
@@ -209,51 +208,6 @@ private fun paiseToRupeeInput(paise: Long): String {
     return if (fraction == 0L) whole.toString() else "$whole.${fraction.toString().padStart(2, '0')}"
 }
 
-@Composable
-private fun CustomerPickerSheetContent(state: BillantaState) {
-    val c = BillantaTheme.colors
-    Column(Modifier.fillMaxWidth().padding(bottom = 8.dp).navigationBarsPadding()) {
-        SheetHeader("Select customer")
-        Spacer(Modifier.height(6.dp))
-        Row(
-            Modifier.fillMaxWidth().clickable {
-                state.closeSheet(); state.push(EditCustomerRoute(null))
-            }.padding(horizontal = 18.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(14.dp),
-        ) {
-            Box(Modifier.size(44.dp).clip(RoundedCornerShape(999.dp)).background(c.primaryMuted), contentAlignment = Alignment.Center) {
-                BillantaIcon(AppIcon.Plus, c.primary, size = 22.dp)
-            }
-            Text("Add new customer", style = BillantaTheme.type.bodyStrong, color = c.primary)
-        }
-        LazyColumn(Modifier.fillMaxWidth().heightIn(max = 420.dp)) {
-            items(state.customers, key = { it.id }) { cust ->
-                val selected = cust.id == state.draftCustomerId
-                Row(
-                    Modifier.fillMaxWidth().clickable { state.setDraftCustomer(cust.id); state.closeSheet() }
-                        .padding(horizontal = 18.dp, vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(14.dp),
-                ) {
-                    Avatar(initialsOf(cust.name), size = 44)
-                    Column(Modifier.weight(1f)) {
-                        Text(cust.name, style = BillantaTheme.type.bodyStrong, color = c.textPrimary)
-                        listOfNotNull(cust.phone, cust.email, cust.city).firstOrNull()?.let {
-                            Text(it, style = BillantaTheme.type.caption, color = c.textSecondary)
-                        }
-                    }
-                    if (selected) BillantaIcon(AppIcon.Check, c.primary, size = 22.dp)
-                }
-            }
-        }
-    }
-}
-
-/**
- * Premium gate. There's no in-app purchase API — premium is a property of the account
- * (`user.isPremium`), so the sheet explains that and routes signed-out users to sign-in.
- */
 @Composable
 private fun PremiumSheetContent(state: BillantaState, templateId: String) {
     val c = BillantaTheme.colors

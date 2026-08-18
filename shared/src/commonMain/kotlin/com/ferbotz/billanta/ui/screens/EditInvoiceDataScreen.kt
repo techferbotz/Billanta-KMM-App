@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.clickable
 import androidx.compose.material3.Switch
@@ -41,9 +42,17 @@ import com.ferbotz.billanta.render.TemplateDoc
 import com.ferbotz.billanta.render.TemplateParser
 import com.ferbotz.billanta.render.TemplateSection
 import com.ferbotz.billanta.state.AddItemSheet
+import androidx.compose.foundation.border
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.ui.graphics.Color
+import com.ferbotz.billanta.model.initialsOf
+import com.ferbotz.billanta.state.EditCustomerRoute
+import com.ferbotz.billanta.ui.components.Avatar
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.ui.text.style.TextAlign
+import com.ferbotz.billanta.domain.model.ProductRecord
 import com.ferbotz.billanta.state.BillantaState
 import com.ferbotz.billanta.state.BusinessProfileRoute
-import com.ferbotz.billanta.state.CustomerPickerSheet
 import com.ferbotz.billanta.ui.AppIcon
 import com.ferbotz.billanta.ui.BillantaIcon
 import com.ferbotz.billanta.ui.components.BillantaTextField
@@ -240,34 +249,70 @@ private fun ColumnScopeBody(content: @Composable () -> Unit) {
     ) { content() }
 }
 
+/**
+ * Choosing who the invoice is for.
+ *
+ * The list is the screen — no picker button, no Save. Choosing a customer is a single, complete
+ * decision, so it commits and steps back on the tap; a Save button would only ask the user to
+ * confirm something they had already said.
+ */
 @Composable
 private fun ColumnScope.CustomerSection(state: BillantaState, invoice: InvoiceRecord) {
-    // The picker sheet writes to the shared draft slot; seed it so reopening shows the current one.
-    LaunchedEffect(invoice.id) { state.setDraftCustomer(invoice.customerId ?: "") }
-    val chosen = state.customerById(state.draftCustomerId?.takeIf { it.isNotEmpty() })
-        ?: state.customerById(invoice.customerId)
-
-    ColumnScopeBody {
-        PickerField(
-            label = "Customer",
-            value = chosen?.name,
-            placeholder = "Choose a customer",
-            onClick = { state.openSheet(CustomerPickerSheet) },
-        )
-        chosen?.let { customer ->
-            SurfaceCard {
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Overline("Billed to")
-                    Text(customer.name, style = BillantaTheme.type.bodyStrong, color = BillantaTheme.colors.textPrimary)
-                    listOfNotNull(customer.email, customer.phone, customer.gstin).forEach {
-                        Text(it, style = BillantaTheme.type.caption, color = BillantaTheme.colors.textSecondary)
+    val c = BillantaTheme.colors
+    LazyColumn(
+        Modifier.fillMaxWidth().weight(1f),
+        contentPadding = PaddingValues(18.dp, 4.dp, 18.dp, 24.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        item {
+            SecondaryButton(
+                "Add new customer",
+                onClick = { state.push(EditCustomerRoute(null, attachToInvoiceId = invoice.id)) },
+                leadingIcon = AppIcon.Plus,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+        if (state.customers.isEmpty()) {
+            item {
+                Text(
+                    "No customers yet. Add one and it will be reusable on every invoice.",
+                    style = BillantaTheme.type.body,
+                    color = c.textSecondary,
+                    modifier = Modifier.padding(top = 24.dp),
+                )
+            }
+        }
+        items(state.customers, key = { it.id }) { customer ->
+            val selected = customer.id == invoice.customerId
+            SurfaceCard(padding = 0) {
+                Row(
+                    Modifier.fillMaxWidth()
+                        .border(
+                            width = if (selected) 2.dp else 0.dp,
+                            color = if (selected) c.primary else Color.Transparent,
+                            shape = RoundedCornerShape(16.dp),
+                        )
+                        .clickable {
+                            // Re-selecting the current customer is a no-op, but still a clear
+                            // "yes, this one" — so it steps back rather than sitting there.
+                            if (selected) state.pop()
+                            else state.setInvoiceCustomer(invoice.id, customer.id) { state.pop() }
+                        }
+                        .padding(horizontal = 14.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    Avatar(initialsOf(customer.name), size = 44)
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text(customer.name, style = BillantaTheme.type.bodyStrong, color = c.textPrimary)
+                        listOfNotNull(customer.phone, customer.email, customer.city).firstOrNull()?.let {
+                            Text(it, style = BillantaTheme.type.caption, color = c.textSecondary)
+                        }
                     }
+                    if (selected) BillantaIcon(AppIcon.Check, c.primary, size = 20.dp)
                 }
             }
         }
-    }
-    SaveBar(state, enabled = chosen != null) {
-        state.setInvoiceCustomer(invoice.id, chosen!!.id) { state.pop() }
     }
 }
 
@@ -312,60 +357,156 @@ private val DUE_OPTIONS = listOf(
     DueOption("30 days", 30),
 )
 
+/**
+ * The invoice's line items.
+ *
+ * Same shape as the customer screen: "add new" on top, then a list to pick from — here the product
+ * catalogue, which is what the user has invoiced before. There is no Save: each change writes
+ * straight through, so backing out cannot lose a line.
+ *
+ * A product that is already on the invoice drops out of the catalogue list and appears above it
+ * with a quantity stepper. Tapping it again meant "two of these", not "a second identical line".
+ */
 @Composable
 private fun ColumnScope.ItemsSection(state: BillantaState, invoice: InvoiceRecord) {
-    // The add-item sheet appends to the shared scratchpad, so load this invoice's items into it.
-    LaunchedEffect(invoice.id) { state.seedItemsFrom(invoice) }
     val c = BillantaTheme.colors
+    LazyColumn(
+        Modifier.fillMaxWidth().weight(1f),
+        contentPadding = PaddingValues(18.dp, 4.dp, 18.dp, 24.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        item {
+            SecondaryButton(
+                "Add new item",
+                onClick = { state.openSheet(AddItemSheet(invoice.id)) },
+                leadingIcon = AppIcon.Plus,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
 
-    Column(Modifier.fillMaxWidth().weight(1f)) {
-        LazyColumn(
-            contentPadding = PaddingValues(18.dp, 4.dp, 18.dp, 12.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            items(state.draftItems, key = { it.uiId }) { item ->
+        if (invoice.items.isNotEmpty()) {
+            item { Overline("On this invoice") }
+            itemsIndexed(invoice.items) { index, line ->
                 SurfaceCard {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                            Text(item.description, style = BillantaTheme.type.bodyStrong, color = c.textPrimary)
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                Text(line.description, style = BillantaTheme.type.bodyStrong, color = c.textPrimary)
+                                Text(
+                                    "${line.unitPricePaise.formatPaise()} · ${line.taxRatePercent}% GST",
+                                    style = BillantaTheme.type.caption,
+                                    color = c.textSecondary,
+                                )
+                            }
                             Text(
-                                "${item.quantity} × ${item.unitPricePaise.formatPaise()} · ${item.taxRatePercent}% GST",
-                                style = BillantaTheme.type.caption,
-                                color = c.textSecondary,
-                            )
-                        }
-                        Box(
-                            Modifier.clip(CircleShape).clickable { state.removeDraftItem(item.uiId) }.padding(8.dp),
-                        ) { BillantaIcon(AppIcon.Trash, c.danger, size = 18.dp) }
-                    }
-                }
-            }
-            state.draftTotals?.let { totals ->
-                item {
-                    SurfaceCard {
-                        Row {
-                            Text("Total", style = BillantaTheme.type.bodyStrong, color = c.textPrimary)
-                            Spacer(Modifier.weight(1f))
-                            Text(
-                                totals.grandTotal.formatPaise(),
+                                line.lineTotalPaise.formatPaise(),
                                 style = BillantaTheme.type.bodyStrong,
                                 color = c.textPrimary,
                             )
+                        }
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            QuantityStepper(
+                                quantity = line.quantity,
+                                onStep = { delta -> state.changeInvoiceItemQuantity(invoice.id, index, delta) },
+                            )
+                            Spacer(Modifier.weight(1f))
+                            Box(
+                                Modifier.clip(CircleShape)
+                                    .clickable { state.removeInvoiceItem(invoice.id, index) }
+                                    .padding(8.dp),
+                            ) { BillantaIcon(AppIcon.Trash, c.danger, size = 18.dp) }
                         }
                     }
                 }
             }
             item {
-                SecondaryButton(
-                    "Add item",
-                    onClick = { state.openSheet(AddItemSheet) },
-                    leadingIcon = AppIcon.Plus,
-                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                SurfaceCard {
+                    Row {
+                        Text("Total", style = BillantaTheme.type.bodyStrong, color = c.textPrimary)
+                        Spacer(Modifier.weight(1f))
+                        Text(
+                            invoice.grandTotalPaise.formatPaise(),
+                            style = BillantaTheme.type.bodyStrong,
+                            color = c.textPrimary,
+                        )
+                    }
+                }
+            }
+        }
+
+        // Matching on the name is what the catalogue itself keys on, so a line added from a
+        // product and the product it came from stay recognisably the same thing.
+        val onInvoice = invoice.items.map { ProductRecord.nameKeyOf(it.description) }.toSet()
+        val available = state.products.filterNot { ProductRecord.nameKeyOf(it.name) in onInvoice }
+        if (available.isNotEmpty()) {
+            item { Overline("From your catalogue") }
+            items(available, key = { it.id }) { product ->
+                SurfaceCard(
+                    onClick = {
+                        state.addInvoiceItem(
+                            invoiceId = invoice.id,
+                            description = product.name,
+                            hsnSac = product.hsnSac,
+                            quantity = "1",
+                            unitPricePaise = product.unitPricePaise,
+                            taxRatePercent = product.taxRatePercent,
+                        )
+                    },
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Text(product.name, style = BillantaTheme.type.bodyStrong, color = c.textPrimary)
+                            Text(
+                                "${product.unitPricePaise.formatPaise()} · ${product.taxRatePercent}% GST",
+                                style = BillantaTheme.type.caption,
+                                color = c.textSecondary,
+                            )
+                        }
+                        BillantaIcon(AppIcon.Plus, c.primary, size = 18.dp)
+                    }
+                }
+            }
+        } else if (invoice.items.isEmpty()) {
+            item {
+                Text(
+                    "Nothing in your catalogue yet. Add an item and it will be saved here for next time.",
+                    style = BillantaTheme.type.body,
+                    color = c.textSecondary,
+                    modifier = Modifier.padding(top = 24.dp),
                 )
             }
         }
     }
-    SaveBar(state, enabled = true) { state.setInvoiceItems(invoice.id) { state.pop() } }
+}
+
+/** Steps a line's quantity. Whole units only — a fractional quantity is typed, not tapped. */
+@Composable
+private fun QuantityStepper(quantity: String, onStep: (Int) -> Unit) {
+    val c = BillantaTheme.colors
+    Row(
+        Modifier.clip(RoundedCornerShape(10.dp)).background(c.surfaceAlt),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        StepButton("−", onClick = { onStep(-1) })
+        Text(
+            quantity,
+            style = BillantaTheme.type.bodyStrong,
+            color = c.textPrimary,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.widthIn(min = 40.dp).padding(horizontal = 4.dp),
+        )
+        StepButton("+", onClick = { onStep(1) })
+    }
+}
+
+@Composable
+private fun StepButton(label: String, onClick: () -> Unit) {
+    Box(
+        Modifier.size(38.dp).clip(RoundedCornerShape(10.dp)).clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(label, style = BillantaTheme.type.sectionTitle, color = BillantaTheme.colors.primary)
+    }
 }
 
 @Composable

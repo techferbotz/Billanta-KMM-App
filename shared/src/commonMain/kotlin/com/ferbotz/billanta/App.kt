@@ -98,7 +98,7 @@ private fun RouteHost(state: BillantaState, route: Route) {
         BusinessProfileRoute -> BusinessProfileScreen(state)
         SettingsRoute -> SettingsScreen(state)
         SignInRoute -> SignInScreen(state)
-        is EditCustomerRoute -> EditCustomerScreen(state, route.customerId)
+        is EditCustomerRoute -> EditCustomerScreen(state, route.customerId, route.attachToInvoiceId)
         is EditProductRoute -> EditProductScreen(state, route.productId)
     }
 }

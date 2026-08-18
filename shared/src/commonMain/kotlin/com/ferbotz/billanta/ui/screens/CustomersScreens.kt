@@ -50,7 +50,7 @@ import com.ferbotz.billanta.ui.components.SurfaceCard
 import com.ferbotz.billanta.ui.components.TextButtonLink
 
 @Composable
-fun EditCustomerScreen(state: BillantaState, customerId: String?) {
+fun EditCustomerScreen(state: BillantaState, customerId: String?, attachToInvoiceId: String? = null) {
     val c = BillantaTheme.colors
     val existing = state.customerById(customerId)
     var name by remember { mutableStateOf(existing?.name ?: "") }
@@ -137,7 +137,12 @@ fun EditCustomerScreen(state: BillantaState, customerId: String?) {
                             createdAtMillis = existing?.createdAtMillis,
                         )
                         state.upsertCustomer(record) { saved ->
-                            if (existing == null) state.setDraftCustomer(saved.id)
+                            // Opened from an invoice's "Bill to" screen: saving a new customer
+                            // there means "use this one", so put it on the invoice and step back
+                            // past the chooser rather than making the user pick it again.
+                            if (attachToInvoiceId != null && existing == null) {
+                                state.setInvoiceCustomer(attachToInvoiceId, saved.id) { state.pop() }
+                            }
                         }
                         state.pop()
                     }

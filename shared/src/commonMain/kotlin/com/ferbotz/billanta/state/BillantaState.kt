@@ -7,6 +7,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.snapshots.SnapshotStateList
 import com.ferbotz.billanta.core.AppResult
+import com.ferbotz.billanta.core.DecimalString
 import com.ferbotz.billanta.core.randomUuid
 import com.ferbotz.billanta.core.systemEpochMillis
 import com.ferbotz.billanta.data.repo.InvoiceRepository
@@ -15,6 +16,7 @@ import com.ferbotz.billanta.domain.model.CompanyProfile
 import com.ferbotz.billanta.domain.model.CustomerRecord
 import com.ferbotz.billanta.domain.model.InvoiceDocStatus
 import com.ferbotz.billanta.domain.model.InvoiceDraft
+import com.ferbotz.billanta.domain.model.InvoiceItemRecord
 import com.ferbotz.billanta.domain.model.InvoiceRecord
 import com.ferbotz.billanta.domain.model.ProductRecord
 import com.ferbotz.billanta.domain.model.TemplateInfo
@@ -52,13 +54,16 @@ data class EditSectionRoute(val invoiceId: String, val edits: SectionEdits, val 
 data object BusinessProfileRoute : Route
 data object SettingsRoute : Route
 data object SignInRoute : Route
-data class EditCustomerRoute(val customerId: String?) : Route
+/**
+ * [attachToInvoiceId] is set when the editor was opened from an invoice's "Bill to" screen: saving
+ * a new customer there means "use this one", so it is put on the invoice straight away.
+ */
+data class EditCustomerRoute(val customerId: String?, val attachToInvoiceId: String? = null) : Route
 data class EditProductRoute(val productId: String?) : Route
 
 /** A modal bottom sheet layered above everything. */
 sealed interface SheetRoute
-data object AddItemSheet : SheetRoute
-data object CustomerPickerSheet : SheetRoute
+data class AddItemSheet(val invoiceId: String) : SheetRoute
 data class PremiumSheet(val templateId: String) : SheetRoute
 
 /**
@@ -390,8 +395,6 @@ class BillantaState(
         val taxRatePercent: String,
     )
 
-    val draftItems: SnapshotStateList<DraftLine> = mutableStateListOf()
-    var draftCustomerId by mutableStateOf<String?>(null)
     var draftDiscountType by mutableStateOf<DiscountType?>(null)
     var draftDiscountValue by mutableStateOf("")
     var draftDiscountBeforeTax by mutableStateOf(true)
@@ -410,33 +413,6 @@ class BillantaState(
         }
 
     /** Live totals via the exact server algorithm; null while any entry is unparsable. */
-    val draftTotals: InvoiceTotals?
-        get() = try {
-            InvoiceCalculator.compute(
-                items = draftItems.map { CalcLine(it.quantity, it.unitPricePaise, it.taxRatePercent) },
-                discount = draftDiscount,
-                discountBeforeTax = draftDiscountBeforeTax,
-            )
-        } catch (_: IllegalArgumentException) {
-            null
-        } catch (_: ArithmeticException) {
-            null
-        }
-
-    /** Adding an item also files it in the catalogue, so the next invoice can just pick it. */
-    fun addDraftItem(description: String, hsnSac: String?, quantity: String, unitPricePaise: Long, taxRatePercent: String) {
-        draftItems.add(DraftLine(randomUuid(), description, hsnSac, quantity, unitPricePaise, taxRatePercent))
-        scope.launch {
-            container.productRepository.remember(description, hsnSac, unitPricePaise, taxRatePercent)
-        }
-    }
-
-    fun removeDraftItem(uiId: String) {
-        draftItems.removeAll { it.uiId == uiId }
-    }
-
-    fun setDraftCustomer(id: String) { draftCustomerId = id }
-
     // ---- section-by-section editing ------------------------------------------------------------
 
     var savingSection by mutableStateOf(false)
@@ -470,21 +446,6 @@ class BillantaState(
         setDetails(invoiceId, invoiceNumber.trim(), invoiceDateMillis, dueDateMillis, settings.defaultCurrency)
     }
 
-    fun setInvoiceItems(invoiceId: String, onSaved: () -> Unit = {}) = saveSection(onSaved) {
-        setItems(
-            invoiceId,
-            draftItems.map {
-                InvoiceDraft.DraftItem(
-                    description = it.description,
-                    hsnSac = it.hsnSac,
-                    quantity = it.quantity,
-                    unitPricePaise = it.unitPricePaise,
-                    taxRatePercent = it.taxRatePercent,
-                )
-            },
-        )
-    }
-
     fun setInvoiceDiscount(invoiceId: String, onSaved: () -> Unit = {}) =
         saveSection(onSaved) { setDiscount(invoiceId, draftDiscount, draftDiscountBeforeTax) }
 
@@ -509,16 +470,81 @@ class BillantaState(
         }
     }
 
-    /** Loads an invoice's items into the scratchpad the add-item sheet appends to. */
-    fun seedItemsFrom(record: InvoiceRecord) {
-        draftItems.clear()
-        record.items.forEach {
-            draftItems.add(
-                DraftLine(randomUuid(), it.description, it.hsnSac, it.quantity, it.unitPricePaise, it.taxRatePercent),
+    /**
+     * Appends one line and saves immediately.
+     *
+     * Edits the stored invoice rather than a scratchpad: the items screen has no Save button, so
+     * there is no moment at which a pending list would be flushed — every change is the save.
+     */
+    fun addInvoiceItem(
+        invoiceId: String,
+        description: String,
+        hsnSac: String?,
+        quantity: String,
+        unitPricePaise: Long,
+        taxRatePercent: String,
+    ) {
+        scope.launch {
+            val record = container.invoiceRepository.getInvoice(invoiceId) ?: return@launch
+            val items = record.items.map { it.toDraftItem() } + InvoiceDraft.DraftItem(
+                description = description,
+                hsnSac = hsnSac,
+                quantity = quantity,
+                unitPricePaise = unitPricePaise,
+                taxRatePercent = taxRatePercent,
             )
+            when (val result = container.invoiceRepository.setItems(invoiceId, items)) {
+                is AppResult.Success -> Unit
+                is AppResult.Failure -> uiMessage = result.error.userMessage()
+            }
+            // The catalogue builds itself from what actually gets invoiced.
+            container.productRepository.remember(description, hsnSac, unitPricePaise, taxRatePercent)
         }
-        draftError = null
     }
+
+    /**
+     * Steps one line's quantity. Stepping the last one off removes the line, so "−" on a quantity
+     * of 1 does the obvious thing rather than leaving a zero-quantity row on the invoice.
+     */
+    fun changeInvoiceItemQuantity(invoiceId: String, index: Int, delta: Int) {
+        scope.launch {
+            val record = container.invoiceRepository.getInvoice(invoiceId) ?: return@launch
+            val line = record.items.getOrNull(index) ?: return@launch
+            val stepped = DecimalString.parseOrNull(line.quantity)?.plusWhole(delta)
+            val items = if (stepped == null) {
+                record.items.filterIndexed { i, _ -> i != index }.map { it.toDraftItem() }
+            } else {
+                record.items.mapIndexed { i, item ->
+                    if (i == index) item.toDraftItem().copy(quantity = stepped.toString())
+                    else item.toDraftItem()
+                }
+            }
+            when (val result = container.invoiceRepository.setItems(invoiceId, items)) {
+                is AppResult.Success -> Unit
+                is AppResult.Failure -> uiMessage = result.error.userMessage()
+            }
+        }
+    }
+
+    fun removeInvoiceItem(invoiceId: String, index: Int) {
+        scope.launch {
+            val record = container.invoiceRepository.getInvoice(invoiceId) ?: return@launch
+            if (index !in record.items.indices) return@launch
+            val items = record.items.filterIndexed { i, _ -> i != index }.map { it.toDraftItem() }
+            when (val result = container.invoiceRepository.setItems(invoiceId, items)) {
+                is AppResult.Success -> Unit
+                is AppResult.Failure -> uiMessage = result.error.userMessage()
+            }
+        }
+    }
+
+    private fun InvoiceItemRecord.toDraftItem() = InvoiceDraft.DraftItem(
+        description = description,
+        hsnSac = hsnSac,
+        quantity = quantity,
+        unitPricePaise = unitPricePaise,
+        taxRatePercent = taxRatePercent,
+    )
 
     fun seedDiscountFrom(record: InvoiceRecord) {
         draftDiscountType = record.discount?.type
