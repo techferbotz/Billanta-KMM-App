@@ -92,6 +92,22 @@ class AppContainer(
         syncMetaLocal.clearAll()
     }
 
+    /**
+     * Hands the existing local rows to a new server identity, rather than deleting them.
+     *
+     * Everything becomes pending push again and the sync cursors are dropped. Without the reset,
+     * rows the *old* account had already synced would still be marked synced against ids the new
+     * account has never heard of, and the pull's "deleted elsewhere" reconcile would delete them
+     * locally — the same data loss by a slower route.
+     */
+    private val reownLocalData: suspend () -> Unit = {
+        syncMetaLocal.clearAll()
+        invoiceLocal.markAllDirty()
+        customerLocal.markAllDirty()
+        productLocal.markAllDirty()
+        profileLocal.markProfileDirty()
+    }
+
     val userManager = UserManager(
         authApi = authApi,
         api = api,
@@ -99,6 +115,7 @@ class AppContainer(
         profileLocal = profileLocal,
         keyValueStore = keyValueStore,
         wipeLocalData = wipeLocalData,
+        reownLocalData = reownLocalData,
         clock = clock,
     )
 
@@ -113,6 +130,7 @@ class AppContainer(
         syncMeta = syncMetaLocal,
         connectivity = connectivity,
         clock = clock,
+        onAccountVanished = { userManager.onAccountVanished() },
     )
 
     // ---- repositories ----

@@ -46,7 +46,6 @@ import com.ferbotz.billanta.state.AddItemSheet
 import com.ferbotz.billanta.state.BillantaState
 import com.ferbotz.billanta.state.EditCustomerRoute
 import com.ferbotz.billanta.state.PremiumSheet
-import com.ferbotz.billanta.state.SignInRoute
 import com.ferbotz.billanta.theme.BillantaTheme
 import com.ferbotz.billanta.ui.AppIcon
 import com.ferbotz.billanta.ui.BillantaIcon
@@ -236,7 +235,7 @@ private fun PremiumSheetContent(state: BillantaState, templateId: String) {
         if (!state.signedIn) {
             PrimaryButton(
                 "Sign in",
-                onClick = { state.closeSheet(); state.push(SignInRoute) },
+                onClick = { state.signInWithGoogle { state.closeSheet() } },
                 modifier = Modifier.fillMaxWidth(),
                 leadingIcon = AppIcon.Google,
             )

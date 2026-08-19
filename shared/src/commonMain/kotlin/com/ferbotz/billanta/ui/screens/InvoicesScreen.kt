@@ -32,24 +32,18 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.ferbotz.billanta.state.BillantaState
 import com.ferbotz.billanta.state.PreviewRoute
-import com.ferbotz.billanta.state.SignInRoute
 import com.ferbotz.billanta.theme.BillantaTheme
 import com.ferbotz.billanta.ui.AppIcon
 import com.ferbotz.billanta.ui.BillantaIcon
 import com.ferbotz.billanta.ui.components.BottomBarSpace
 import com.ferbotz.billanta.ui.components.InvoiceCard
 import com.ferbotz.billanta.ui.components.LargeTopBar
-import com.ferbotz.billanta.ui.components.TextButtonLink
 
 @Composable
 fun InvoicesScreen(state: BillantaState) {
     val c = BillantaTheme.colors
     Column(Modifier.fillMaxSize().background(c.background)) {
-        LargeTopBar("Invoices", actions = {
-            if (!state.signedIn) {
-                TextButtonLink("Sign in", onClick = { state.push(SignInRoute) })
-            }
-        })
+        LargeTopBar("Invoices")
         val list = state.invoices
         LazyColumn(
             Modifier.fillMaxSize(),

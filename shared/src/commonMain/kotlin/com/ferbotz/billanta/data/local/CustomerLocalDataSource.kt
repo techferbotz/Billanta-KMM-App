@@ -56,6 +56,9 @@ class CustomerLocalDataSource(
     suspend fun markSynced(id: String, updatedAtMillis: Long) =
         withContext(dispatcher) { q.markSynced(id = id, updatedAtMillis = updatedAtMillis) }
 
+    /** Every row becomes pending push again — see UserManager's account-changed path. */
+    suspend fun markAllDirty() = withContext(dispatcher) { q.markAllDirty() }
+
     suspend fun clearAll() = withContext(dispatcher) { q.clear() }
 
     private fun write(record: CustomerRecord, dirty: Boolean, isDeleted: Boolean, isSynced: Boolean) {

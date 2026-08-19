@@ -118,6 +118,9 @@ class InvoiceLocalDataSource(
         count to total
     }
 
+    /** Every row becomes pending push again — see UserManager's account-changed path. */
+    suspend fun markAllDirty() = withContext(dispatcher) { q.markAllDirty() }
+
     suspend fun clearAll() = withContext(dispatcher) {
         db.transaction {
             itemsQ.clear()

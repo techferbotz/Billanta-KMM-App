@@ -25,3 +25,6 @@ UPDATE settingsRow SET dirty = 0 WHERE localId = 1;
 
 clear:
 DELETE FROM settingsRow;
+
+markDirty:
+UPDATE settingsRow SET dirty = 1 WHERE localId = 1;

@@ -90,6 +90,9 @@ class ProductLocalDataSource(
 
     suspend fun hardDelete(id: String) = withContext(dispatcher) { q.hardDelete(id) }
 
+    /** Every row becomes pending push again — see UserManager's account-changed path. */
+    suspend fun markAllDirty() = withContext(dispatcher) { q.markAllDirty() }
+
     suspend fun clearAll() = withContext(dispatcher) { q.clear() }
 
     private companion object {

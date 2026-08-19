@@ -67,6 +67,8 @@ class SyncManager(
     private val syncMeta: SyncMetaLocal,
     private val connectivity: ConnectivityObserver,
     private val clock: EpochClock,
+    /** Ends the session when the server says the account behind it is gone (BE-010). */
+    private val onAccountVanished: suspend () -> Unit = {},
 ) {
     private val _status = MutableStateFlow(SyncStatus())
     val status: StateFlow<SyncStatus> = _status.asStateFlow()
@@ -131,6 +133,9 @@ class SyncManager(
     private suspend fun doFullSync(): AppError? {
         var firstError: AppError? = null
         suspend fun step(name: String, block: suspend () -> AppError?) {
+            // Once the account is gone every remaining step would fail the same way, so stop the
+            // pass rather than logging the same 401 ten times and hammering a dead session.
+            if ((firstError as? AppError.Http)?.isAccountGone == true) return
             val error = block()
             if (error != null) {
                 logWarn(LOG_TAG, "$name failed — ${error.diagnostic()}")
@@ -151,6 +156,14 @@ class SyncManager(
         step("syncInvoices") { syncInvoicesWithServer() }
         step("pullCompany") { pullCompanyIfClean() }
         step("pullSettings") { pullSettingsIfClean() }
+
+        // A valid-looking token whose user no longer exists (BE-010). Only a full sign-in can fix
+        // it — a refresh dies too — so end the session now instead of retrying forever. Nothing
+        // local is deleted: the next sign-in re-owns it.
+        (firstError as? AppError.Http)?.takeIf { it.isAccountGone }?.let {
+            logWarn(LOG_TAG, "the signed-in account no longer exists on the server; signing out")
+            onAccountVanished()
+        }
         return firstError
     }
 

@@ -62,3 +62,6 @@ DELETE FROM productRow WHERE id = ?;
 
 clear:
 DELETE FROM productRow;
+
+markAllDirty:
+UPDATE productRow SET dirty = 1, isSynced = 0;

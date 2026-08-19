@@ -31,7 +31,6 @@ import com.ferbotz.billanta.state.EditSectionRoute
 import com.ferbotz.billanta.state.PreviewRoute
 import com.ferbotz.billanta.state.Route
 import com.ferbotz.billanta.state.SettingsRoute
-import com.ferbotz.billanta.state.SignInRoute
 import com.ferbotz.billanta.theme.BillantaTheme
 import com.ferbotz.billanta.ui.components.BottomTab
 import com.ferbotz.billanta.ui.components.BottomTabBar
@@ -47,7 +46,6 @@ import com.ferbotz.billanta.ui.screens.InvoicesScreen
 import com.ferbotz.billanta.ui.screens.PreviewScreen
 import com.ferbotz.billanta.ui.screens.ProfileScreen
 import com.ferbotz.billanta.ui.screens.SettingsScreen
-import com.ferbotz.billanta.ui.screens.SignInScreen
 import com.ferbotz.billanta.ui.screens.TemplatesScreen
 import kotlinx.coroutines.delay
 
@@ -97,7 +95,6 @@ private fun RouteHost(state: BillantaState, route: Route) {
         is EditSectionRoute -> EditSectionScreen(state, route.invoiceId, route.edits, route.label)
         BusinessProfileRoute -> BusinessProfileScreen(state)
         SettingsRoute -> SettingsScreen(state)
-        SignInRoute -> SignInScreen(state)
         is EditCustomerRoute -> EditCustomerScreen(state, route.customerId, route.attachToInvoiceId)
         is EditProductRoute -> EditProductScreen(state, route.productId)
     }

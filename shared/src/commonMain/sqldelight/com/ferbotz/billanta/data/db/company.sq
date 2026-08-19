@@ -37,3 +37,6 @@ UPDATE companyRow SET dirty = 0 WHERE localId = 1;
 
 clear:
 DELETE FROM companyRow;
+
+markDirty:
+UPDATE companyRow SET dirty = 1 WHERE localId = 1;

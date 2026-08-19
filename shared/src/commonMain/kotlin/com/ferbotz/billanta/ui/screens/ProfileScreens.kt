@@ -37,7 +37,14 @@ import com.ferbotz.billanta.model.stateCodeFromGstin
 import com.ferbotz.billanta.state.BillantaState
 import com.ferbotz.billanta.state.BusinessProfileRoute
 import com.ferbotz.billanta.state.SettingsRoute
-import com.ferbotz.billanta.state.SignInRoute
+import com.ferbotz.billanta.ui.components.SecondaryButton
+import coil3.compose.AsyncImage
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.text.style.TextAlign
+import com.ferbotz.billanta.domain.model.UserAccount
+import com.ferbotz.billanta.model.initialsOf
+import com.ferbotz.billanta.ui.components.Avatar
 import com.ferbotz.billanta.theme.BillantaTheme
 import com.ferbotz.billanta.ui.AppIcon
 import com.ferbotz.billanta.ui.BillantaIcon
@@ -56,7 +63,6 @@ import com.ferbotz.billanta.ui.components.SurfaceCard
 @Composable
 fun ProfileScreen(state: BillantaState) {
     val c = BillantaTheme.colors
-    val company = state.company
     Column(Modifier.fillMaxSize().background(c.background)) {
         LargeTopBar("Profile")
         LazyColumn(
@@ -64,57 +70,12 @@ fun ProfileScreen(state: BillantaState) {
             contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = 6.dp, bottom = BottomBarSpace),
             verticalArrangement = Arrangement.spacedBy(18.dp),
         ) {
-            // Business summary (or set-up nudge)
+            // Who you are. There is no business card here any more: "Business profile" in
+            // the list below opens the same editor, and two entry points to one form on one screen
+            // was the duplication rather than a shortcut.
             item {
-                SurfaceCard(Modifier.fillMaxWidth(), onClick = { state.push(BusinessProfileRoute) }, padding = 16) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                        Box(Modifier.size(52.dp).clip(RoundedCornerShape(14.dp)).background(c.primary), contentAlignment = Alignment.Center) {
-                            Text((company?.name ?: "B").take(1), color = c.onPrimary, fontWeight = FontWeight.Bold, fontSize = 22.sp)
-                        }
-                        Column(Modifier.weight(1f)) {
-                            Text(company?.name ?: "Set up your business", style = BillantaTheme.type.cardTitle, color = c.textPrimary)
-                            Text(
-                                company?.email ?: company?.phone ?: "Name, GSTIN, address, payment details",
-                                style = BillantaTheme.type.caption, color = c.textSecondary,
-                            )
-                            company?.gstin?.let {
-                                Text("GSTIN $it", style = BillantaTheme.type.caption, color = c.textMuted)
-                            }
-                        }
-                        BillantaIcon(AppIcon.ChevronRight, c.textMuted, size = 20.dp)
-                    }
-                }
-            }
-
-            // Account
-            item {
-                Column {
-                    Overline("Account")
-                    Spacer(Modifier.height(8.dp))
-                    SurfaceCard(Modifier.fillMaxWidth(), padding = 4) {
-                        Column {
-                            val user = state.currentUser
-                            if (user != null) {
-                                ListRow(
-                                    title = user.name ?: user.email,
-                                    subtitle = user.email,
-                                    leading = { IconTile(AppIcon.Person, tint = c.success, bg = c.successBg) },
-                                    trailingText = if (user.isPremium) "Premium" else null,
-                                    trailingIcon = null,
-                                    modifier = Modifier.padding(horizontal = 8.dp),
-                                )
-                            } else {
-                                ListRow(
-                                    title = "Sign in",
-                                    subtitle = "Optional",
-                                    leading = { IconTile(AppIcon.CloudOff, tint = c.warning, bg = c.warningBg) },
-                                    onClick = { state.push(SignInRoute) },
-                                    modifier = Modifier.padding(horizontal = 8.dp),
-                                )
-                            }
-                        }
-                    }
-                }
+                val user = state.currentUser
+                if (user != null) AccountHeader(user) else SignInCard(state)
             }
 
             // Quick links
@@ -151,11 +112,99 @@ fun ProfileScreen(state: BillantaState) {
                 }
             }
 
+            if (state.currentUser != null) {
+                item {
+                    SecondaryButton(
+                        "Sign out",
+                        onClick = { state.signOut() },
+                        leadingIcon = AppIcon.Lock,
+                        tint = c.danger,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            }
+
             item {
                 Text(
                     "Billanta · v1.0 · Made for Indian freelancers",
                     style = BillantaTheme.type.caption, color = c.textMuted,
                     modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                )
+            }
+        }
+    }
+}
+
+/** The signed-in identity, given the room it deserves — this is what the screen is about. */
+@Composable
+private fun AccountHeader(user: UserAccount) {
+    val c = BillantaTheme.colors
+    Column(
+        Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 4.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        val photo = user.photoUrl
+        if (photo.isNullOrBlank()) {
+            Avatar(initialsOf(user.name ?: user.email), size = 96)
+        } else {
+            AsyncImage(
+                model = photo,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.size(96.dp).clip(CircleShape).background(c.primaryMuted),
+            )
+        }
+        Text(
+            user.name ?: user.email,
+            style = BillantaTheme.type.screenTitle,
+            color = c.textPrimary,
+            textAlign = TextAlign.Center,
+        )
+        Text(
+            user.email,
+            style = BillantaTheme.type.body,
+            color = c.textSecondary,
+            textAlign = TextAlign.Center,
+        )
+        if (user.isPremium) {
+            Text(
+                "Premium",
+                style = BillantaTheme.type.caption.copy(fontWeight = FontWeight.SemiBold),
+                color = c.primary,
+                modifier = Modifier.clip(RoundedCornerShape(999.dp)).background(c.primaryMuted)
+                    .padding(horizontal = 12.dp, vertical = 5.dp),
+            )
+        }
+    }
+}
+
+/** Signing in is one button, so it lives inline rather than on a screen of its own. */
+@Composable
+private fun SignInCard(state: BillantaState) {
+    val c = BillantaTheme.colors
+    SurfaceCard(Modifier.fillMaxWidth(), padding = 16) {
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text("Your invoices are on this device", style = BillantaTheme.type.cardTitle, color = c.textPrimary)
+            Text(
+                "Sign in to back them up and sync across devices. It's optional.",
+                style = BillantaTheme.type.caption,
+                color = c.textSecondary,
+            )
+            PrimaryButton(
+                if (state.signingIn) "Signing in…" else "Continue with Google",
+                onClick = { state.signInWithGoogle {} },
+                leadingIcon = AppIcon.Google,
+                enabled = !state.signingIn,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            state.signInError?.let { error ->
+                Text(
+                    error,
+                    style = BillantaTheme.type.caption,
+                    color = c.danger,
+                    modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
+                        .background(c.dangerBg).padding(horizontal = 12.dp, vertical = 10.dp),
                 )
             }
         }
@@ -310,34 +359,17 @@ fun SettingsScreen(state: BillantaState) {
                     }
                 }
             }
-            item {
-                SettingsGroup("Account") {
-                    val user = state.currentUser
-                    if (user != null) {
-                        ValueRow("Signed in as", user.email)
-                        RowDivider()
-                        ValueRow("Plan", if (user.isPremium) "Premium" else "Free")
-                        RowDivider()
-                        ListRow(
-                            "Sign out",
-                            leading = { IconTile(AppIcon.Lock) },
-                            onClick = { state.signOut() },
-                            modifier = Modifier.padding(horizontal = 8.dp),
-                        )
-                        RowDivider()
+            // Signing in and out moved to Profile. What is left here is the one account action
+            // that should take some finding.
+            if (state.currentUser != null) {
+                item {
+                    SettingsGroup("Account") {
                         ListRow(
                             "Delete account",
                             subtitle = "Removes your account and all synced data",
                             leading = { IconTile(AppIcon.Trash, tint = c.danger, bg = c.dangerBg) },
                             onClick = { state.deleteAccount { state.popToRoot() } },
                             danger = true,
-                            modifier = Modifier.padding(horizontal = 8.dp),
-                        )
-                    } else {
-                        ListRow(
-                            "Sign in",
-                            leading = { IconTile(AppIcon.Lock) },
-                            onClick = { state.push(SignInRoute) },
                             modifier = Modifier.padding(horizontal = 8.dp),
                         )
                     }

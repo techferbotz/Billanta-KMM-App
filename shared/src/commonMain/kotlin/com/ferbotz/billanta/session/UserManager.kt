@@ -42,6 +42,8 @@ class UserManager(
     private val profileLocal: ProfileLocalDataSource,
     private val keyValueStore: KeyValueStore,
     private val wipeLocalData: suspend () -> Unit,
+    /** Hands the existing local rows to a new server identity; see the sign-in path below. */
+    private val reownLocalData: suspend () -> Unit,
     private val clock: EpochClock,
 ) {
     private val _authState = MutableStateFlow<AuthState>(AuthState.Restoring)
@@ -83,10 +85,21 @@ class UserManager(
                 val user = response.user.toDomain()
 
                 val previousOwner = keyValueStore.getString(KEY_OWNER_USER_ID)
+                val previousEmail = keyValueStore.getString(KEY_OWNER_EMAIL)
                 if (previousOwner != null && previousOwner != user.id) {
-                    wipeLocalData()
+                    if (previousEmail != null && previousEmail.equals(user.email, ignoreCase = true)) {
+                        // Same person, new server identity — their account was deleted or the
+                        // database was reset, so signing in again minted a fresh id (BE-010).
+                        // Wiping here would destroy the only copy of their invoices, since this is
+                        // exactly the situation in which sync had stopped working. Re-own instead.
+                        reownLocalData()
+                    } else {
+                        // A different person on the same device: their data must not mix.
+                        wipeLocalData()
+                    }
                 }
                 keyValueStore.putString(KEY_OWNER_USER_ID, user.id)
+                keyValueStore.putString(KEY_OWNER_EMAIL, user.email)
 
                 tokenManager.saveFromAuthResponse(response)
                 profileLocal.saveAccount(user)
@@ -94,6 +107,18 @@ class UserManager(
                 AppResult.Success(user)
             }
         }
+    }
+
+    /**
+     * The session is valid-looking but its account is gone (BE-010). A refresh cannot rescue it, so
+     * drop straight to signed-out and let the user sign in again — their local data is kept, and
+     * the next sign-in re-owns it.
+     */
+    suspend fun onAccountVanished() {
+        if (_authState.value is AuthState.SignedOut) return
+        tokenManager.clear()
+        _authState.value = AuthState.SignedOut
+        _sessionExpired.tryEmit(Unit)
     }
 
     /** Revokes the refresh token (best effort) and drops the session. Local data stays. */
@@ -151,5 +176,14 @@ class UserManager(
 
     private companion object {
         const val KEY_OWNER_USER_ID = "session.ownerUserId"
+
+        /**
+         * Who the local data belongs to, by email rather than by id.
+         *
+         * The id changes if the account is deleted and remade; the person does not. This is what
+         * lets a re-sign-in after BE-010's ACCOUNT_NOT_FOUND keep the user's invoices while a
+         * genuinely different account still wipes them.
+         */
+        const val KEY_OWNER_EMAIL = "session.ownerEmail"
     }
 }

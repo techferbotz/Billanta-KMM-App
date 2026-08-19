@@ -61,3 +61,8 @@ SELECT COUNT(*) FROM customerRow WHERE isDeleted = 0;
 
 clear:
 DELETE FROM customerRow;
+
+-- Re-owns every row for a new server identity. isSynced goes back to 0 so the push POSTs rather
+-- than PATCHing an id the new account has never seen.
+markAllDirty:
+UPDATE customerRow SET dirty = 1, isSynced = 0;

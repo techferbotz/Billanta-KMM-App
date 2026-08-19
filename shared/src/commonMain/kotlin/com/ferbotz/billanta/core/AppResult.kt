@@ -13,6 +13,12 @@ sealed class AppError {
         val isUnauthorized: Boolean get() = status == 401
         val isConflict: Boolean get() = status == 409
         val isPremiumRequired: Boolean get() = code == "PREMIUM_REQUIRED"
+
+        /**
+         * The token is well-formed but its user no longer exists server-side (BE-010). Refreshing
+         * cannot help — the refresh token died with the account — so only a full sign-in recovers.
+         */
+        val isAccountGone: Boolean get() = status == 401 && code == "ACCOUNT_NOT_FOUND"
     }
 
     /** Locally-detected bad input (e.g. malformed quantity, out-of-bounds money). */

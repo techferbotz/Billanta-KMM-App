@@ -70,6 +70,12 @@ class ProfileLocalDataSource(
 
     suspend fun markCompanyClean() = withContext(dispatcher) { db.companyQueries.markClean() }
 
+    /** Company and settings become pending push again — see UserManager's account-changed path. */
+    suspend fun markProfileDirty() = withContext(dispatcher) {
+        db.companyQueries.markDirty()
+        db.settingsQueries.markDirty()
+    }
+
     // ---- settings ------------------------------------------------------------------------------
 
     fun observeSettings(): Flow<UserSettings?> =

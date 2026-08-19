@@ -53,7 +53,6 @@ data class EditInvoiceDataRoute(val invoiceId: String) : Route
 data class EditSectionRoute(val invoiceId: String, val edits: SectionEdits, val label: String) : Route
 data object BusinessProfileRoute : Route
 data object SettingsRoute : Route
-data object SignInRoute : Route
 /**
  * [attachToInvoiceId] is set when the editor was opened from an invoice's "Bill to" screen: saving
  * a new customer there means "use this one", so it is put on the invoice straight away.
@@ -150,7 +149,6 @@ class BillantaState(
         }
     }
     fun openPreview(invoiceId: String) = push(PreviewRoute(invoiceId))
-    fun openSignIn() = push(SignInRoute)
 
     fun openSheet(s: SheetRoute) { sheet = s }
     fun closeSheet() { sheet = null }

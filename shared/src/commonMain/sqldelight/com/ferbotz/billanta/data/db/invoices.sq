@@ -98,3 +98,8 @@ DELETE FROM invoiceRow WHERE id = ?;
 
 clear:
 DELETE FROM invoiceRow;
+
+-- Re-owns every row for a new server identity: everything becomes pending push again, and any
+-- conflict recorded against the old account is meaningless now.
+markAllDirty:
+UPDATE invoiceRow SET dirty = 1, syncError = NULL;
