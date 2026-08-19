@@ -9,11 +9,13 @@ import androidx.compose.runtime.snapshots.SnapshotStateList
 import com.ferbotz.billanta.core.AppResult
 import com.ferbotz.billanta.core.DecimalString
 import com.ferbotz.billanta.core.InvoiceDateFormat
+import com.ferbotz.billanta.core.logWarn
 import com.ferbotz.billanta.core.randomUuid
 import com.ferbotz.billanta.core.systemEpochMillis
 import com.ferbotz.billanta.data.repo.InvoiceRepository
 import com.ferbotz.billanta.di.AppContainer
 import com.ferbotz.billanta.domain.model.CompanyProfile
+import com.ferbotz.billanta.domain.model.toSnapshot
 import com.ferbotz.billanta.domain.model.CustomerRecord
 import com.ferbotz.billanta.domain.model.InvoiceDocStatus
 import com.ferbotz.billanta.domain.model.InvoiceDraft
@@ -455,6 +457,9 @@ class BillantaState(
     fun setSectionVisible(invoice: InvoiceRecord, sectionId: String, visible: Boolean) {
         val hidden = invoice.hiddenSections.toMutableSet()
         if (visible) hidden.remove(sectionId) else hidden.add(sectionId)
+        // Every layer of this tests green, yet it has been reported as not working twice. Log what
+        // was actually asked for, so the next report says whether the write happened at all.
+        logWarn("Sections", "$sectionId visible=$visible -> hidden=$hidden on ${invoice.id}")
         setInvoiceCustomisation(invoice.id, invoice.themeOverrides, hidden)
     }
 
@@ -473,6 +478,37 @@ class BillantaState(
 
     fun setInvoiceDiscount(invoiceId: String, onSaved: () -> Unit = {}) =
         saveSection(onSaved) { setDiscount(invoiceId, draftDiscount, draftDiscountBeforeTax) }
+
+    /**
+     * Saves the business details shown on an invoice.
+     *
+     * [alsoUpdateProfile] is the difference between "fix my details" and "this one invoice is
+     * different": saving the profile restamps every invoice, so a one-off override has to stop at
+     * this record or the correction would leak backwards into invoices already issued.
+     */
+    fun setInvoiceCompany(
+        invoiceId: String,
+        company: CompanyProfile,
+        alsoUpdateProfile: Boolean,
+        onSaved: () -> Unit = {},
+    ) {
+        if (savingSection) return
+        scope.launch {
+            savingSection = true
+            draftError = null
+            // Saving the profile restamps every invoice, this one included; the override does not.
+            val result: AppResult<*> = if (alsoUpdateProfile) {
+                container.companyRepository.save(company)
+            } else {
+                container.invoiceRepository.setCompanySnapshot(invoiceId, company.toSnapshot())
+            }
+            savingSection = false
+            when (result) {
+                is AppResult.Success -> onSaved()
+                is AppResult.Failure -> draftError = result.error.userMessage()
+            }
+        }
+    }
 
     fun setInvoiceNotes(invoiceId: String, notes: String, onSaved: () -> Unit = {}) =
         saveSection(onSaved) { setNotes(invoiceId, notes.trim()) }

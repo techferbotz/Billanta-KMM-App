@@ -43,6 +43,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.ferbotz.billanta.core.AppError
 import com.ferbotz.billanta.core.AppResult
+import com.ferbotz.billanta.core.logWarn
 import com.ferbotz.billanta.domain.model.InvoiceRecord
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.width
@@ -342,6 +343,12 @@ private fun RememberPreparedInvoice(
     val theme = InvoiceTheme(record.themeOverrides, record.hiddenSections)
     val dateFormat = state.dateFormat
     return remember(doc, record, images, renderer, theme, dateFormat) {
+        // The other half of the section-hiding trail: what the renderer was actually handed.
+        logWarn(
+            "Sections",
+            "render ${record.id} hidden=${record.hiddenSections} " +
+                "declared=${doc.sections.filter { it.hidable }.map { it.id }}",
+        )
         val document = renderer.render(doc, record, theme, dateFormat = dateFormat)
         // A section with nothing in it collapses to nothing, which leaves the user no way to fill
         // it. Only the on-screen copy holds the space open; the shared file must never show a gap.

@@ -272,6 +272,10 @@ class InvoiceRepository(
         return updated.asSuccess()
     }
 
+    /** Overrides the letterhead on one invoice, leaving the saved business profile alone. */
+    suspend fun setCompanySnapshot(id: String, snapshot: CompanySnapshot): AppResult<InvoiceRecord> =
+        patchScalars(id) { it.copy(companySnapshot = snapshot) }
+
     /**
      * Puts the current business details on every invoice that is not deleted.
      *

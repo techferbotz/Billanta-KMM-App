@@ -58,6 +58,9 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.rememberDatePickerState
 import com.ferbotz.billanta.core.InvoiceDateFormat
 import com.ferbotz.billanta.ui.components.TextButtonLink
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import com.ferbotz.billanta.domain.model.CompanyProfile
 import com.ferbotz.billanta.state.BillantaState
 import com.ferbotz.billanta.state.BusinessProfileRoute
 import com.ferbotz.billanta.ui.AppIcon
@@ -747,33 +750,122 @@ private fun ColumnScope.NotesSection(state: BillantaState, invoice: InvoiceRecor
 @Composable
 private fun ColumnScope.CompanySection(state: BillantaState, invoice: InvoiceRecord) {
     val c = BillantaTheme.colors
-    ColumnScopeBody {
-        SurfaceCard {
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Overline("On this invoice")
-                Text(
-                    invoice.companySnapshot?.name ?: "No business details yet",
-                    style = BillantaTheme.type.bodyStrong,
-                    color = c.textPrimary,
-                )
-                invoice.companySnapshot?.let { snapshot ->
-                    listOfNotNull(snapshot.gstin, snapshot.email, snapshot.phone).forEach {
-                        Text(it, style = BillantaTheme.type.caption, color = c.textSecondary)
-                    }
+    // Seeded from the invoice's own letterhead, falling back to the saved profile for an invoice
+    // made before there was one. Editing here is editing what *this* invoice prints.
+    val snapshot = invoice.companySnapshot
+    val profile = state.company
+
+    var name by remember(invoice.id) { mutableStateOf(snapshot?.name ?: profile?.name ?: "") }
+    var gstin by remember(invoice.id) { mutableStateOf(snapshot?.gstin ?: profile?.gstin ?: "") }
+    var phone by remember(invoice.id) { mutableStateOf(snapshot?.phone ?: profile?.phone ?: "") }
+    var email by remember(invoice.id) { mutableStateOf(snapshot?.email ?: profile?.email ?: "") }
+    var line1 by remember(invoice.id) { mutableStateOf(snapshot?.addressLine1 ?: profile?.addressLine1 ?: "") }
+    var line2 by remember(invoice.id) { mutableStateOf(snapshot?.addressLine2 ?: profile?.addressLine2 ?: "") }
+    var city by remember(invoice.id) { mutableStateOf(snapshot?.city ?: profile?.city ?: "") }
+    var stateName by remember(invoice.id) { mutableStateOf(snapshot?.state ?: profile?.state ?: "") }
+    var stateCode by remember(invoice.id) { mutableStateOf(snapshot?.stateCode ?: profile?.stateCode ?: "") }
+    var pincode by remember(invoice.id) { mutableStateOf(snapshot?.pincode ?: profile?.pincode ?: "") }
+    var upi by remember(invoice.id) { mutableStateOf(snapshot?.upiId ?: profile?.upiId ?: "") }
+    var bank by remember(invoice.id) { mutableStateOf(snapshot?.bankName ?: profile?.bankName ?: "") }
+    var account by remember(invoice.id) { mutableStateOf(snapshot?.accountNumber ?: profile?.accountNumber ?: "") }
+    var ifsc by remember(invoice.id) { mutableStateOf(snapshot?.ifsc ?: profile?.ifsc ?: "") }
+    var alsoUpdateProfile by remember(invoice.id) { mutableStateOf(true) }
+
+    Column(
+        Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState())
+            .padding(horizontal = 18.dp, vertical = 4.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        BillantaTextField(name, { name = it }, label = "Business name", modifier = Modifier.fillMaxWidth())
+        BillantaTextField(
+            gstin,
+            {
+                gstin = it
+                // The first two GSTIN digits are the state code — prefill while it is untouched.
+                if (stateCode.isBlank() && it.length >= 2 && it.take(2).all(Char::isDigit)) {
+                    stateCode = it.take(2)
                 }
-            }
-        }
-        Text(
-            "Your business details are shared by every invoice. Changing them here would only " +
-                "affect this one, so edit them in your profile instead.",
-            style = BillantaTheme.type.caption,
-            color = c.textSecondary,
-        )
-        SecondaryButton(
-            "Edit business profile",
-            onClick = { state.push(BusinessProfileRoute) },
+            },
+            label = "GSTIN (optional)", placeholder = "27ABCDE1234F1Z5",
             modifier = Modifier.fillMaxWidth(),
         )
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            BillantaTextField(phone, { phone = it }, label = "Phone", keyboardType = KeyboardType.Phone, modifier = Modifier.weight(1f))
+            BillantaTextField(email, { email = it }, label = "Email", keyboardType = KeyboardType.Email, modifier = Modifier.weight(1f))
+        }
+        BillantaTextField(line1, { line1 = it }, label = "Address line 1", modifier = Modifier.fillMaxWidth())
+        BillantaTextField(line2, { line2 = it }, label = "Address line 2 (optional)", modifier = Modifier.fillMaxWidth())
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            BillantaTextField(city, { city = it }, label = "City", modifier = Modifier.weight(1f))
+            BillantaTextField(pincode, { pincode = it }, label = "PIN code", keyboardType = KeyboardType.Number, modifier = Modifier.weight(1f))
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            BillantaTextField(stateName, { stateName = it }, label = "State", modifier = Modifier.weight(2f))
+            BillantaTextField(
+                stateCode, { stateCode = it.filter(Char::isDigit).take(2) },
+                label = "Code", keyboardType = KeyboardType.Number, modifier = Modifier.weight(1f),
+            )
+        }
+
+        FieldLabel("Payment")
+        BillantaTextField(upi, { upi = it }, label = "UPI ID", placeholder = "you@okbank", modifier = Modifier.fillMaxWidth())
+        BillantaTextField(bank, { bank = it }, label = "Bank name", modifier = Modifier.fillMaxWidth())
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            BillantaTextField(account, { account = it }, label = "Account number", modifier = Modifier.weight(1.4f))
+            BillantaTextField(ifsc, { ifsc = it }, label = "IFSC", modifier = Modifier.weight(1f))
+        }
+
+        SurfaceCard {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text("Save to my business profile", style = BillantaTheme.type.bodyStrong, color = c.textPrimary)
+                    Text(
+                        if (alsoUpdateProfile) "Used on your other invoices too, and on new ones"
+                        else "Changes only this invoice",
+                        style = BillantaTheme.type.caption,
+                        color = c.textSecondary,
+                    )
+                }
+                Switch(
+                    checked = alsoUpdateProfile,
+                    onCheckedChange = { alsoUpdateProfile = it },
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = c.onPrimary,
+                        checkedTrackColor = c.primary,
+                        uncheckedTrackColor = c.surfaceAlt,
+                        uncheckedBorderColor = c.border,
+                        uncheckedThumbColor = c.textMuted,
+                    ),
+                )
+            }
+        }
+    }
+
+    SaveBar(state, enabled = name.isNotBlank()) {
+        state.setInvoiceCompany(
+            invoiceId = invoice.id,
+            company = CompanyProfile(
+                name = name.trim(),
+                gstin = gstin.trim().ifBlank { null },
+                addressLine1 = line1.trim().ifBlank { null },
+                addressLine2 = line2.trim().ifBlank { null },
+                city = city.trim().ifBlank { null },
+                state = stateName.trim().ifBlank { null },
+                stateCode = stateCode.trim().ifBlank { null },
+                pincode = pincode.trim().ifBlank { null },
+                country = state.company?.country,
+                phone = phone.trim().ifBlank { null },
+                email = email.trim().ifBlank { null },
+                logo = state.company?.logo,
+                signature = state.company?.signature,
+                upiId = upi.trim().ifBlank { null },
+                qr = state.company?.qr,
+                bankName = bank.trim().ifBlank { null },
+                accountNumber = account.trim().ifBlank { null },
+                ifsc = ifsc.trim().ifBlank { null },
+            ),
+            alsoUpdateProfile = alsoUpdateProfile,
+        ) { state.pop() }
     }
 }
 
