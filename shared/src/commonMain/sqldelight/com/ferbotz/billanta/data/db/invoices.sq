@@ -103,3 +103,11 @@ DELETE FROM invoiceRow;
 -- conflict recorded against the old account is meaningless now.
 markAllDirty:
 UPDATE invoiceRow SET dirty = 1, syncError = NULL;
+
+-- Re-stamps every live invoice with the current business details. The company snapshot is the
+-- issuer's own letterhead, not a third party frozen at issue time, so correcting it should reach
+-- the invoices already made rather than only the next one.
+restampCompanySnapshot:
+UPDATE invoiceRow
+SET companySnapshotJson = ?, dirty = 1, updatedAtMillis = ?
+WHERE deletedAtMillis IS NULL;

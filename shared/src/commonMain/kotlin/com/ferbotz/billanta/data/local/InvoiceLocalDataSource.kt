@@ -5,6 +5,7 @@ import app.cash.sqldelight.coroutines.mapToList
 import com.ferbotz.billanta.core.BillantaJson
 import com.ferbotz.billanta.data.db.BillantaDb
 import com.ferbotz.billanta.domain.model.InvoiceDocStatus
+import com.ferbotz.billanta.domain.model.CompanySnapshot
 import com.ferbotz.billanta.domain.model.InvoiceRecord
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.Flow
@@ -117,6 +118,12 @@ class InvoiceLocalDataSource(
         val total = q.sumGrandTotalForCustomer(customerId).executeAsOne()
         count to total
     }
+
+    /** Writes one company snapshot onto every live invoice; see CompanyRepository.save. */
+    suspend fun restampCompanySnapshot(snapshot: CompanySnapshot?, updatedAtMillis: Long) =
+        withContext(dispatcher) {
+            q.restampCompanySnapshot(snapshot?.let { BillantaJson.encodeToString(it) }, updatedAtMillis)
+        }
 
     /** Every row becomes pending push again — see UserManager's account-changed path. */
     suspend fun markAllDirty() = withContext(dispatcher) { q.markAllDirty() }

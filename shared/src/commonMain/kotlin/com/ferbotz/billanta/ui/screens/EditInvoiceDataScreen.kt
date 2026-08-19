@@ -51,6 +51,8 @@ import com.ferbotz.billanta.ui.components.Avatar
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.ui.text.style.TextAlign
 import com.ferbotz.billanta.domain.model.ProductRecord
+import androidx.compose.ui.text.style.TextOverflow
+import com.ferbotz.billanta.core.Iso8601
 import com.ferbotz.billanta.state.BillantaState
 import com.ferbotz.billanta.state.BusinessProfileRoute
 import com.ferbotz.billanta.ui.AppIcon
@@ -114,11 +116,7 @@ fun EditInvoiceDataScreen(state: BillantaState, invoiceId: String) {
                     section = section,
                     invoice = invoice,
                     onEdit = { state.openSection(invoiceId, section) },
-                    onVisibilityChange = { show ->
-                        val hidden = invoice.hiddenSections.toMutableSet()
-                        if (show) hidden.remove(section.id) else hidden.add(section.id)
-                        state.setInvoiceCustomisation(invoice.id, invoice.themeOverrides, hidden)
-                    },
+                    onVisibilityChange = { show -> state.setSectionVisible(invoice, section.id, show) },
                 )
             }
         }
@@ -126,18 +124,87 @@ fun EditInvoiceDataScreen(state: BillantaState, invoiceId: String) {
 }
 
 /** A one-line answer to "is there anything in this section yet?", or null when there isn't. */
-private fun SectionEdits.summarise(invoice: InvoiceRecord): String? = when (this) {
-    SectionEdits.Customer -> invoice.customerSnapshot?.name ?: invoice.customerName
-    SectionEdits.InvoiceDetails -> invoice.invoiceNumber.takeIf { it.isNotBlank() }
-    SectionEdits.Items -> invoice.items.size.takeIf { it > 0 }?.let { count ->
-        "$count ${if (count == 1) "item" else "items"} · ${invoice.grandTotalPaise.formatPaise()}"
+/**
+ * The lines this section will actually put on the invoice.
+ *
+ * Deliberately read from the *snapshots* rather than the live customer or company: those are what
+ * the invoice froze and what the PDF will show, so a customer edited afterwards must not make this
+ * screen disagree with the document.
+ *
+ * Empty means the section has nothing yet, which is what the dot and the "Not added yet" line read.
+ */
+internal fun SectionEdits.detail(invoice: InvoiceRecord): List<String> = when (this) {
+    SectionEdits.Customer -> invoice.customerSnapshot?.let { party ->
+        buildList {
+            add(party.name)
+            party.gstin?.let { add("GSTIN $it") }
+            listOfNotNull(party.phone, party.email).forEach { add(it) }
+            addressLines(
+                party.addressLine1, party.addressLine2, party.city,
+                party.state, party.pincode,
+            ).forEach { add(it) }
+        }
+    } ?: listOfNotNull(invoice.customerName)
+
+    SectionEdits.Company -> invoice.companySnapshot?.let { party ->
+        buildList {
+            add(party.name)
+            party.gstin?.let { add("GSTIN $it") }
+            listOfNotNull(party.phone, party.email).forEach { add(it) }
+            addressLines(
+                party.addressLine1, party.addressLine2, party.city,
+                party.state, party.pincode,
+            ).forEach { add(it) }
+            party.upiId?.let { add("UPI $it") }
+            party.bankName?.let { bank ->
+                add(listOfNotNull(bank, party.accountNumber, party.ifsc).joinToString(" · "))
+            }
+        }
+    }.orEmpty()
+
+    SectionEdits.InvoiceDetails -> buildList {
+        invoice.invoiceNumber.takeIf { it.isNotBlank() }?.let { add(it) }
+        add("Dated ${Iso8601.formatDisplayDate(invoice.invoiceDateMillis)}")
+        invoice.dueDateMillis?.let { add("Due ${Iso8601.formatDisplayDate(it)}") }
     }
-    SectionEdits.Discount -> invoice.discount?.let {
-        if (it.type == DiscountType.Percentage) "${it.value}% off" else invoice.discountTotalPaise.formatPaise() + " off"
+
+    SectionEdits.Items -> invoice.items.map { line ->
+        "${line.description}  ·  ${line.quantity} × ${line.unitPricePaise.formatPaise()}" +
+            "  =  ${line.lineTotalPaise.formatPaise()}"
     }
-    SectionEdits.Notes -> invoice.notes?.takeIf { it.isNotBlank() }
-    SectionEdits.Company -> invoice.companySnapshot?.name
-    SectionEdits.None -> null
+
+    SectionEdits.Discount -> buildList {
+        val discount = invoice.discount
+        if (discount != null) {
+            add(
+                if (discount.type == DiscountType.Percentage) "${discount.value}% discount"
+                else "${invoice.discountTotalPaise.formatPaise()} discount",
+            )
+        }
+        if (invoice.items.isNotEmpty()) {
+            add("Subtotal ${invoice.subtotalPaise.formatPaise()}")
+            if (invoice.discountTotalPaise > 0) add("Less ${invoice.discountTotalPaise.formatPaise()}")
+            add("Tax ${invoice.taxTotalPaise.formatPaise()}")
+            add("Total ${invoice.grandTotalPaise.formatPaise()}")
+        }
+    }
+
+    SectionEdits.Notes -> listOfNotNull(invoice.notes?.takeIf { it.isNotBlank() })
+    SectionEdits.None -> emptyList()
+}
+
+/** One postal address, folded onto as few lines as the filled-in fields allow. */
+internal fun addressLines(
+    line1: String?,
+    line2: String?,
+    city: String?,
+    state: String?,
+    pincode: String?,
+): List<String> = buildList {
+    line1?.takeIf { it.isNotBlank() }?.let { add(it) }
+    line2?.takeIf { it.isNotBlank() }?.let { add(it) }
+    listOfNotNull(city, state, pincode).filter { it.isNotBlank() }
+        .takeIf { it.isNotEmpty() }?.let { add(it.joinToString(", ")) }
 }
 
 /**
@@ -155,7 +222,7 @@ private fun SectionRow(
 ) {
     val c = BillantaTheme.colors
     val visible = section.id !in invoice.hiddenSections
-    val summary = section.edits.summarise(invoice)
+    val detail = section.edits.detail(invoice)
     val canEdit = section.isEditable && visible
 
     SurfaceCard(padding = 0) {
@@ -166,23 +233,41 @@ private fun SectionRow(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            FilledDot(filled = visible && summary != null)
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            FilledDot(filled = visible && detail.isNotEmpty())
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                 Text(
                     section.label,
                     style = BillantaTheme.type.bodyStrong,
                     color = if (visible) c.textPrimary else c.textMuted,
                 )
-                Text(
-                    when {
-                        !visible -> "Hidden from this invoice"
-                        summary != null -> summary
-                        section.isEditable -> "Not added yet"
-                        else -> "Shown on the invoice"
-                    },
-                    style = BillantaTheme.type.caption,
-                    color = c.textSecondary,
-                )
+                if (!visible) {
+                    Text("Hidden from this invoice", style = BillantaTheme.type.caption, color = c.textSecondary)
+                } else if (detail.isEmpty()) {
+                    Text(
+                        if (section.isEditable) "Not added yet" else "Shown on the invoice",
+                        style = BillantaTheme.type.caption,
+                        color = c.textSecondary,
+                    )
+                } else {
+                    // Long sections would otherwise push the rest of the list off screen; the
+                    // section's own editor is where the whole thing is meant to be read.
+                    detail.take(MAX_DETAIL_LINES).forEach { line ->
+                        Text(
+                            line,
+                            style = BillantaTheme.type.body,
+                            color = c.textSecondary,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                    if (detail.size > MAX_DETAIL_LINES) {
+                        Text(
+                            "+${detail.size - MAX_DETAIL_LINES} more",
+                            style = BillantaTheme.type.caption,
+                            color = c.textMuted,
+                        )
+                    }
+                }
             }
             if (section.hidable) {
                 Switch(
@@ -203,6 +288,9 @@ private fun SectionRow(
     }
 }
 
+/** Enough to recognise the section at a glance, not so much that the list stops being a list. */
+private const val MAX_DETAIL_LINES = 6
+
 @Composable
 private fun FilledDot(filled: Boolean) {
     val c = BillantaTheme.colors
@@ -219,7 +307,14 @@ private fun FilledDot(filled: Boolean) {
  * from the section's id — so a template may name its blocks whatever it likes.
  */
 @Composable
-fun EditSectionScreen(state: BillantaState, invoiceId: String, edits: SectionEdits, label: String) {
+fun EditSectionScreen(
+    state: BillantaState,
+    invoiceId: String,
+    sectionId: String,
+    edits: SectionEdits,
+    label: String,
+    hidable: Boolean,
+) {
     val c = BillantaTheme.colors
     val record by remember(invoiceId) { state.invoiceFlow(invoiceId) }.collectAsState(initial = null)
 
@@ -229,6 +324,36 @@ fun EditSectionScreen(state: BillantaState, invoiceId: String, edits: SectionEdi
             CenteredNote("Invoice not found")
             return@Column
         }
+
+        val visible = sectionId !in invoice.hiddenSections
+        // The same switch as the list, where you are already looking at the section — deciding to
+        // leave a block off is a thought you have while editing it, not only from a row above it.
+        if (hidable) {
+            SurfaceCard(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 4.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text("Show on invoice", style = BillantaTheme.type.bodyStrong, color = c.textPrimary)
+                        Text(
+                            if (visible) "This section is printed" else "This section is left off",
+                            style = BillantaTheme.type.caption,
+                            color = c.textSecondary,
+                        )
+                    }
+                    Switch(
+                        checked = visible,
+                        onCheckedChange = { state.setSectionVisible(invoice, sectionId, it) },
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = c.onPrimary,
+                            checkedTrackColor = c.primary,
+                            uncheckedTrackColor = c.surfaceAlt,
+                            uncheckedBorderColor = c.border,
+                            uncheckedThumbColor = c.textMuted,
+                        ),
+                    )
+                }
+            }
+        }
+
         when (edits) {
             SectionEdits.Customer -> CustomerSection(state, invoice)
             SectionEdits.InvoiceDetails -> DetailsSection(state, invoice)

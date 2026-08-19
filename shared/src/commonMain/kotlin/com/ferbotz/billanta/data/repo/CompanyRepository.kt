@@ -13,6 +13,8 @@ class CompanyRepository(
     private val local: ProfileLocalDataSource,
     private val clock: EpochClock,
     private val onLocalMutation: () -> Unit,
+    /** Pushes the new details onto the existing invoices; see InvoiceRepository.restampCompanySnapshot. */
+    private val onCompanyChanged: suspend (CompanyProfile) -> Unit = {},
 ) {
 
     fun observeCompany(): Flow<CompanyProfile?> = local.observeCompany()
@@ -25,6 +27,8 @@ class CompanyRepository(
             return AppError.Validation("Business name is required").asFailure()
         }
         local.saveCompany(company, dirty = true, updatedAtMillis = clock.nowMillis())
+        // Existing invoices carry a copy of these details, so they have to be told.
+        onCompanyChanged(company)
         onLocalMutation()
         return company.asSuccess()
     }

@@ -50,7 +50,14 @@ data class PreviewRoute(val invoiceId: String) : Route
 data class EditInvoiceDataRoute(val invoiceId: String) : Route
 
 /** One section's editor. [edits] is what the template says this section is made of. */
-data class EditSectionRoute(val invoiceId: String, val edits: SectionEdits, val label: String) : Route
+data class EditSectionRoute(
+    val invoiceId: String,
+    val sectionId: String,
+    val edits: SectionEdits,
+    val label: String,
+    /** Whether the template lets this block be left off the invoice at all. */
+    val hidable: Boolean,
+) : Route
 data object BusinessProfileRoute : Route
 data object SettingsRoute : Route
 /**
@@ -419,7 +426,7 @@ class BillantaState(
     fun openInvoiceData(invoiceId: String) = push(EditInvoiceDataRoute(invoiceId))
 
     fun openSection(invoiceId: String, section: TemplateSection) =
-        push(EditSectionRoute(invoiceId, section.edits, section.label))
+        push(EditSectionRoute(invoiceId, section.id, section.edits, section.label, section.hidable))
 
     /**
      * Tapping a section on the invoice itself goes straight into its editor, but pushes the section
@@ -428,7 +435,14 @@ class BillantaState(
      */
     fun openSectionViaList(invoiceId: String, section: TemplateSection) {
         push(EditInvoiceDataRoute(invoiceId))
-        push(EditSectionRoute(invoiceId, section.edits, section.label))
+        push(EditSectionRoute(invoiceId, section.id, section.edits, section.label, section.hidable))
+    }
+
+    /** Puts a section on the invoice, or takes it off. Only meaningful for a hidable section. */
+    fun setSectionVisible(invoice: InvoiceRecord, sectionId: String, visible: Boolean) {
+        val hidden = invoice.hiddenSections.toMutableSet()
+        if (visible) hidden.remove(sectionId) else hidden.add(sectionId)
+        setInvoiceCustomisation(invoice.id, invoice.themeOverrides, hidden)
     }
 
     fun setInvoiceCustomer(invoiceId: String, customerId: String, onSaved: () -> Unit = {}) =

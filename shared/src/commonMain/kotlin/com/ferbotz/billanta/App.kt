@@ -92,7 +92,8 @@ private fun RouteHost(state: BillantaState, route: Route) {
         ChooseTemplateRoute -> ChooseTemplateScreen(state)
         is PreviewRoute -> PreviewScreen(state, route.invoiceId)
         is EditInvoiceDataRoute -> EditInvoiceDataScreen(state, route.invoiceId)
-        is EditSectionRoute -> EditSectionScreen(state, route.invoiceId, route.edits, route.label)
+        is EditSectionRoute ->
+            EditSectionScreen(state, route.invoiceId, route.sectionId, route.edits, route.label, route.hidable)
         BusinessProfileRoute -> BusinessProfileScreen(state)
         SettingsRoute -> SettingsScreen(state)
         is EditCustomerRoute -> EditCustomerScreen(state, route.customerId, route.attachToInvoiceId)

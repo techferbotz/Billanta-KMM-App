@@ -10,6 +10,7 @@ import com.ferbotz.billanta.core.randomUuid
 import com.ferbotz.billanta.data.local.CustomerLocalDataSource
 import com.ferbotz.billanta.data.local.InvoiceLocalDataSource
 import com.ferbotz.billanta.data.local.ProfileLocalDataSource
+import com.ferbotz.billanta.domain.model.CompanySnapshot
 import com.ferbotz.billanta.domain.model.InvoiceDraft
 import com.ferbotz.billanta.domain.model.InvoiceItemRecord
 import com.ferbotz.billanta.domain.model.InvoiceRecord
@@ -269,6 +270,19 @@ class InvoiceRepository(
         local.upsert(updated, dirty = true)
         onLocalMutation()
         return updated.asSuccess()
+    }
+
+    /**
+     * Puts the current business details on every invoice that is not deleted.
+     *
+     * The company snapshot is the issuer's own letterhead rather than a third party captured at
+     * issue time, so correcting a GSTIN or an address should reach the invoices already made — not
+     * just the next one. The customer snapshot is deliberately *not* treated this way: that one
+     * records who was billed, and it has to keep saying what it said when the invoice went out.
+     */
+    suspend fun restampCompanySnapshot(snapshot: CompanySnapshot?) {
+        local.restampCompanySnapshot(snapshot, clock.nowMillis())
+        onLocalMutation()
     }
 
     /** Soft delete — a tombstone, exactly like the server's. Sync replays it as DELETE. */

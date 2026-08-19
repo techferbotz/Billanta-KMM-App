@@ -19,6 +19,7 @@ import com.ferbotz.billanta.data.local.ProfileLocalDataSource
 import com.ferbotz.billanta.data.local.SyncMetaLocal
 import com.ferbotz.billanta.data.local.TemplateLocalDataSource
 import com.ferbotz.billanta.data.repo.CompanyRepository
+import com.ferbotz.billanta.domain.model.toSnapshot
 import com.ferbotz.billanta.data.repo.CustomerRepository
 import com.ferbotz.billanta.data.repo.InvoiceRepository
 import com.ferbotz.billanta.data.repo.MediaRepository
@@ -139,7 +140,12 @@ class AppContainer(
     val invoiceRepository = InvoiceRepository(invoiceLocal, customerLocal, profileLocal, clock, onMutation)
     val customerRepository = CustomerRepository(customerLocal, clock, onMutation)
     val productRepository = ProductRepository(productLocal, clock, onMutation)
-    val companyRepository = CompanyRepository(profileLocal, clock, onMutation)
+    val companyRepository = CompanyRepository(
+        local = profileLocal,
+        clock = clock,
+        onLocalMutation = onMutation,
+        onCompanyChanged = { invoiceRepository.restampCompanySnapshot(it.toSnapshot()) },
+    )
     val settingsRepository = SettingsRepository(profileLocal, clock, onMutation)
     val templateRepository = TemplateRepository(templateLocal, api, clock)
     val mediaRepository = MediaRepository(api)
