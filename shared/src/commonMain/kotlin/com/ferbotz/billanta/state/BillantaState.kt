@@ -8,6 +8,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.snapshots.SnapshotStateList
 import com.ferbotz.billanta.core.AppResult
 import com.ferbotz.billanta.core.DecimalString
+import com.ferbotz.billanta.core.InvoiceDateFormat
 import com.ferbotz.billanta.core.randomUuid
 import com.ferbotz.billanta.core.systemEpochMillis
 import com.ferbotz.billanta.data.repo.InvoiceRepository
@@ -177,6 +178,18 @@ class BillantaState(
     var signingIn by mutableStateOf(false)
         private set
     var signInError by mutableStateOf<String?>(null)
+
+    /**
+     * How dates are written on every invoice. A device preference rather than invoice data: the
+     * server has no field for it, and it is a matter of taste, not of what the invoice says.
+     */
+    var dateFormat by mutableStateOf(InvoiceDateFormat.fromId(container.prefs.getString(PREF_DATE_FORMAT)))
+        private set
+
+    fun chooseDateFormat(format: InvoiceDateFormat) {
+        dateFormat = format
+        container.prefs.putString(PREF_DATE_FORMAT, format.id)
+    }
 
     // ---- theme ---------------------------------------------------------------------------------
     var isDark by mutableStateOf(container.prefs.getBoolean(PREF_DARK) ?: false)
@@ -582,6 +595,7 @@ class BillantaState(
 
     internal companion object {
         const val PREF_DARK = "ui.darkMode"
+        const val PREF_DATE_FORMAT = "invoice.dateFormat"
         const val MILLIS_PER_DAY = 86_400_000L
 
         /** Net-14 unless the user picks otherwise, as the retired create form defaulted to. */

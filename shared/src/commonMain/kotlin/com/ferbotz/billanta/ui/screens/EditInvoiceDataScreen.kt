@@ -52,7 +52,12 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.ui.text.style.TextAlign
 import com.ferbotz.billanta.domain.model.ProductRecord
 import androidx.compose.ui.text.style.TextOverflow
-import com.ferbotz.billanta.core.Iso8601
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.rememberDatePickerState
+import com.ferbotz.billanta.core.InvoiceDateFormat
+import com.ferbotz.billanta.ui.components.TextButtonLink
 import com.ferbotz.billanta.state.BillantaState
 import com.ferbotz.billanta.state.BusinessProfileRoute
 import com.ferbotz.billanta.ui.AppIcon
@@ -115,6 +120,7 @@ fun EditInvoiceDataScreen(state: BillantaState, invoiceId: String) {
                 SectionRow(
                     section = section,
                     invoice = invoice,
+                    dateFormat = state.dateFormat,
                     onEdit = { state.openSection(invoiceId, section) },
                     onVisibilityChange = { show -> state.setSectionVisible(invoice, section.id, show) },
                 )
@@ -133,7 +139,10 @@ fun EditInvoiceDataScreen(state: BillantaState, invoiceId: String) {
  *
  * Empty means the section has nothing yet, which is what the dot and the "Not added yet" line read.
  */
-internal fun SectionEdits.detail(invoice: InvoiceRecord): List<String> = when (this) {
+internal fun SectionEdits.detail(
+    invoice: InvoiceRecord,
+    dateFormat: InvoiceDateFormat = InvoiceDateFormat.Default,
+): List<String> = when (this) {
     SectionEdits.Customer -> invoice.customerSnapshot?.let { party ->
         buildList {
             add(party.name)
@@ -164,8 +173,8 @@ internal fun SectionEdits.detail(invoice: InvoiceRecord): List<String> = when (t
 
     SectionEdits.InvoiceDetails -> buildList {
         invoice.invoiceNumber.takeIf { it.isNotBlank() }?.let { add(it) }
-        add("Dated ${Iso8601.formatDisplayDate(invoice.invoiceDateMillis)}")
-        invoice.dueDateMillis?.let { add("Due ${Iso8601.formatDisplayDate(it)}") }
+        add("Dated ${dateFormat.format(invoice.invoiceDateMillis)}")
+        invoice.dueDateMillis?.let { add("Due ${dateFormat.format(it)}") }
     }
 
     SectionEdits.Items -> invoice.items.map { line ->
@@ -217,12 +226,13 @@ internal fun addressLines(
 private fun SectionRow(
     section: TemplateSection,
     invoice: InvoiceRecord,
+    dateFormat: InvoiceDateFormat,
     onEdit: () -> Unit,
     onVisibilityChange: (Boolean) -> Unit,
 ) {
     val c = BillantaTheme.colors
     val visible = section.id !in invoice.hiddenSections
-    val detail = section.edits.detail(invoice)
+    val detail = section.edits.detail(invoice, dateFormat)
     val canEdit = section.isEditable && visible
 
     SurfaceCard(padding = 0) {
@@ -442,8 +452,12 @@ private fun ColumnScope.CustomerSection(state: BillantaState, invoice: InvoiceRe
 }
 
 @Composable
+@OptIn(ExperimentalMaterial3Api::class)
 private fun ColumnScope.DetailsSection(state: BillantaState, invoice: InvoiceRecord) {
     var number by remember(invoice.id) { mutableStateOf(invoice.invoiceNumber) }
+    var dateMillis by remember(invoice.id) { mutableStateOf(invoice.invoiceDateMillis) }
+    // Held as a count of days rather than an absolute date, so moving the invoice date carries the
+    // due date with it — "net 14" is a term, not a fixed day.
     var dueDays by remember(invoice.id) {
         mutableStateOf(
             invoice.dueDateMillis
@@ -451,9 +465,18 @@ private fun ColumnScope.DetailsSection(state: BillantaState, invoice: InvoiceRec
                 ?: 0,
         )
     }
+    var pickingDate by remember { mutableStateOf(false) }
 
     ColumnScopeBody {
         BillantaTextField(number, { number = it }, label = "Invoice number", placeholder = "INV-0001")
+
+        PickerField(
+            label = "Invoice date",
+            value = state.dateFormat.format(dateMillis),
+            placeholder = "Pick a date",
+            onClick = { pickingDate = true },
+        )
+
         FieldLabel("Payment due")
         ChipRow(
             items = DUE_OPTIONS,
@@ -461,14 +484,45 @@ private fun ColumnScope.DetailsSection(state: BillantaState, invoice: InvoiceRec
             label = { it.label },
             onSelect = { dueDays = it.days },
         )
+
+        FieldLabel("Date format")
+        Text(
+            "How dates are printed on every invoice.",
+            style = BillantaTheme.type.caption,
+            color = BillantaTheme.colors.textSecondary,
+        )
+        ChipRow(
+            items = InvoiceDateFormat.entries,
+            isSelected = { it == state.dateFormat },
+            // The sample *is* the label — nobody recognises a format from its name.
+            label = { it.format(dateMillis) },
+            onSelect = { state.chooseDateFormat(it) },
+        )
     }
+
+    if (pickingDate) {
+        val picker = rememberDatePickerState(initialSelectedDateMillis = dateMillis)
+        DatePickerDialog(
+            onDismissRequest = { pickingDate = false },
+            confirmButton = {
+                TextButtonLink("Set", onClick = {
+                    picker.selectedDateMillis?.let { dateMillis = it }
+                    pickingDate = false
+                })
+            },
+            dismissButton = { TextButtonLink("Cancel", onClick = { pickingDate = false }) },
+        ) {
+            DatePicker(state = picker)
+        }
+    }
+
     SaveBar(state, enabled = number.isNotBlank()) {
         state.setInvoiceDetails(
             invoiceId = invoice.id,
             invoiceNumber = number,
-            invoiceDateMillis = invoice.invoiceDateMillis,
+            invoiceDateMillis = dateMillis,
             dueDateMillis = if (dueDays <= 0) null
-            else invoice.invoiceDateMillis + dueDays * BillantaState.MILLIS_PER_DAY,
+            else dateMillis + dueDays * BillantaState.MILLIS_PER_DAY,
         ) { state.pop() }
     }
 }

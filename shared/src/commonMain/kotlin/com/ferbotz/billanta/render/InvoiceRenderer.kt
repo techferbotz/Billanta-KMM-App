@@ -1,5 +1,6 @@
 package com.ferbotz.billanta.render
 
+import com.ferbotz.billanta.core.InvoiceDateFormat
 import com.ferbotz.billanta.domain.model.InvoiceRecord
 import com.ferbotz.billanta.render.layout.LayoutEngine
 import com.ferbotz.billanta.render.layout.Paginator
@@ -33,8 +34,10 @@ class InvoiceRenderer(
          * shared file never shows a gap where an optional section was left blank.
          */
         placeholders: PlaceholderMode = PlaceholderMode.None,
+        /** How dates are written. A display choice, so it is the caller's to make. */
+        dateFormat: InvoiceDateFormat = InvoiceDateFormat.Default,
     ): RenderedDocument {
-        val tree = TemplateFlattener.flatten(doc, contextFor(record), theme, placeholders)
+        val tree = TemplateFlattener.flatten(doc, contextFor(record, dateFormat), theme, placeholders)
         val engine = LayoutEngine(shaper, imageSizes)
         val root = engine.layout(tree, LayoutEngine.pageContentWidth(doc.page))
         return Paginator(engine).paginate(root, doc.page)
@@ -46,10 +49,10 @@ class InvoiceRenderer(
      * missing from the shared file.
      */
     fun imageUrlsFor(doc: TemplateDoc, record: InvoiceRecord): List<String> =
-        TemplateFlattener.flatten(doc, contextFor(record)).imageUrls()
+        TemplateFlattener.flatten(doc, contextFor(record, InvoiceDateFormat.Default)).imageUrls()
 
-    private fun contextFor(record: InvoiceRecord) =
-        BindingContext(bindingDataFor(record), record.currency)
+    private fun contextFor(record: InvoiceRecord, dateFormat: InvoiceDateFormat) =
+        BindingContext(bindingDataFor(record), record.currency, dateFormat)
 }
 
 /**

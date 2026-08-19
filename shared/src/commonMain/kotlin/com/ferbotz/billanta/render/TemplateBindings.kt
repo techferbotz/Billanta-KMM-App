@@ -1,5 +1,6 @@
 package com.ferbotz.billanta.render
 
+import com.ferbotz.billanta.core.InvoiceDateFormat
 import com.ferbotz.billanta.core.Iso8601
 import com.ferbotz.billanta.domain.model.InvoiceRecord
 import com.ferbotz.billanta.model.formatPaise
@@ -16,6 +17,8 @@ data class DateVal(val millis: Long)
 class BindingContext(
     private val root: Map<String, Any?>,
     private val currency: String,
+    /** How `format: "date"` bindings are written. Passed in, so one invoice renders one way. */
+    private val dateFormat: InvoiceDateFormat = InvoiceDateFormat.Default,
 ) {
 
     fun resolveRaw(path: String, aliases: Map<String, Any?> = emptyMap()): Any? {
@@ -42,7 +45,7 @@ class BindingContext(
                 else -> value.paise.toString()
             }
             is DateVal -> when (bind.format) {
-                "date" -> Iso8601.formatDisplayDate(value.millis)
+                "date" -> dateFormat.format(value.millis)
                 else -> Iso8601.formatDate(value.millis)
             }
             is String -> when (bind.format) {

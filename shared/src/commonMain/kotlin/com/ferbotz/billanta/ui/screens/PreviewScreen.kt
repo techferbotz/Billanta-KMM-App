@@ -340,8 +340,9 @@ private fun RememberPreparedInvoice(
     }
     val renderer = rememberInvoiceRenderer(images.intrinsicSizes())
     val theme = InvoiceTheme(record.themeOverrides, record.hiddenSections)
-    return remember(doc, record, images, renderer, theme) {
-        val document = renderer.render(doc, record, theme)
+    val dateFormat = state.dateFormat
+    return remember(doc, record, images, renderer, theme, dateFormat) {
+        val document = renderer.render(doc, record, theme, dateFormat = dateFormat)
         // A section with nothing in it collapses to nothing, which leaves the user no way to fill
         // it. Only the on-screen copy holds the space open; the shared file must never show a gap.
         val empty = emptySectionsFor(doc, record) - record.hiddenSections
@@ -349,7 +350,7 @@ private fun RememberPreparedInvoice(
         // above has correctly dropped — so a second pass is needed for that too, not just for gaps.
         val editing =
             if (empty.isEmpty() && !doc.hasEditorOnly) document
-            else renderer.render(doc, record, theme, PlaceholderMode.Reserve(empty))
+            else renderer.render(doc, record, theme, PlaceholderMode.Reserve(empty), dateFormat)
         PreparedInvoice(document, editing, images)
     }
 }

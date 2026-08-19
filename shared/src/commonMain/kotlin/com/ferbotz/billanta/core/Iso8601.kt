@@ -121,11 +121,16 @@ object Iso8601 {
     private val MONTHS_SHORT =
         listOf("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
 
-    /** `28 Jul 2026` — the display format the UI already uses. */
-    fun formatDisplayDate(epochMillis: Long): String {
+    /** Calendar date of an instant, in UTC. Floors rather than truncates, so pre-1970 works. */
+    fun civilFromUtcMillis(epochMillis: Long): Triple<Int, Int, Int> {
         var days = epochMillis / MILLIS_PER_DAY
         if (epochMillis % MILLIS_PER_DAY < 0) days -= 1
-        val (y, m, d) = civilFromDays(days)
+        return civilFromDays(days)
+    }
+
+    /** `28 Jul 2026` — the display format the UI already uses. */
+    fun formatDisplayDate(epochMillis: Long): String {
+        val (y, m, d) = civilFromUtcMillis(epochMillis)
         return "$d ${MONTHS_SHORT[m - 1]} $y"
     }
 
