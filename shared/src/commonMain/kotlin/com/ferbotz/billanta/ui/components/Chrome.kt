@@ -1,5 +1,6 @@
 package com.ferbotz.billanta.ui.components
 
+import androidx.compose.foundation.border
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -48,6 +49,27 @@ fun IconButtonBox(icon: AppIcon, tint: Color, onClick: () -> Unit, size: Dp = 24
         Modifier.clip(CircleShape).clickable(onClick = onClick).padding(6.dp),
         contentAlignment = Alignment.Center,
     ) { BillantaIcon(icon, tint, size = size) }
+}
+
+/**
+ * A colour swatch that sits in a top bar beside [IconButtonBox]es.
+ *
+ * Same 6dp padding and same tap target, so the row keeps one rhythm — the swatch is drawn where an
+ * icon's glyph would be rather than being a bare circle with a hand-picked gap next to it.
+ */
+@Composable
+fun ColorSwatchButton(argb: Long, onClick: () -> Unit, size: Dp = 24.dp) {
+    val c = BillantaTheme.colors
+    Box(
+        Modifier.clip(CircleShape).clickable(onClick = onClick).padding(6.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Box(
+            Modifier.size(size).clip(CircleShape)
+                .background(Color(argb.toInt()))
+                .border(1.5.dp, c.border, CircleShape),
+        )
+    }
 }
 
 /** Large-title top bar for the primary tab screens. */

@@ -76,6 +76,7 @@ import com.ferbotz.billanta.theme.BillantaTheme
 import com.ferbotz.billanta.ui.AppIcon
 import com.ferbotz.billanta.ui.BillantaIcon
 import com.ferbotz.billanta.ui.components.BottomActionBar
+import com.ferbotz.billanta.ui.components.ColorSwatchButton
 import com.ferbotz.billanta.ui.components.IconButtonBox
 import com.ferbotz.billanta.ui.components.Overline
 import com.ferbotz.billanta.ui.components.PrimaryButton
@@ -117,13 +118,7 @@ fun PreviewScreen(state: BillantaState, invoiceId: String) {
             if (record != null) {
                 // The swatch *is* the button: the current colour is the only useful label for it.
                 accentArgb?.let { argb ->
-                    Box(
-                        Modifier.size(24.dp).clip(CircleShape)
-                            .background(Color(argb.toInt()))
-                            .border(1.5.dp, c.border, CircleShape)
-                            .clickable { choosingColor = true },
-                    )
-                    Spacer(Modifier.width(14.dp))
+                    ColorSwatchButton(argb, onClick = { choosingColor = true })
                 }
                 IconButtonBox(AppIcon.Gear, c.textSecondary, onClick = { showingSettings = true })
                 IconButtonBox(AppIcon.Trash, c.danger, onClick = {
@@ -304,19 +299,21 @@ fun PreviewScreen(state: BillantaState, invoiceId: String) {
                     exporting = null
                 }
             }
+            // Equal halves: neither action is the obvious default — you edit until it is right,
+            // then you share — so weighting one of them wider only made the row look accidental.
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                SecondaryButton(
-                    "Edit",
-                    onClick = { state.openInvoiceData(record.id) },
-                    leadingIcon = AppIcon.Pencil,
-                    modifier = Modifier.weight(1f),
-                )
                 PrimaryButton(
                     if (exporting == ExportFormat.PDF) "…" else "Share PDF",
                     onClick = { shareAs(ExportFormat.PDF) },
                     enabled = canShare,
                     leadingIcon = AppIcon.Share,
-                    modifier = Modifier.weight(1.6f),
+                    modifier = Modifier.weight(1f),
+                )
+                SecondaryButton(
+                    "Edit",
+                    onClick = { state.openInvoiceData(record.id) },
+                    leadingIcon = AppIcon.Pencil,
+                    modifier = Modifier.weight(1f),
                 )
             }
         }

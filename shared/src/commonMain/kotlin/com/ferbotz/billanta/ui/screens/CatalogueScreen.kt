@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -147,7 +148,7 @@ private fun CustomersPane(state: BillantaState) {
     LazyColumn(
         Modifier.fillMaxSize(),
         contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = 12.dp, bottom = BottomBarSpace),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         if (state.customers.isEmpty()) {
             item {
@@ -160,21 +161,18 @@ private fun CustomersPane(state: BillantaState) {
                 )
             }
         } else {
-            item {
+            // One card per customer, and one LazyColumn item per card. The whole list used to be a
+            // single item, so nothing recycled — every row composed however far down it was.
+            items(state.customers, key = { it.id }) { cust ->
                 SurfaceCard(Modifier.fillMaxWidth(), padding = 4) {
-                    Column {
-                        state.customers.forEachIndexed { i, cust ->
-                            ListRow(
-                                title = cust.name,
-                                subtitle = listOfNotNull(cust.phone, cust.email, cust.city).firstOrNull(),
-                                leading = { Avatar(initialsOf(cust.name), size = 44) },
-                                trailingText = "${state.invoiceCountFor(cust.id)} inv",
-                                onClick = { state.push(EditCustomerRoute(cust.id)) },
-                                modifier = Modifier.padding(horizontal = 8.dp),
-                            )
-                            if (i < state.customers.size - 1) RowSeparator(inset = 66)
-                        }
-                    }
+                    ListRow(
+                        title = cust.name,
+                        subtitle = listOfNotNull(cust.phone, cust.email, cust.city).firstOrNull(),
+                        leading = { Avatar(initialsOf(cust.name), size = 44) },
+                        trailingText = "${state.invoiceCountFor(cust.id)} inv",
+                        onClick = { state.push(EditCustomerRoute(cust.id)) },
+                        modifier = Modifier.padding(horizontal = 8.dp),
+                    )
                 }
             }
         }
@@ -186,7 +184,7 @@ private fun ProductsPane(state: BillantaState) {
     LazyColumn(
         Modifier.fillMaxSize(),
         contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = 12.dp, bottom = BottomBarSpace),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         if (state.products.isEmpty()) {
             item {
@@ -200,36 +198,23 @@ private fun ProductsPane(state: BillantaState) {
                 )
             }
         } else {
-            item {
+            items(state.products, key = { it.id }) { product ->
                 SurfaceCard(Modifier.fillMaxWidth(), padding = 4) {
-                    Column {
-                        state.products.forEachIndexed { i, product ->
-                            ListRow(
-                                title = product.name,
-                                subtitle = listOfNotNull(
-                                    product.hsnSac?.let { "HSN $it" },
-                                    "${product.taxRatePercent}% GST",
-                                ).joinToString(" · "),
-                                leading = { IconTile(AppIcon.Catalogue) },
-                                trailingText = product.unitPricePaise.formatPaise(withPaise = false),
-                                onClick = { state.push(EditProductRoute(product.id)) },
-                                modifier = Modifier.padding(horizontal = 8.dp),
-                            )
-                            if (i < state.products.size - 1) RowSeparator(inset = 66)
-                        }
-                    }
+                    ListRow(
+                        title = product.name,
+                        subtitle = listOfNotNull(
+                            product.hsnSac?.let { "HSN $it" },
+                            "${product.taxRatePercent}% GST",
+                        ).joinToString(" · "),
+                        leading = { IconTile(AppIcon.Catalogue) },
+                        trailingText = product.unitPricePaise.formatPaise(withPaise = false),
+                        onClick = { state.push(EditProductRoute(product.id)) },
+                        modifier = Modifier.padding(horizontal = 8.dp),
+                    )
                 }
             }
         }
     }
-}
-
-@Composable
-private fun RowSeparator(inset: Int) {
-    Spacer(
-        Modifier.height(1.dp).fillMaxWidth().padding(start = inset.dp)
-            .background(BillantaTheme.colors.border),
-    )
 }
 
 @Composable
