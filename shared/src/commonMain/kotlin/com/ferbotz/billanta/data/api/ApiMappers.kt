@@ -45,6 +45,7 @@ fun CompanyDto.toDomain() = CompanyProfile(
     city = city, state = state, stateCode = stateCode, pincode = pincode, country = country,
     phone = phone, email = email, logo = logo, signature = signature, upiId = upiId, qr = qr,
     bankName = bankName, accountNumber = accountNumber, ifsc = ifsc,
+    signatoryName = signatoryName, signatoryDesignation = signatoryDesignation,
 )
 
 fun CompanyProfile.toDto() = CompanyDto(
@@ -52,6 +53,7 @@ fun CompanyProfile.toDto() = CompanyDto(
     city = city, state = state, stateCode = stateCode, pincode = pincode, country = country,
     phone = phone, email = email, logo = logo, signature = signature, upiId = upiId, qr = qr,
     bankName = bankName, accountNumber = accountNumber, ifsc = ifsc,
+    signatoryName = signatoryName, signatoryDesignation = signatoryDesignation,
 )
 
 // ---- settings ----------------------------------------------------------------------------------

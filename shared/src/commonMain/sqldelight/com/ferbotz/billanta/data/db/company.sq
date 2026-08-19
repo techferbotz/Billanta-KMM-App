@@ -19,6 +19,8 @@ CREATE TABLE companyRow (
     bankName TEXT,
     accountNumber TEXT,
     ifsc TEXT,
+    signatoryName TEXT,
+    signatoryDesignation TEXT,
     dirty INTEGER NOT NULL DEFAULT 0,
     updatedAtMillis INTEGER NOT NULL DEFAULT 0
 );
@@ -29,8 +31,9 @@ SELECT * FROM companyRow WHERE localId = 1;
 upsert:
 INSERT OR REPLACE INTO companyRow(
     localId, name, gstin, addressLine1, addressLine2, city, state, stateCode, pincode, country,
-    phone, email, logo, signature, upiId, qr, bankName, accountNumber, ifsc, dirty, updatedAtMillis
-) VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+    phone, email, logo, signature, upiId, qr, bankName, accountNumber, ifsc,
+    signatoryName, signatoryDesignation, dirty, updatedAtMillis
+) VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
 markClean:
 UPDATE companyRow SET dirty = 0 WHERE localId = 1;

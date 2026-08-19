@@ -34,6 +34,9 @@ data class CompanyProfile(
     val bankName: String? = null,
     val accountNumber: String? = null,
     val ifsc: String? = null,
+    /** The authorised signatory printed beside the signature image (BE-012). */
+    val signatoryName: String? = null,
+    val signatoryDesignation: String? = null,
 )
 
 /** `GET /settings` — server auto-creates defaults on first call. */

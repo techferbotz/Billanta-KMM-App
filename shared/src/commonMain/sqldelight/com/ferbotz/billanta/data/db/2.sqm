@@ -1,0 +1,8 @@
+-- Schema 2 -> 3
+--   * the authorised signatory printed beside the signature image (BE-012)
+--
+-- Additive and nullable: an existing profile reads both back as NULL and prints nothing, which is
+-- exactly what it printed before.
+
+ALTER TABLE companyRow ADD COLUMN signatoryName TEXT;
+ALTER TABLE companyRow ADD COLUMN signatoryDesignation TEXT;

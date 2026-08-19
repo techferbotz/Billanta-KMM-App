@@ -60,6 +60,8 @@ data class CompanyDto(
     val bankName: String? = null,
     val accountNumber: String? = null,
     val ifsc: String? = null,
+    val signatoryName: String? = null,
+    val signatoryDesignation: String? = null,
     val updatedAt: String? = null,
 )
 

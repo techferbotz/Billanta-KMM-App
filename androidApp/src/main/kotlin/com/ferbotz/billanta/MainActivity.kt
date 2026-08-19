@@ -13,6 +13,9 @@ class MainActivity : ComponentActivity() {
         val container = (application as BillantaApplication).container
         // The credential UI needs an Activity, so the provider lives for this activity's lifetime.
         container.signInCoordinator.provider = GoogleCredentialTokenProvider(this)
+        // Registering a result launcher has to happen before the activity starts, so this is
+        // constructed here rather than lazily on first use.
+        container.imagePickerCoordinator.picker = AndroidImagePicker(this)
 
         setContent {
             App(container)
@@ -21,9 +24,12 @@ class MainActivity : ComponentActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
-        val coordinator = (application as BillantaApplication).container.signInCoordinator
-        if ((coordinator.provider as? GoogleCredentialTokenProvider)?.activity === this) {
-            coordinator.provider = null
+        val container = (application as BillantaApplication).container
+        if ((container.signInCoordinator.provider as? GoogleCredentialTokenProvider)?.activity === this) {
+            container.signInCoordinator.provider = null
+        }
+        if ((container.imagePickerCoordinator.picker as? AndroidImagePicker)?.activity === this) {
+            container.imagePickerCoordinator.picker = null
         }
     }
 }

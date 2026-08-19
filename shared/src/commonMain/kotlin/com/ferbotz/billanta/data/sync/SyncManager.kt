@@ -17,6 +17,7 @@ import com.ferbotz.billanta.data.local.ProductLocalDataSource
 import com.ferbotz.billanta.data.local.ProfileLocalDataSource
 import com.ferbotz.billanta.data.local.SyncMetaLocal
 import com.ferbotz.billanta.data.local.toDomain
+import com.ferbotz.billanta.domain.model.CompanyProfile
 import com.ferbotz.billanta.domain.model.CustomerRecord
 import com.ferbotz.billanta.domain.model.InvoiceRecord
 import com.ferbotz.billanta.domain.model.ProductRecord
@@ -199,13 +200,41 @@ class SyncManager(
             is AppResult.Success -> {
                 val dto = result.value
                 if (dto != null && !profileLocal.isCompanyDirty()) {
-                    profileLocal.saveCompany(dto.toDomain(), dirty = false, updatedAtMillis = clock.nowMillis())
+                    val incoming = dto.toDomain()
+                    // The pull replaces the local profile wholesale, so a field the server does not
+                    // send is cleared here. That is correct when the server really did clear it —
+                    // and silent data loss if we simply failed to parse it (a key we spell
+                    // differently would look identical). Name what is being dropped; see APP-011.
+                    profileLocal.getCompany()?.let { local ->
+                        val cleared = companyFieldsClearedBy(local, incoming)
+                        if (cleared.isNotEmpty()) {
+                            logWarn(LOG_TAG, "pullCompany clears locally-set fields: ${cleared.joinToString()}")
+                        }
+                    }
+                    profileLocal.saveCompany(incoming, dirty = false, updatedAtMillis = clock.nowMillis())
                 }
                 null
             }
             is AppResult.Failure -> result.error
         }
     }
+
+    /** Fields the local profile has filled in that the incoming one does not. */
+    private fun companyFieldsClearedBy(local: CompanyProfile, incoming: CompanyProfile): List<String> =
+        listOf(
+            "bankName" to (local.bankName to incoming.bankName),
+            "accountNumber" to (local.accountNumber to incoming.accountNumber),
+            "ifsc" to (local.ifsc to incoming.ifsc),
+            "upiId" to (local.upiId to incoming.upiId),
+            "signature" to (local.signature to incoming.signature),
+            "signatoryName" to (local.signatoryName to incoming.signatoryName),
+            "signatoryDesignation" to (local.signatoryDesignation to incoming.signatoryDesignation),
+            "logo" to (local.logo to incoming.logo),
+            "gstin" to (local.gstin to incoming.gstin),
+        ).mapNotNull { (field, values) ->
+            val (before, after) = values
+            field.takeIf { !before.isNullOrBlank() && after.isNullOrBlank() }
+        }
 
     private suspend fun pullSettingsIfClean(): AppError? {
         if (profileLocal.isSettingsDirty()) return null

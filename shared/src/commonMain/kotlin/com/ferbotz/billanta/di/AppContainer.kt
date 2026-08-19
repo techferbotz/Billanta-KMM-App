@@ -28,6 +28,7 @@ import com.ferbotz.billanta.data.repo.SettingsRepository
 import com.ferbotz.billanta.data.repo.TemplateRepository
 import com.ferbotz.billanta.data.sync.SyncManager
 import com.ferbotz.billanta.render.paint.InvoiceImageLoader
+import com.ferbotz.billanta.media.ImagePickerCoordinator
 import com.ferbotz.billanta.session.SignInCoordinator
 import com.ferbotz.billanta.session.TokenManager
 import com.ferbotz.billanta.session.TokenStore
@@ -65,6 +66,9 @@ class AppContainer(
 
     /** Platform sign-in UIs register their Google idToken provider here. */
     val signInCoordinator = SignInCoordinator()
+
+    /** Set by the platform entry point; see ImagePickerCoordinator. */
+    val imagePickerCoordinator = ImagePickerCoordinator()
     // ---- storage ----
     private val db = createBillantaDb(driverFactory)
     private val invoiceLocal = InvoiceLocalDataSource(db, ioDispatcher)

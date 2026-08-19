@@ -71,6 +71,11 @@ fun emptySectionsFor(doc: TemplateDoc, record: InvoiceRecord): Set<String> =
             SectionEdits.Notes -> record.notes.isNullOrBlank()
             SectionEdits.InvoiceDetails -> record.invoiceNumber.isBlank()
             SectionEdits.Company -> record.companySnapshot == null
+            SectionEdits.BankDetails -> record.companySnapshot.let {
+                it == null || listOfNotNull(it.bankName, it.accountNumber, it.ifsc, it.upiId)
+                    .all { field -> field.isBlank() }
+            }
+            SectionEdits.Signature -> record.companySnapshot?.signature.isNullOrBlank()
             // A discount is a choice, not a gap — an invoice without one is complete.
             SectionEdits.Discount, SectionEdits.None -> false
         }

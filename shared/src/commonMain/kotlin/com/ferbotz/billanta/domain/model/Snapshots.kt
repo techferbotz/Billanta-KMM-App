@@ -27,6 +27,9 @@ data class CompanySnapshot(
     val bankName: String? = null,
     val accountNumber: String? = null,
     val ifsc: String? = null,
+    /** The authorised signatory printed beside the signature image (BE-012). */
+    val signatoryName: String? = null,
+    val signatoryDesignation: String? = null,
 )
 
 @Serializable
@@ -48,6 +51,7 @@ fun CompanyProfile.toSnapshot() = CompanySnapshot(
     city = city, state = state, stateCode = stateCode, pincode = pincode, country = country,
     phone = phone, email = email, logo = logo, signature = signature, upiId = upiId, qr = qr,
     bankName = bankName, accountNumber = accountNumber, ifsc = ifsc,
+    signatoryName = signatoryName, signatoryDesignation = signatoryDesignation,
 )
 
 fun CustomerRecord.toSnapshot() = CustomerSnapshot(

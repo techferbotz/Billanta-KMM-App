@@ -510,6 +510,51 @@ class BillantaState(
         }
     }
 
+    val canPickImages: Boolean get() = container.imagePickerCoordinator.isAvailable
+
+    /**
+     * Picks an image, uploads it, and puts the returned URL on the company profile.
+     *
+     * Upload needs the network — media has no offline queue — so this reports plainly rather than
+     * queueing something that would never send. [apply] places the URL on whichever company field
+     * the caller is editing (signature, logo, QR).
+     */
+    fun pickAndUploadCompanyImage(
+        invoiceId: String,
+        alsoUpdateProfile: Boolean,
+        apply: (CompanyProfile, String) -> CompanyProfile,
+        onDone: () -> Unit = {},
+    ) {
+        if (savingSection) return
+        scope.launch {
+            savingSection = true
+            draftError = null
+            val image = when (val picked = container.imagePickerCoordinator.pick()) {
+                is AppResult.Failure -> {
+                    savingSection = false
+                    draftError = picked.error.userMessage()
+                    return@launch
+                }
+                // Null means they backed out: say nothing and leave everything as it was.
+                is AppResult.Success -> picked.value ?: run {
+                    savingSection = false
+                    return@launch
+                }
+            }
+            when (val upload = container.mediaRepository.uploadImage(image.bytes, image.fileName, image.contentType)) {
+                is AppResult.Failure -> {
+                    savingSection = false
+                    draftError = upload.error.userMessage()
+                }
+                is AppResult.Success -> {
+                    savingSection = false
+                    val base = company ?: CompanyProfile(name = "")
+                    setInvoiceCompany(invoiceId, apply(base, upload.value.url), alsoUpdateProfile, onDone)
+                }
+            }
+        }
+    }
+
     fun setInvoiceNotes(invoiceId: String, notes: String, onSaved: () -> Unit = {}) =
         saveSection(onSaved) { setNotes(invoiceId, notes.trim()) }
 

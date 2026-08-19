@@ -61,6 +61,10 @@ import com.ferbotz.billanta.ui.components.TextButtonLink
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import com.ferbotz.billanta.domain.model.CompanyProfile
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.foundation.layout.height
+import coil3.compose.AsyncImage
+import com.ferbotz.billanta.domain.model.CompanySnapshot
 import com.ferbotz.billanta.state.BillantaState
 import com.ferbotz.billanta.state.BusinessProfileRoute
 import com.ferbotz.billanta.ui.AppIcon
@@ -201,6 +205,23 @@ internal fun SectionEdits.detail(
         }
     }
 
+    SectionEdits.BankDetails -> invoice.companySnapshot?.let { party ->
+        buildList {
+            party.bankName?.let { add(it) }
+            party.accountNumber?.let { add("A/C $it") }
+            party.ifsc?.let { add("IFSC $it") }
+            party.upiId?.let { add("UPI $it") }
+        }
+    }.orEmpty()
+
+    SectionEdits.Signature -> invoice.companySnapshot.let { party ->
+        buildList {
+            party?.signatoryName?.let { add(it) }
+            party?.signatoryDesignation?.let { add(it) }
+            if (!party?.signature.isNullOrBlank()) add("Signature image added")
+        }
+    }
+
     SectionEdits.Notes -> listOfNotNull(invoice.notes?.takeIf { it.isNotBlank() })
     SectionEdits.None -> emptyList()
 }
@@ -301,6 +322,9 @@ private fun SectionRow(
     }
 }
 
+/** The server caps both signatory fields at 120 characters, so stop the user at the same place. */
+private const val SIGNATORY_MAX = 120
+
 /** Enough to recognise the section at a glance, not so much that the list stops being a list. */
 private const val MAX_DETAIL_LINES = 6
 
@@ -374,15 +398,25 @@ fun EditSectionScreen(
             SectionEdits.Discount -> DiscountSection(state, invoice)
             SectionEdits.Notes -> NotesSection(state, invoice)
             SectionEdits.Company -> CompanySection(state, invoice)
+            SectionEdits.BankDetails -> BankDetailsSection(state, invoice)
+            SectionEdits.Signature -> SignatureSection(state, invoice)
             SectionEdits.None -> CenteredNote("Nothing to edit here.")
         }
     }
 }
 
+/**
+ * The editable area of a section: everything between the top bar and the save bar.
+ *
+ * Takes the weight itself and scrolls, so a long form uses the whole screen. [SaveBar] must not
+ * also claim a weight — two equal weights in one Column split it down the middle, which is how the
+ * business-details form ended up occupying half the screen with blank space beneath it.
+ */
 @Composable
-private fun ColumnScopeBody(content: @Composable () -> Unit) {
+private fun ColumnScope.ColumnScopeBody(content: @Composable () -> Unit) {
     Column(
-        Modifier.fillMaxWidth().padding(horizontal = 18.dp),
+        Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState())
+            .padding(horizontal = 18.dp, vertical = 4.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) { content() }
 }
@@ -771,11 +805,7 @@ private fun ColumnScope.CompanySection(state: BillantaState, invoice: InvoiceRec
     var ifsc by remember(invoice.id) { mutableStateOf(snapshot?.ifsc ?: profile?.ifsc ?: "") }
     var alsoUpdateProfile by remember(invoice.id) { mutableStateOf(true) }
 
-    Column(
-        Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState())
-            .padding(horizontal = 18.dp, vertical = 4.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
-    ) {
+    ColumnScopeBody {
         BillantaTextField(name, { name = it }, label = "Business name", modifier = Modifier.fillMaxWidth())
         BillantaTextField(
             gstin,
@@ -869,10 +899,248 @@ private fun ColumnScope.CompanySection(state: BillantaState, invoice: InvoiceRec
     }
 }
 
+/**
+ * The four company fields a payment block prints (BE-011).
+ *
+ * A focused editor rather than the whole company form: changing an IFSC should not mean scrolling
+ * past an address. It writes to the same company profile the full form does.
+ */
+@Composable
+private fun ColumnScope.BankDetailsSection(state: BillantaState, invoice: InvoiceRecord) {
+    val snapshot = invoice.companySnapshot
+    val profile = state.company
+
+    var bank by remember(invoice.id) { mutableStateOf(snapshot?.bankName ?: profile?.bankName ?: "") }
+    var account by remember(invoice.id) { mutableStateOf(snapshot?.accountNumber ?: profile?.accountNumber ?: "") }
+    var ifsc by remember(invoice.id) { mutableStateOf(snapshot?.ifsc ?: profile?.ifsc ?: "") }
+    var upi by remember(invoice.id) { mutableStateOf(snapshot?.upiId ?: profile?.upiId ?: "") }
+    var alsoUpdateProfile by remember(invoice.id) { mutableStateOf(true) }
+    // The business profile requires a name, so without one the save was simply refused and the
+    // typing was lost on back. Collect it here rather than sending the user off to another screen.
+    val needsName = profile?.name.isNullOrBlank() && snapshot?.name.isNullOrBlank()
+    var businessName by remember(invoice.id) {
+        mutableStateOf(profile?.name ?: snapshot?.name ?: "")
+    }
+
+    ColumnScopeBody {
+        Text(
+            "Where this invoice asks to be paid.",
+            style = BillantaTheme.type.caption,
+            color = BillantaTheme.colors.textSecondary,
+        )
+        if (needsName) {
+            BillantaTextField(
+                businessName, { businessName = it },
+                label = "Business name", placeholder = "Your business",
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+        BillantaTextField(bank, { bank = it }, label = "Bank name", modifier = Modifier.fillMaxWidth())
+        BillantaTextField(
+            account, { account = it },
+            label = "Account number", keyboardType = KeyboardType.Number,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        BillantaTextField(ifsc, { ifsc = it }, label = "IFSC", placeholder = "HDFC0001234", modifier = Modifier.fillMaxWidth())
+        BillantaTextField(upi, { upi = it }, label = "UPI ID", placeholder = "you@okbank", modifier = Modifier.fillMaxWidth())
+        SaveToProfileSwitch(alsoUpdateProfile) { alsoUpdateProfile = it }
+    }
+
+    SaveBar(state, enabled = !needsName || businessName.isNotBlank()) {
+        val base = profile ?: snapshot?.toProfile() ?: CompanyProfile(name = businessName.trim())
+        state.setInvoiceCompany(
+            invoiceId = invoice.id,
+            company = base.copy(
+                name = base.name.ifBlank { businessName.trim() },
+                bankName = bank.trim().ifBlank { null },
+                accountNumber = account.trim().ifBlank { null },
+                ifsc = ifsc.trim().ifBlank { null },
+                upiId = upi.trim().ifBlank { null },
+            ),
+            alsoUpdateProfile = alsoUpdateProfile,
+        ) { state.pop() }
+    }
+}
+
+/** The signature image (BE-011): choose one from the device, or take the current one off. */
+@Composable
+private fun ColumnScope.SignatureSection(state: BillantaState, invoice: InvoiceRecord) {
+    val c = BillantaTheme.colors
+    val snapshot = invoice.companySnapshot
+    val profile = state.company
+    val signature = snapshot?.signature ?: profile?.signature
+    var alsoUpdateProfile by remember(invoice.id) { mutableStateOf(true) }
+    // The signatory is text on the same section, so it saves with the same switch.
+    var signatoryName by remember(invoice.id) {
+        mutableStateOf(snapshot?.signatoryName ?: profile?.signatoryName ?: "")
+    }
+    var signatoryDesignation by remember(invoice.id) {
+        mutableStateOf(snapshot?.signatoryDesignation ?: profile?.signatoryDesignation ?: "")
+    }
+    val needsName = profile?.name.isNullOrBlank() && snapshot?.name.isNullOrBlank()
+    var businessName by remember(invoice.id) { mutableStateOf(profile?.name ?: snapshot?.name ?: "") }
+
+    fun choose() = state.pickAndUploadCompanyImage(
+        invoiceId = invoice.id,
+        alsoUpdateProfile = alsoUpdateProfile,
+        apply = { company, url -> company.copy(signature = url) },
+    ) { state.pop() }
+
+    ColumnScopeBody {
+        if (signature.isNullOrBlank()) {
+            Text(
+                "Add the signature that appears above your name on the invoice.",
+                style = BillantaTheme.type.body,
+                color = c.textSecondary,
+            )
+        } else {
+            Overline("On this invoice")
+            SurfaceCard(Modifier.fillMaxWidth()) {
+                AsyncImage(
+                    model = signature,
+                    contentDescription = "Signature",
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier.fillMaxWidth().height(96.dp),
+                )
+            }
+        }
+
+        if (needsName) {
+            BillantaTextField(
+                businessName, { businessName = it },
+                label = "Business name", placeholder = "Your business",
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+        BillantaTextField(
+            signatoryName, { signatoryName = it.take(SIGNATORY_MAX) },
+            label = "Authorised signatory", placeholder = "Vishal B",
+            modifier = Modifier.fillMaxWidth(),
+        )
+        BillantaTextField(
+            signatoryDesignation, { signatoryDesignation = it.take(SIGNATORY_MAX) },
+            label = "Designation (optional)", placeholder = "Director",
+            modifier = Modifier.fillMaxWidth(),
+        )
+
+        SaveToProfileSwitch(alsoUpdateProfile) { alsoUpdateProfile = it }
+
+        PrimaryButton(
+            if (state.savingSection) "Saving…" else "Save",
+            onClick = {
+                val base = profile ?: snapshot?.toProfile() ?: CompanyProfile(name = businessName.trim())
+                state.setInvoiceCompany(
+                    invoiceId = invoice.id,
+                    company = base.copy(
+                        name = base.name.ifBlank { businessName.trim() },
+                        signatoryName = signatoryName.trim().ifBlank { null },
+                        signatoryDesignation = signatoryDesignation.trim().ifBlank { null },
+                    ),
+                    alsoUpdateProfile = alsoUpdateProfile,
+                ) { state.pop() }
+            },
+            enabled = !state.savingSection && (!needsName || businessName.isNotBlank()),
+            modifier = Modifier.fillMaxWidth(),
+        )
+
+        if (state.canPickImages) {
+            SecondaryButton(
+                when {
+                    state.savingSection -> "Uploading…"
+                    signature.isNullOrBlank() -> "Choose signature"
+                    else -> "Replace signature"
+                },
+                onClick = { choose() },
+                enabled = !state.savingSection,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        } else {
+            Text(
+                "Choosing an image isn't available in this build.",
+                style = BillantaTheme.type.caption,
+                color = c.textMuted,
+            )
+        }
+
+        if (!signature.isNullOrBlank()) {
+            SecondaryButton(
+                "Remove signature",
+                onClick = {
+                    val base = state.company ?: invoice.companySnapshot?.toProfile() ?: return@SecondaryButton
+                    state.setInvoiceCompany(
+                        invoiceId = invoice.id,
+                        company = base.copy(signature = null),
+                        alsoUpdateProfile = alsoUpdateProfile,
+                    ) { state.pop() }
+                },
+                enabled = !state.savingSection,
+                tint = c.danger,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+
+        // Uploads need the network; there is no offline queue for media.
+        state.draftError?.let {
+            Text(it, style = BillantaTheme.type.caption, color = c.danger)
+        }
+    }
+}
+
+/** Shared by every editor that writes company fields: does this change stop at this invoice? */
+@Composable
+private fun SaveToProfileSwitch(checked: Boolean, onChange: (Boolean) -> Unit) {
+    val c = BillantaTheme.colors
+    SurfaceCard(Modifier.fillMaxWidth()) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text("Save to my business profile", style = BillantaTheme.type.bodyStrong, color = c.textPrimary)
+                Text(
+                    if (checked) "Used on your other invoices too, and on new ones"
+                    else "Changes only this invoice",
+                    style = BillantaTheme.type.caption,
+                    color = c.textSecondary,
+                )
+            }
+            Switch(
+                checked = checked,
+                onCheckedChange = onChange,
+                colors = SwitchDefaults.colors(
+                    checkedThumbColor = c.onPrimary,
+                    checkedTrackColor = c.primary,
+                    uncheckedTrackColor = c.surfaceAlt,
+                    uncheckedBorderColor = c.border,
+                    uncheckedThumbColor = c.textMuted,
+                ),
+            )
+        }
+    }
+}
+
+/** An invoice's frozen letterhead, back to an editable profile. */
+private fun CompanySnapshot.toProfile() = CompanyProfile(
+    name = name,
+    gstin = gstin,
+    addressLine1 = addressLine1,
+    addressLine2 = addressLine2,
+    city = city,
+    state = state,
+    stateCode = stateCode,
+    pincode = pincode,
+    country = country,
+    phone = phone,
+    email = email,
+    logo = logo,
+    signature = signature,
+    upiId = upiId,
+    qr = qr,
+    bankName = bankName,
+    accountNumber = accountNumber,
+    ifsc = ifsc,
+)
+
 @Composable
 private fun ColumnScope.SaveBar(state: BillantaState, enabled: Boolean, onSave: () -> Unit) {
     val c = BillantaTheme.colors
-    Spacer(Modifier.weight(1f))
     state.draftError?.let {
         Text(
             it,

@@ -51,6 +51,7 @@ internal fun CompanyRow.toDomain() = CompanyProfile(
     city = city, state = state, stateCode = stateCode, pincode = pincode, country = country,
     phone = phone, email = email, logo = logo, signature = signature, upiId = upiId, qr = qr,
     bankName = bankName, accountNumber = accountNumber, ifsc = ifsc,
+    signatoryName = signatoryName, signatoryDesignation = signatoryDesignation,
 )
 
 internal fun SettingsRow.toDomain() = UserSettings(

@@ -152,6 +152,9 @@ fun bindingDataFor(record: InvoiceRecord): Map<String, Any?> {
         ),
         "signature" to mapOf(
             "url" to company?.signature,
+            // BE-012: presentation aliases over the company profile, like `url` itself.
+            "name" to company?.signatoryName,
+            "designation" to company?.signatoryDesignation,
         ),
     )
 }

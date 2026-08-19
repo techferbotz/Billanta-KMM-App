@@ -1,0 +1,2294 @@
+{
+ "page": {
+  "size": "A4",
+  "margin": {
+   "top": 30,
+   "left": 30,
+   "right": 30,
+   "bottom": 30
+  },
+  "fontFamily": "Open Sans",
+  "baseFontSize": 9.5
+ },
+ "root": {
+  "type": "box",
+  "style": {
+   "color": "#222222",
+   "fontSize": 9.5,
+   "fontFamily": "Open Sans",
+   "lineHeight": 1.4
+  },
+  "children": [
+   {
+    "type": "box",
+    "style": {
+     "color": "#222222",
+     "fontSize": 9.5,
+     "fontFamily": "Open Sans",
+     "lineHeight": 1.4
+    },
+    "section": "header",
+    "children": [
+     {
+      "type": "box",
+      "style": {
+       "color": "#222222",
+       "fontSize": 10,
+       "fontFamily": "Open Sans",
+       "fontWeight": 700,
+       "lineHeight": 1.4,
+       "letterSpacing": 0.38
+      },
+      "children": [
+       {
+        "type": "text",
+        "spans": [
+         {
+          "value": {
+           "kind": "literal",
+           "text": "TAX INVOICE"
+          }
+         }
+        ],
+        "style": {
+         "color": "#222222",
+         "fontSize": 10,
+         "fontFamily": "Open Sans",
+         "fontWeight": 700,
+         "lineHeight": 1.4,
+         "letterSpacing": 0.38
+        }
+       }
+      ]
+     },
+     {
+      "type": "box",
+      "style": {
+       "color": "#830ab1",
+       "fontSize": 22,
+       "marginTop": 4.5,
+       "fontFamily": "Open Sans",
+       "fontWeight": 700,
+       "lineHeight": 1.4
+      },
+      "tokens": {
+       "color": "accent"
+      },
+      "children": [
+       {
+        "type": "text",
+        "spans": [
+         {
+          "value": {
+           "kind": "bind",
+           "path": "company.name",
+           "format": "text",
+           "fallback": ""
+          }
+         }
+        ],
+        "style": {
+         "color": "#830ab1",
+         "fontSize": 22,
+         "marginTop": 4.5,
+         "fontFamily": "Open Sans",
+         "fontWeight": 700,
+         "lineHeight": 1.4
+        },
+        "tokens": {
+         "color": "accent"
+        }
+       }
+      ]
+     },
+     {
+      "type": "box",
+      "style": {
+       "color": "#333333",
+       "fontSize": 9,
+       "marginTop": 3,
+       "fontFamily": "Open Sans",
+       "lineHeight": 1.4
+      },
+      "children": [
+       {
+        "type": "text",
+        "spans": [
+         {
+          "value": {
+           "kind": "bind",
+           "path": "company.addressLine1",
+           "format": "text",
+           "fallback": ""
+          }
+         }
+        ],
+        "style": {
+         "color": "#333333",
+         "fontSize": 9,
+         "marginTop": 3,
+         "fontFamily": "Open Sans",
+         "lineHeight": 1.4
+        }
+       }
+      ]
+     },
+     {
+      "path": "company.city",
+      "type": "conditional",
+      "child": {
+       "type": "box",
+       "style": {
+        "color": "#333333",
+        "fontSize": 9,
+        "marginTop": 3,
+        "fontFamily": "Open Sans",
+        "lineHeight": 1.4
+       },
+       "children": [
+        {
+         "type": "text",
+         "spans": [
+          {
+           "value": {
+            "kind": "bind",
+            "path": "company.city",
+            "format": "text",
+            "fallback": ""
+           }
+          },
+          {
+           "value": {
+            "kind": "literal",
+            "text": ", "
+           }
+          },
+          {
+           "value": {
+            "kind": "bind",
+            "path": "company.state",
+            "format": "text",
+            "fallback": ""
+           }
+          },
+          {
+           "value": {
+            "kind": "literal",
+            "text": " "
+           }
+          },
+          {
+           "value": {
+            "kind": "bind",
+            "path": "company.pincode",
+            "format": "text",
+            "fallback": ""
+           }
+          }
+         ],
+         "style": {
+          "color": "#333333",
+          "fontSize": 9,
+          "marginTop": 3,
+          "fontFamily": "Open Sans",
+          "lineHeight": 1.4
+         }
+        }
+       ]
+      }
+     },
+     {
+      "type": "box",
+      "style": {
+       "gap": 19.5,
+       "color": "#222222",
+       "display": "flex",
+       "fontSize": 9,
+       "marginTop": 4.5,
+       "fontFamily": "Open Sans",
+       "lineHeight": 1.4
+      },
+      "children": [
+       {
+        "path": "company.phone",
+        "type": "conditional",
+        "child": {
+         "type": "box",
+         "style": {
+          "color": "#222222",
+          "fontSize": 9,
+          "fontFamily": "Open Sans",
+          "lineHeight": 1.4
+         },
+         "children": [
+          {
+           "type": "text",
+           "spans": [
+            {
+             "style": {
+              "color": "#222222",
+              "fontSize": 9,
+              "fontFamily": "Open Sans",
+              "fontWeight": 700
+             },
+             "value": {
+              "kind": "literal",
+              "text": "Mobile:"
+             }
+            },
+            {
+             "value": {
+              "kind": "literal",
+              "text": " "
+             }
+            },
+            {
+             "value": {
+              "kind": "bind",
+              "path": "company.phone",
+              "format": "text",
+              "fallback": ""
+             }
+            }
+           ],
+           "style": {
+            "color": "#222222",
+            "fontSize": 9,
+            "fontFamily": "Open Sans",
+            "lineHeight": 1.4
+           }
+          }
+         ]
+        }
+       },
+       {
+        "path": "company.gstin",
+        "type": "conditional",
+        "child": {
+         "type": "box",
+         "style": {
+          "color": "#222222",
+          "fontSize": 9,
+          "fontFamily": "Open Sans",
+          "lineHeight": 1.4
+         },
+         "children": [
+          {
+           "type": "text",
+           "spans": [
+            {
+             "style": {
+              "color": "#222222",
+              "fontSize": 9,
+              "fontFamily": "Open Sans",
+              "fontWeight": 700
+             },
+             "value": {
+              "kind": "literal",
+              "text": "GSTIN:"
+             }
+            },
+            {
+             "value": {
+              "kind": "literal",
+              "text": " "
+             }
+            },
+            {
+             "value": {
+              "kind": "bind",
+              "path": "company.gstin",
+              "format": "text",
+              "fallback": ""
+             }
+            }
+           ],
+           "style": {
+            "color": "#222222",
+            "fontSize": 9,
+            "fontFamily": "Open Sans",
+            "lineHeight": 1.4
+           }
+          }
+         ]
+        }
+       }
+      ]
+     },
+     {
+      "path": "company.email",
+      "type": "conditional",
+      "child": {
+       "type": "box",
+       "style": {
+        "color": "#222222",
+        "fontSize": 9,
+        "marginTop": 1.5,
+        "fontFamily": "Open Sans",
+        "lineHeight": 1.4
+       },
+       "children": [
+        {
+         "type": "text",
+         "spans": [
+          {
+           "style": {
+            "color": "#222222",
+            "fontSize": 9,
+            "fontFamily": "Open Sans",
+            "fontWeight": 700
+           },
+           "value": {
+            "kind": "literal",
+            "text": "Email:"
+           }
+          },
+          {
+           "value": {
+            "kind": "literal",
+            "text": " "
+           }
+          },
+          {
+           "value": {
+            "kind": "bind",
+            "path": "company.email",
+            "format": "text",
+            "fallback": ""
+           }
+          }
+         ],
+         "style": {
+          "color": "#222222",
+          "fontSize": 9,
+          "marginTop": 1.5,
+          "fontFamily": "Open Sans",
+          "lineHeight": 1.4
+         }
+        }
+       ]
+      }
+     },
+     {
+      "type": "box",
+      "style": {
+       "color": "#222222",
+       "height": 3,
+       "fontSize": 9.5,
+       "marginTop": 9,
+       "fontFamily": "Open Sans",
+       "lineHeight": 1.4,
+       "backgroundColor": "#830ab1"
+      },
+      "tokens": {
+       "backgroundColor": "accent"
+      },
+      "children": []
+     },
+     {
+      "type": "box",
+      "style": {
+       "color": "#222222",
+       "display": "flex",
+       "fontSize": 10,
+       "fontFamily": "Open Sans",
+       "lineHeight": 1.4,
+       "paddingTop": 6.75,
+       "paddingLeft": 10.5,
+       "paddingRight": 10.5,
+       "paddingBottom": 6.75,
+       "justifyContent": "space-between",
+       "backgroundColor": "#ededed"
+      },
+      "children": [
+       {
+        "type": "box",
+        "style": {
+         "color": "#222222",
+         "fontSize": 10,
+         "fontFamily": "Open Sans",
+         "lineHeight": 1.4
+        },
+        "children": [
+         {
+          "type": "text",
+          "spans": [
+           {
+            "style": {
+             "color": "#222222",
+             "fontSize": 10,
+             "fontFamily": "Open Sans",
+             "fontWeight": 700
+            },
+            "value": {
+             "kind": "literal",
+             "text": "Invoice No.:"
+            }
+           },
+           {
+            "value": {
+             "kind": "literal",
+             "text": " "
+            }
+           },
+           {
+            "value": {
+             "kind": "bind",
+             "path": "invoice.number",
+             "format": "text",
+             "fallback": ""
+            }
+           }
+          ],
+          "style": {
+           "color": "#222222",
+           "fontSize": 10,
+           "fontFamily": "Open Sans",
+           "lineHeight": 1.4
+          }
+         }
+        ]
+       },
+       {
+        "type": "box",
+        "style": {
+         "color": "#222222",
+         "fontSize": 10,
+         "textAlign": "right",
+         "fontFamily": "Open Sans",
+         "lineHeight": 1.4
+        },
+        "children": [
+         {
+          "type": "text",
+          "spans": [
+           {
+            "style": {
+             "color": "#222222",
+             "fontSize": 10,
+             "fontFamily": "Open Sans",
+             "fontWeight": 700
+            },
+            "value": {
+             "kind": "literal",
+             "text": "Invoice Date:"
+            }
+           },
+           {
+            "value": {
+             "kind": "literal",
+             "text": " "
+            }
+           },
+           {
+            "value": {
+             "kind": "bind",
+             "path": "invoice.date",
+             "format": "date",
+             "fallback": ""
+            }
+           }
+          ],
+          "style": {
+           "color": "#222222",
+           "fontSize": 10,
+           "textAlign": "right",
+           "fontFamily": "Open Sans",
+           "lineHeight": 1.4
+          }
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "type": "box",
+    "style": {
+     "color": "#222222",
+     "fontSize": 9.5,
+     "marginTop": 10.5,
+     "fontFamily": "Open Sans",
+     "lineHeight": 1.4
+    },
+    "section": "parties",
+    "children": [
+     {
+      "path": "customer.name",
+      "type": "conditional",
+      "child": {
+       "type": "box",
+       "style": {
+        "color": "#222222",
+        "fontSize": 9.5,
+        "fontFamily": "Open Sans",
+        "lineHeight": 1.4
+       },
+       "children": [
+        {
+         "type": "box",
+         "style": {
+          "color": "#555555",
+          "fontSize": 9,
+          "fontFamily": "Open Sans",
+          "fontWeight": 700,
+          "lineHeight": 1.4,
+          "letterSpacing": 0.38
+         },
+         "children": [
+          {
+           "type": "text",
+           "spans": [
+            {
+             "value": {
+              "kind": "literal",
+              "text": "BILL TO"
+             }
+            }
+           ],
+           "style": {
+            "color": "#555555",
+            "fontSize": 9,
+            "fontFamily": "Open Sans",
+            "fontWeight": 700,
+            "lineHeight": 1.4,
+            "letterSpacing": 0.38
+           }
+          }
+         ]
+        },
+        {
+         "type": "box",
+         "style": {
+          "color": "#222222",
+          "fontSize": 12,
+          "marginTop": 3,
+          "fontFamily": "Open Sans",
+          "fontWeight": 700,
+          "lineHeight": 1.4
+         },
+         "children": [
+          {
+           "type": "text",
+           "spans": [
+            {
+             "value": {
+              "kind": "bind",
+              "path": "customer.name",
+              "format": "text",
+              "fallback": ""
+             }
+            }
+           ],
+           "style": {
+            "color": "#222222",
+            "fontSize": 12,
+            "marginTop": 3,
+            "fontFamily": "Open Sans",
+            "fontWeight": 700,
+            "lineHeight": 1.4
+           }
+          }
+         ]
+        },
+        {
+         "type": "box",
+         "style": {
+          "color": "#333333",
+          "fontSize": 9,
+          "marginTop": 2.25,
+          "fontFamily": "Open Sans",
+          "lineHeight": 1.4
+         },
+         "children": [
+          {
+           "type": "text",
+           "spans": [
+            {
+             "value": {
+              "kind": "bind",
+              "path": "customer.addressLine1",
+              "format": "text",
+              "fallback": ""
+             }
+            }
+           ],
+           "style": {
+            "color": "#333333",
+            "fontSize": 9,
+            "marginTop": 2.25,
+            "fontFamily": "Open Sans",
+            "lineHeight": 1.4
+           }
+          }
+         ]
+        },
+        {
+         "path": "customer.city",
+         "type": "conditional",
+         "child": {
+          "type": "box",
+          "style": {
+           "color": "#333333",
+           "fontSize": 9,
+           "marginTop": 2.25,
+           "fontFamily": "Open Sans",
+           "lineHeight": 1.4
+          },
+          "children": [
+           {
+            "type": "text",
+            "spans": [
+             {
+              "value": {
+               "kind": "bind",
+               "path": "customer.city",
+               "format": "text",
+               "fallback": ""
+              }
+             },
+             {
+              "value": {
+               "kind": "literal",
+               "text": ", "
+              }
+             },
+             {
+              "value": {
+               "kind": "bind",
+               "path": "customer.state",
+               "format": "text",
+               "fallback": ""
+              }
+             },
+             {
+              "value": {
+               "kind": "literal",
+               "text": " "
+              }
+             },
+             {
+              "value": {
+               "kind": "bind",
+               "path": "customer.pincode",
+               "format": "text",
+               "fallback": ""
+              }
+             }
+            ],
+            "style": {
+             "color": "#333333",
+             "fontSize": 9,
+             "marginTop": 2.25,
+             "fontFamily": "Open Sans",
+             "lineHeight": 1.4
+            }
+           }
+          ]
+         }
+        },
+        {
+         "path": "customer.phone",
+         "type": "conditional",
+         "child": {
+          "type": "box",
+          "style": {
+           "color": "#222222",
+           "fontSize": 9,
+           "marginTop": 1.5,
+           "fontFamily": "Open Sans",
+           "lineHeight": 1.4
+          },
+          "children": [
+           {
+            "type": "text",
+            "spans": [
+             {
+              "value": {
+               "kind": "literal",
+               "text": "Mobile: "
+              }
+             },
+             {
+              "value": {
+               "kind": "bind",
+               "path": "customer.phone",
+               "format": "text",
+               "fallback": ""
+              }
+             }
+            ],
+            "style": {
+             "color": "#222222",
+             "fontSize": 9,
+             "marginTop": 1.5,
+             "fontFamily": "Open Sans",
+             "lineHeight": 1.4
+            }
+           }
+          ]
+         }
+        },
+        {
+         "path": "customer.gstin",
+         "type": "conditional",
+         "child": {
+          "type": "box",
+          "style": {
+           "color": "#222222",
+           "fontSize": 9,
+           "marginTop": 1.5,
+           "fontFamily": "Open Sans",
+           "lineHeight": 1.4
+          },
+          "children": [
+           {
+            "type": "text",
+            "spans": [
+             {
+              "value": {
+               "kind": "literal",
+               "text": "GSTIN: "
+              }
+             },
+             {
+              "value": {
+               "kind": "bind",
+               "path": "customer.gstin",
+               "format": "text",
+               "fallback": ""
+              }
+             }
+            ],
+            "style": {
+             "color": "#222222",
+             "fontSize": 9,
+             "marginTop": 1.5,
+             "fontFamily": "Open Sans",
+             "lineHeight": 1.4
+            }
+           }
+          ]
+         }
+        },
+        {
+         "path": "customer.state",
+         "type": "conditional",
+         "child": {
+          "type": "box",
+          "style": {
+           "color": "#222222",
+           "fontSize": 9,
+           "marginTop": 1.5,
+           "fontFamily": "Open Sans",
+           "lineHeight": 1.4
+          },
+          "children": [
+           {
+            "type": "text",
+            "spans": [
+             {
+              "value": {
+               "kind": "literal",
+               "text": "Place of Supply: "
+              }
+             },
+             {
+              "value": {
+               "kind": "bind",
+               "path": "customer.state",
+               "format": "text",
+               "fallback": ""
+              }
+             }
+            ],
+            "style": {
+             "color": "#222222",
+             "fontSize": 9,
+             "marginTop": 1.5,
+             "fontFamily": "Open Sans",
+             "lineHeight": 1.4
+            }
+           }
+          ]
+         }
+        }
+       ]
+      }
+     },
+     {
+      "path": "customer.name",
+      "type": "conditional",
+      "child": {
+       "type": "box",
+       "style": {
+        "color": "#222222",
+        "fontSize": 9.5,
+        "marginTop": 10.5,
+        "textAlign": "center",
+        "fontFamily": "Open Sans",
+        "lineHeight": 1.4,
+        "paddingTop": 16.5,
+        "paddingLeft": 16.5,
+        "borderRadius": 6,
+        "paddingRight": 16.5,
+        "paddingBottom": 16.5,
+        "borderTopColor": "#b0b8c4",
+        "borderTopStyle": "dashed",
+        "borderTopWidth": 1.5,
+        "borderLeftColor": "#b0b8c4",
+        "borderLeftStyle": "dashed",
+        "borderLeftWidth": 1.5,
+        "borderRightColor": "#b0b8c4",
+        "borderRightStyle": "dashed",
+        "borderRightWidth": 1.5,
+        "borderBottomColor": "#b0b8c4",
+        "borderBottomStyle": "dashed",
+        "borderBottomWidth": 1.5
+       },
+       "children": [
+        {
+         "type": "box",
+         "style": {
+          "color": "#8a94a3",
+          "fontSize": 10,
+          "textAlign": "center",
+          "fontFamily": "Open Sans",
+          "lineHeight": 1.4
+         },
+         "children": [
+          {
+           "type": "text",
+           "spans": [
+            {
+             "value": {
+              "kind": "literal",
+              "text": "+ Add customer (Bill To)"
+             }
+            }
+           ],
+           "style": {
+            "color": "#8a94a3",
+            "fontSize": 10,
+            "textAlign": "center",
+            "fontFamily": "Open Sans",
+            "lineHeight": 1.4
+           }
+          }
+         ]
+        }
+       ],
+       "editorOnly": true
+      },
+      "negate": true
+     }
+    ]
+   },
+   {
+    "type": "box",
+    "style": {
+     "color": "#222222",
+     "height": 3,
+     "fontSize": 9.5,
+     "marginTop": 9,
+     "fontFamily": "Open Sans",
+     "lineHeight": 1.4,
+     "backgroundColor": "#830ab1"
+    },
+    "tokens": {
+     "backgroundColor": "accent"
+    },
+    "children": []
+   },
+   {
+    "type": "box",
+    "style": {
+     "color": "#222222",
+     "fontSize": 9.5,
+     "marginTop": 12,
+     "fontFamily": "Open Sans",
+     "lineHeight": 1.4
+    },
+    "section": "items",
+    "children": [
+     {
+      "path": "items",
+      "type": "conditional",
+      "child": {
+       "body": {
+        "row": {
+         "type": "row",
+         "cells": [
+          {
+           "type": "cell",
+           "style": {
+            "color": "#222222",
+            "fontSize": 9.5,
+            "textAlign": "left",
+            "fontFamily": "Open Sans",
+            "lineHeight": 1.4,
+            "paddingTop": 6,
+            "paddingLeft": 6,
+            "paddingRight": 6,
+            "paddingBottom": 6,
+            "borderBottomColor": "#eeeeee",
+            "borderBottomStyle": "solid",
+            "borderBottomWidth": 0.75
+           },
+           "colSpan": 1,
+           "children": [
+            {
+             "type": "text",
+             "spans": [
+              {
+               "value": {
+                "kind": "bind",
+                "path": "item.description",
+                "format": "text",
+                "fallback": ""
+               }
+              }
+             ],
+             "style": {
+              "color": "#222222",
+              "fontSize": 9.5,
+              "textAlign": "left",
+              "fontFamily": "Open Sans",
+              "lineHeight": 1.4,
+              "paddingTop": 6,
+              "paddingLeft": 6,
+              "paddingRight": 6,
+              "paddingBottom": 6,
+              "borderBottomColor": "#eeeeee",
+              "borderBottomStyle": "solid",
+              "borderBottomWidth": 0.75
+             }
+            }
+           ]
+          },
+          {
+           "type": "cell",
+           "style": {
+            "color": "#222222",
+            "fontSize": 9.5,
+            "textAlign": "right",
+            "fontFamily": "Open Sans",
+            "lineHeight": 1.4,
+            "paddingTop": 6,
+            "paddingLeft": 6,
+            "paddingRight": 6,
+            "paddingBottom": 6,
+            "borderBottomColor": "#eeeeee",
+            "borderBottomStyle": "solid",
+            "borderBottomWidth": 0.75
+           },
+           "colSpan": 1,
+           "children": [
+            {
+             "type": "text",
+             "spans": [
+              {
+               "value": {
+                "kind": "bind",
+                "path": "item.quantity",
+                "format": "number",
+                "fallback": ""
+               }
+              }
+             ],
+             "style": {
+              "color": "#222222",
+              "fontSize": 9.5,
+              "textAlign": "right",
+              "fontFamily": "Open Sans",
+              "lineHeight": 1.4,
+              "paddingTop": 6,
+              "paddingLeft": 6,
+              "paddingRight": 6,
+              "paddingBottom": 6,
+              "borderBottomColor": "#eeeeee",
+              "borderBottomStyle": "solid",
+              "borderBottomWidth": 0.75
+             }
+            }
+           ]
+          },
+          {
+           "type": "cell",
+           "style": {
+            "color": "#222222",
+            "fontSize": 9.5,
+            "textAlign": "right",
+            "fontFamily": "Open Sans",
+            "lineHeight": 1.4,
+            "paddingTop": 6,
+            "paddingLeft": 6,
+            "paddingRight": 6,
+            "paddingBottom": 6,
+            "borderBottomColor": "#eeeeee",
+            "borderBottomStyle": "solid",
+            "borderBottomWidth": 0.75
+           },
+           "colSpan": 1,
+           "children": [
+            {
+             "type": "text",
+             "spans": [
+              {
+               "value": {
+                "kind": "bind",
+                "path": "item.unitPrice",
+                "format": "currency",
+                "fallback": ""
+               }
+              }
+             ],
+             "style": {
+              "color": "#222222",
+              "fontSize": 9.5,
+              "textAlign": "right",
+              "fontFamily": "Open Sans",
+              "lineHeight": 1.4,
+              "paddingTop": 6,
+              "paddingLeft": 6,
+              "paddingRight": 6,
+              "paddingBottom": 6,
+              "borderBottomColor": "#eeeeee",
+              "borderBottomStyle": "solid",
+              "borderBottomWidth": 0.75
+             }
+            }
+           ]
+          },
+          {
+           "type": "cell",
+           "style": {
+            "color": "#222222",
+            "fontSize": 9.5,
+            "textAlign": "right",
+            "fontFamily": "Open Sans",
+            "lineHeight": 1.4,
+            "paddingTop": 6,
+            "paddingLeft": 6,
+            "paddingRight": 6,
+            "paddingBottom": 6,
+            "borderBottomColor": "#eeeeee",
+            "borderBottomStyle": "solid",
+            "borderBottomWidth": 0.75
+           },
+           "colSpan": 1,
+           "children": [
+            {
+             "type": "text",
+             "spans": [
+              {
+               "value": {
+                "kind": "bind",
+                "path": "item.taxRate",
+                "format": "text",
+                "fallback": ""
+               }
+              },
+              {
+               "value": {
+                "kind": "literal",
+                "text": "%"
+               }
+              }
+             ],
+             "style": {
+              "color": "#222222",
+              "fontSize": 9.5,
+              "textAlign": "right",
+              "fontFamily": "Open Sans",
+              "lineHeight": 1.4,
+              "paddingTop": 6,
+              "paddingLeft": 6,
+              "paddingRight": 6,
+              "paddingBottom": 6,
+              "borderBottomColor": "#eeeeee",
+              "borderBottomStyle": "solid",
+              "borderBottomWidth": 0.75
+             }
+            }
+           ]
+          },
+          {
+           "type": "cell",
+           "style": {
+            "color": "#222222",
+            "fontSize": 9.5,
+            "textAlign": "right",
+            "fontFamily": "Open Sans",
+            "lineHeight": 1.4,
+            "paddingTop": 6,
+            "paddingLeft": 6,
+            "paddingRight": 6,
+            "paddingBottom": 6,
+            "borderBottomColor": "#eeeeee",
+            "borderBottomStyle": "solid",
+            "borderBottomWidth": 0.75
+           },
+           "colSpan": 1,
+           "children": [
+            {
+             "type": "text",
+             "spans": [
+              {
+               "value": {
+                "kind": "bind",
+                "path": "item.amount",
+                "format": "currency",
+                "fallback": ""
+               }
+              }
+             ],
+             "style": {
+              "color": "#222222",
+              "fontSize": 9.5,
+              "textAlign": "right",
+              "fontFamily": "Open Sans",
+              "lineHeight": 1.4,
+              "paddingTop": 6,
+              "paddingLeft": 6,
+              "paddingRight": 6,
+              "paddingBottom": 6,
+              "borderBottomColor": "#eeeeee",
+              "borderBottomStyle": "solid",
+              "borderBottomWidth": 0.75
+             }
+            }
+           ]
+          }
+         ],
+         "style": {
+          "color": "#222222",
+          "fontSize": 9.5,
+          "fontFamily": "Open Sans",
+          "lineHeight": 1.4
+         }
+        },
+        "repeat": {
+         "as": "item",
+         "path": "items"
+        }
+       },
+       "type": "table",
+       "style": {
+        "color": "#222222",
+        "width": "100%",
+        "fontSize": 9.5,
+        "fontFamily": "Open Sans",
+        "lineHeight": 1.4
+       },
+       "footer": [],
+       "header": [
+        {
+         "type": "row",
+         "cells": [
+          {
+           "type": "cell",
+           "style": {
+            "color": "#222222",
+            "fontSize": 9,
+            "textAlign": "left",
+            "fontFamily": "Open Sans",
+            "fontWeight": 700,
+            "lineHeight": 1.4,
+            "paddingTop": 5.25,
+            "paddingLeft": 6,
+            "paddingRight": 6,
+            "paddingBottom": 5.25,
+            "borderBottomColor": "#830ab1",
+            "borderBottomStyle": "solid",
+            "borderBottomWidth": 1.5
+           },
+           "tokens": {
+            "borderBottomColor": "accent"
+           },
+           "colSpan": 1,
+           "children": [
+            {
+             "type": "text",
+             "spans": [
+              {
+               "value": {
+                "kind": "literal",
+                "text": "SERVICES"
+               }
+              }
+             ],
+             "style": {
+              "color": "#222222",
+              "fontSize": 9,
+              "textAlign": "left",
+              "fontFamily": "Open Sans",
+              "fontWeight": 700,
+              "lineHeight": 1.4,
+              "paddingTop": 5.25,
+              "paddingLeft": 6,
+              "paddingRight": 6,
+              "paddingBottom": 5.25,
+              "borderBottomColor": "#830ab1",
+              "borderBottomStyle": "solid",
+              "borderBottomWidth": 1.5
+             }
+            }
+           ]
+          },
+          {
+           "type": "cell",
+           "style": {
+            "color": "#222222",
+            "fontSize": 9,
+            "textAlign": "right",
+            "fontFamily": "Open Sans",
+            "fontWeight": 700,
+            "lineHeight": 1.4,
+            "paddingTop": 5.25,
+            "paddingLeft": 6,
+            "paddingRight": 6,
+            "paddingBottom": 5.25,
+            "borderBottomColor": "#830ab1",
+            "borderBottomStyle": "solid",
+            "borderBottomWidth": 1.5
+           },
+           "tokens": {
+            "borderBottomColor": "accent"
+           },
+           "colSpan": 1,
+           "children": [
+            {
+             "type": "text",
+             "spans": [
+              {
+               "value": {
+                "kind": "literal",
+                "text": "QTY."
+               }
+              }
+             ],
+             "style": {
+              "color": "#222222",
+              "fontSize": 9,
+              "textAlign": "right",
+              "fontFamily": "Open Sans",
+              "fontWeight": 700,
+              "lineHeight": 1.4,
+              "paddingTop": 5.25,
+              "paddingLeft": 6,
+              "paddingRight": 6,
+              "paddingBottom": 5.25,
+              "borderBottomColor": "#830ab1",
+              "borderBottomStyle": "solid",
+              "borderBottomWidth": 1.5
+             }
+            }
+           ]
+          },
+          {
+           "type": "cell",
+           "style": {
+            "color": "#222222",
+            "fontSize": 9,
+            "textAlign": "right",
+            "fontFamily": "Open Sans",
+            "fontWeight": 700,
+            "lineHeight": 1.4,
+            "paddingTop": 5.25,
+            "paddingLeft": 6,
+            "paddingRight": 6,
+            "paddingBottom": 5.25,
+            "borderBottomColor": "#830ab1",
+            "borderBottomStyle": "solid",
+            "borderBottomWidth": 1.5
+           },
+           "tokens": {
+            "borderBottomColor": "accent"
+           },
+           "colSpan": 1,
+           "children": [
+            {
+             "type": "text",
+             "spans": [
+              {
+               "value": {
+                "kind": "literal",
+                "text": "RATE"
+               }
+              }
+             ],
+             "style": {
+              "color": "#222222",
+              "fontSize": 9,
+              "textAlign": "right",
+              "fontFamily": "Open Sans",
+              "fontWeight": 700,
+              "lineHeight": 1.4,
+              "paddingTop": 5.25,
+              "paddingLeft": 6,
+              "paddingRight": 6,
+              "paddingBottom": 5.25,
+              "borderBottomColor": "#830ab1",
+              "borderBottomStyle": "solid",
+              "borderBottomWidth": 1.5
+             }
+            }
+           ]
+          },
+          {
+           "type": "cell",
+           "style": {
+            "color": "#222222",
+            "fontSize": 9,
+            "textAlign": "right",
+            "fontFamily": "Open Sans",
+            "fontWeight": 700,
+            "lineHeight": 1.4,
+            "paddingTop": 5.25,
+            "paddingLeft": 6,
+            "paddingRight": 6,
+            "paddingBottom": 5.25,
+            "borderBottomColor": "#830ab1",
+            "borderBottomStyle": "solid",
+            "borderBottomWidth": 1.5
+           },
+           "tokens": {
+            "borderBottomColor": "accent"
+           },
+           "colSpan": 1,
+           "children": [
+            {
+             "type": "text",
+             "spans": [
+              {
+               "value": {
+                "kind": "literal",
+                "text": "TAX"
+               }
+              }
+             ],
+             "style": {
+              "color": "#222222",
+              "fontSize": 9,
+              "textAlign": "right",
+              "fontFamily": "Open Sans",
+              "fontWeight": 700,
+              "lineHeight": 1.4,
+              "paddingTop": 5.25,
+              "paddingLeft": 6,
+              "paddingRight": 6,
+              "paddingBottom": 5.25,
+              "borderBottomColor": "#830ab1",
+              "borderBottomStyle": "solid",
+              "borderBottomWidth": 1.5
+             }
+            }
+           ]
+          },
+          {
+           "type": "cell",
+           "style": {
+            "color": "#222222",
+            "fontSize": 9,
+            "textAlign": "right",
+            "fontFamily": "Open Sans",
+            "fontWeight": 700,
+            "lineHeight": 1.4,
+            "paddingTop": 5.25,
+            "paddingLeft": 6,
+            "paddingRight": 6,
+            "paddingBottom": 5.25,
+            "borderBottomColor": "#830ab1",
+            "borderBottomStyle": "solid",
+            "borderBottomWidth": 1.5
+           },
+           "tokens": {
+            "borderBottomColor": "accent"
+           },
+           "colSpan": 1,
+           "children": [
+            {
+             "type": "text",
+             "spans": [
+              {
+               "value": {
+                "kind": "literal",
+                "text": "AMOUNT"
+               }
+              }
+             ],
+             "style": {
+              "color": "#222222",
+              "fontSize": 9,
+              "textAlign": "right",
+              "fontFamily": "Open Sans",
+              "fontWeight": 700,
+              "lineHeight": 1.4,
+              "paddingTop": 5.25,
+              "paddingLeft": 6,
+              "paddingRight": 6,
+              "paddingBottom": 5.25,
+              "borderBottomColor": "#830ab1",
+              "borderBottomStyle": "solid",
+              "borderBottomWidth": 1.5
+             }
+            }
+           ]
+          }
+         ],
+         "style": {
+          "color": "#222222",
+          "fontSize": 9.5,
+          "fontFamily": "Open Sans",
+          "lineHeight": 1.4
+         }
+        }
+       ],
+       "columns": [
+        {
+         "width": "auto"
+        },
+        {
+         "width": "auto"
+        },
+        {
+         "width": "auto"
+        },
+        {
+         "width": "auto"
+        },
+        {
+         "width": "auto"
+        }
+       ]
+      }
+     },
+     {
+      "path": "items",
+      "type": "conditional",
+      "child": {
+       "type": "box",
+       "style": {
+        "color": "#222222",
+        "fontSize": 9.5,
+        "marginTop": 10.5,
+        "textAlign": "center",
+        "fontFamily": "Open Sans",
+        "lineHeight": 1.4,
+        "paddingTop": 16.5,
+        "paddingLeft": 16.5,
+        "borderRadius": 6,
+        "paddingRight": 16.5,
+        "paddingBottom": 16.5,
+        "borderTopColor": "#b0b8c4",
+        "borderTopStyle": "dashed",
+        "borderTopWidth": 1.5,
+        "borderLeftColor": "#b0b8c4",
+        "borderLeftStyle": "dashed",
+        "borderLeftWidth": 1.5,
+        "borderRightColor": "#b0b8c4",
+        "borderRightStyle": "dashed",
+        "borderRightWidth": 1.5,
+        "borderBottomColor": "#b0b8c4",
+        "borderBottomStyle": "dashed",
+        "borderBottomWidth": 1.5
+       },
+       "children": [
+        {
+         "type": "box",
+         "style": {
+          "color": "#8a94a3",
+          "fontSize": 10,
+          "textAlign": "center",
+          "fontFamily": "Open Sans",
+          "lineHeight": 1.4
+         },
+         "children": [
+          {
+           "type": "text",
+           "spans": [
+            {
+             "value": {
+              "kind": "literal",
+              "text": "+ Add a service or item"
+             }
+            }
+           ],
+           "style": {
+            "color": "#8a94a3",
+            "fontSize": 10,
+            "textAlign": "center",
+            "fontFamily": "Open Sans",
+            "lineHeight": 1.4
+           }
+          }
+         ]
+        }
+       ],
+       "editorOnly": true
+      },
+      "negate": true
+     }
+    ]
+   },
+   {
+    "type": "box",
+    "style": {
+     "gap": 22.5,
+     "color": "#222222",
+     "display": "flex",
+     "fontSize": 9.5,
+     "marginTop": 18,
+     "fontFamily": "Open Sans",
+     "lineHeight": 1.4,
+     "justifyContent": "space-between"
+    },
+    "children": [
+     {
+      "path": "payment.bankName",
+      "type": "conditional",
+      "child": {
+       "type": "box",
+       "style": {
+        "color": "#222222",
+        "width": "52%",
+        "fontSize": 9.5,
+        "fontFamily": "Open Sans",
+        "lineHeight": 1.4
+       },
+       "section": "payment",
+       "children": [
+        {
+         "type": "box",
+         "style": {
+          "color": "#555555",
+          "fontSize": 9,
+          "fontFamily": "Open Sans",
+          "fontWeight": 700,
+          "lineHeight": 1.4,
+          "letterSpacing": 0.38
+         },
+         "children": [
+          {
+           "type": "text",
+           "spans": [
+            {
+             "value": {
+              "kind": "literal",
+              "text": "BANK DETAILS"
+             }
+            }
+           ],
+           "style": {
+            "color": "#555555",
+            "fontSize": 9,
+            "fontFamily": "Open Sans",
+            "fontWeight": 700,
+            "lineHeight": 1.4,
+            "letterSpacing": 0.38
+           }
+          }
+         ]
+        },
+        {
+         "type": "box",
+         "style": {
+          "color": "#222222",
+          "fontSize": 9,
+          "marginTop": 3,
+          "fontFamily": "Open Sans",
+          "lineHeight": 1.4
+         },
+         "children": [
+          {
+           "type": "text",
+           "spans": [
+            {
+             "style": {
+              "color": "#222222",
+              "fontSize": 9,
+              "fontFamily": "Open Sans",
+              "fontWeight": 600
+             },
+             "value": {
+              "kind": "literal",
+              "text": "A/C Name:"
+             }
+            },
+            {
+             "value": {
+              "kind": "literal",
+              "text": " "
+             }
+            },
+            {
+             "value": {
+              "kind": "bind",
+              "path": "company.name",
+              "format": "text",
+              "fallback": ""
+             }
+            }
+           ],
+           "style": {
+            "color": "#222222",
+            "fontSize": 9,
+            "marginTop": 3,
+            "fontFamily": "Open Sans",
+            "lineHeight": 1.4
+           }
+          }
+         ]
+        },
+        {
+         "path": "payment.ifsc",
+         "type": "conditional",
+         "child": {
+          "type": "box",
+          "style": {
+           "color": "#222222",
+           "fontSize": 9,
+           "marginTop": 3,
+           "fontFamily": "Open Sans",
+           "lineHeight": 1.4
+          },
+          "children": [
+           {
+            "type": "text",
+            "spans": [
+             {
+              "style": {
+               "color": "#222222",
+               "fontSize": 9,
+               "fontFamily": "Open Sans",
+               "fontWeight": 600
+              },
+              "value": {
+               "kind": "literal",
+               "text": "IFSC Code:"
+              }
+             },
+             {
+              "value": {
+               "kind": "literal",
+               "text": " "
+              }
+             },
+             {
+              "value": {
+               "kind": "bind",
+               "path": "payment.ifsc",
+               "format": "text",
+               "fallback": ""
+              }
+             }
+            ],
+            "style": {
+             "color": "#222222",
+             "fontSize": 9,
+             "marginTop": 3,
+             "fontFamily": "Open Sans",
+             "lineHeight": 1.4
+            }
+           }
+          ]
+         }
+        },
+        {
+         "path": "payment.accountNumber",
+         "type": "conditional",
+         "child": {
+          "type": "box",
+          "style": {
+           "color": "#222222",
+           "fontSize": 9,
+           "marginTop": 3,
+           "fontFamily": "Open Sans",
+           "lineHeight": 1.4
+          },
+          "children": [
+           {
+            "type": "text",
+            "spans": [
+             {
+              "style": {
+               "color": "#222222",
+               "fontSize": 9,
+               "fontFamily": "Open Sans",
+               "fontWeight": 600
+              },
+              "value": {
+               "kind": "literal",
+               "text": "Account No:"
+              }
+             },
+             {
+              "value": {
+               "kind": "literal",
+               "text": " "
+              }
+             },
+             {
+              "value": {
+               "kind": "bind",
+               "path": "payment.accountNumber",
+               "format": "text",
+               "fallback": ""
+              }
+             }
+            ],
+            "style": {
+             "color": "#222222",
+             "fontSize": 9,
+             "marginTop": 3,
+             "fontFamily": "Open Sans",
+             "lineHeight": 1.4
+            }
+           }
+          ]
+         }
+        },
+        {
+         "type": "box",
+         "style": {
+          "color": "#222222",
+          "fontSize": 9,
+          "marginTop": 3,
+          "fontFamily": "Open Sans",
+          "lineHeight": 1.4
+         },
+         "children": [
+          {
+           "type": "text",
+           "spans": [
+            {
+             "style": {
+              "color": "#222222",
+              "fontSize": 9,
+              "fontFamily": "Open Sans",
+              "fontWeight": 600
+             },
+             "value": {
+              "kind": "literal",
+              "text": "Bank:"
+             }
+            },
+            {
+             "value": {
+              "kind": "literal",
+              "text": " "
+             }
+            },
+            {
+             "value": {
+              "kind": "bind",
+              "path": "payment.bankName",
+              "format": "text",
+              "fallback": ""
+             }
+            }
+           ],
+           "style": {
+            "color": "#222222",
+            "fontSize": 9,
+            "marginTop": 3,
+            "fontFamily": "Open Sans",
+            "lineHeight": 1.4
+           }
+          }
+         ]
+        }
+       ]
+      }
+     },
+     {
+      "type": "box",
+      "style": {
+       "color": "#222222",
+       "width": "40%",
+       "fontSize": 9.5,
+       "fontFamily": "Open Sans",
+       "lineHeight": 1.4
+      },
+      "section": "totals",
+      "children": [
+       {
+        "type": "box",
+        "style": {
+         "color": "#222222",
+         "display": "flex",
+         "fontSize": 10,
+         "fontFamily": "Open Sans",
+         "lineHeight": 1.4,
+         "paddingTop": 3.75,
+         "paddingLeft": 0,
+         "paddingRight": 0,
+         "paddingBottom": 3.75,
+         "justifyContent": "space-between"
+        },
+        "children": [
+         {
+          "type": "box",
+          "style": {
+           "color": "#222222",
+           "fontSize": 10,
+           "fontFamily": "Open Sans",
+           "lineHeight": 1.4
+          },
+          "children": [
+           {
+            "type": "text",
+            "spans": [
+             {
+              "value": {
+               "kind": "literal",
+               "text": "Taxable Amount"
+              }
+             }
+            ],
+            "style": {
+             "color": "#222222",
+             "fontSize": 10,
+             "fontFamily": "Open Sans",
+             "lineHeight": 1.4
+            }
+           }
+          ]
+         },
+         {
+          "type": "box",
+          "style": {
+           "color": "#222222",
+           "fontSize": 10,
+           "fontFamily": "Open Sans",
+           "lineHeight": 1.4
+          },
+          "children": [
+           {
+            "type": "text",
+            "spans": [
+             {
+              "value": {
+               "kind": "bind",
+               "path": "invoice.subtotal",
+               "format": "currency",
+               "fallback": ""
+              }
+             }
+            ],
+            "style": {
+             "color": "#222222",
+             "fontSize": 10,
+             "fontFamily": "Open Sans",
+             "lineHeight": 1.4
+            }
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "path": "invoice.discount",
+        "type": "conditional",
+        "child": {
+         "type": "box",
+         "style": {
+          "color": "#222222",
+          "display": "flex",
+          "fontSize": 10,
+          "fontFamily": "Open Sans",
+          "lineHeight": 1.4,
+          "paddingTop": 3.75,
+          "paddingLeft": 0,
+          "paddingRight": 0,
+          "paddingBottom": 3.75,
+          "justifyContent": "space-between"
+         },
+         "children": [
+          {
+           "type": "box",
+           "style": {
+            "color": "#222222",
+            "fontSize": 10,
+            "fontFamily": "Open Sans",
+            "lineHeight": 1.4
+           },
+           "children": [
+            {
+             "type": "text",
+             "spans": [
+              {
+               "value": {
+                "kind": "literal",
+                "text": "Discount"
+               }
+              }
+             ],
+             "style": {
+              "color": "#222222",
+              "fontSize": 10,
+              "fontFamily": "Open Sans",
+              "lineHeight": 1.4
+             }
+            }
+           ]
+          },
+          {
+           "type": "box",
+           "style": {
+            "color": "#222222",
+            "fontSize": 10,
+            "fontFamily": "Open Sans",
+            "lineHeight": 1.4
+           },
+           "children": [
+            {
+             "type": "text",
+             "spans": [
+              {
+               "value": {
+                "kind": "bind",
+                "path": "invoice.discount",
+                "format": "currency",
+                "fallback": ""
+               }
+              }
+             ],
+             "style": {
+              "color": "#222222",
+              "fontSize": 10,
+              "fontFamily": "Open Sans",
+              "lineHeight": 1.4
+             }
+            }
+           ]
+          }
+         ]
+        }
+       },
+       {
+        "type": "box",
+        "style": {
+         "color": "#222222",
+         "display": "flex",
+         "fontSize": 10,
+         "fontFamily": "Open Sans",
+         "lineHeight": 1.4,
+         "paddingTop": 3.75,
+         "paddingLeft": 0,
+         "paddingRight": 0,
+         "paddingBottom": 3.75,
+         "justifyContent": "space-between"
+        },
+        "children": [
+         {
+          "type": "box",
+          "style": {
+           "color": "#222222",
+           "fontSize": 10,
+           "fontFamily": "Open Sans",
+           "lineHeight": 1.4
+          },
+          "children": [
+           {
+            "type": "text",
+            "spans": [
+             {
+              "value": {
+               "kind": "literal",
+               "text": "Tax (GST)"
+              }
+             }
+            ],
+            "style": {
+             "color": "#222222",
+             "fontSize": 10,
+             "fontFamily": "Open Sans",
+             "lineHeight": 1.4
+            }
+           }
+          ]
+         },
+         {
+          "type": "box",
+          "style": {
+           "color": "#222222",
+           "fontSize": 10,
+           "fontFamily": "Open Sans",
+           "lineHeight": 1.4
+          },
+          "children": [
+           {
+            "type": "text",
+            "spans": [
+             {
+              "value": {
+               "kind": "bind",
+               "path": "invoice.tax",
+               "format": "currency",
+               "fallback": ""
+              }
+             }
+            ],
+            "style": {
+             "color": "#222222",
+             "fontSize": 10,
+             "fontFamily": "Open Sans",
+             "lineHeight": 1.4
+            }
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "type": "box",
+        "style": {
+         "color": "#222222",
+         "display": "flex",
+         "fontSize": 12,
+         "marginTop": 3,
+         "fontFamily": "Open Sans",
+         "fontWeight": 700,
+         "lineHeight": 1.4,
+         "paddingTop": 6,
+         "paddingLeft": 0,
+         "paddingRight": 0,
+         "paddingBottom": 6,
+         "borderTopColor": "#830ab1",
+         "borderTopStyle": "solid",
+         "borderTopWidth": 1.5,
+         "justifyContent": "space-between",
+         "borderBottomColor": "#830ab1",
+         "borderBottomStyle": "solid",
+         "borderBottomWidth": 1.5
+        },
+        "tokens": {
+         "borderTopColor": "accent",
+         "borderBottomColor": "accent"
+        },
+        "children": [
+         {
+          "type": "box",
+          "style": {
+           "color": "#222222",
+           "fontSize": 12,
+           "fontFamily": "Open Sans",
+           "fontWeight": 700,
+           "lineHeight": 1.4
+          },
+          "children": [
+           {
+            "type": "text",
+            "spans": [
+             {
+              "value": {
+               "kind": "literal",
+               "text": "Total Amount"
+              }
+             }
+            ],
+            "style": {
+             "color": "#222222",
+             "fontSize": 12,
+             "fontFamily": "Open Sans",
+             "fontWeight": 700,
+             "lineHeight": 1.4
+            }
+           }
+          ]
+         },
+         {
+          "type": "box",
+          "style": {
+           "color": "#222222",
+           "fontSize": 12,
+           "fontFamily": "Open Sans",
+           "fontWeight": 700,
+           "lineHeight": 1.4
+          },
+          "children": [
+           {
+            "type": "text",
+            "spans": [
+             {
+              "value": {
+               "kind": "bind",
+               "path": "invoice.total",
+               "format": "currency",
+               "fallback": ""
+              }
+             }
+            ],
+            "style": {
+             "color": "#222222",
+             "fontSize": 12,
+             "fontFamily": "Open Sans",
+             "fontWeight": 700,
+             "lineHeight": 1.4
+            }
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "path": "signature.url",
+    "type": "conditional",
+    "child": {
+     "type": "box",
+     "style": {
+      "color": "#222222",
+      "fontSize": 9.5,
+      "marginTop": 33,
+      "textAlign": "right",
+      "fontFamily": "Open Sans",
+      "lineHeight": 1.4
+     },
+     "section": "signature",
+     "children": [
+      {
+       "fit": "contain",
+       "type": "image",
+       "style": {
+        "color": "#222222",
+        "width": 72,
+        "height": 39,
+        "fontSize": 9.5,
+        "textAlign": "right",
+        "fontFamily": "Open Sans",
+        "lineHeight": 1.4
+       },
+       "source": {
+        "kind": "bind",
+        "path": "signature.url",
+        "format": "text",
+        "fallback": ""
+       }
+      },
+      {
+       "type": "box",
+       "style": {
+        "color": "#222222",
+        "fontSize": 9,
+        "marginTop": 6,
+        "textAlign": "right",
+        "fontFamily": "Open Sans",
+        "fontWeight": 700,
+        "lineHeight": 1.4
+       },
+       "children": [
+        {
+         "type": "text",
+         "spans": [
+          {
+           "value": {
+            "kind": "literal",
+            "text": "AUTHORISED SIGNATORY FOR"
+           }
+          }
+         ],
+         "style": {
+          "color": "#222222",
+          "fontSize": 9,
+          "marginTop": 6,
+          "textAlign": "right",
+          "fontFamily": "Open Sans",
+          "fontWeight": 700,
+          "lineHeight": 1.4
+         }
+        }
+       ]
+      },
+      {
+       "type": "box",
+       "style": {
+        "color": "#333333",
+        "fontSize": 9,
+        "textAlign": "right",
+        "fontFamily": "Open Sans",
+        "lineHeight": 1.4
+       },
+       "children": [
+        {
+         "type": "text",
+         "spans": [
+          {
+           "value": {
+            "kind": "bind",
+            "path": "company.name",
+            "format": "text",
+            "fallback": ""
+           }
+          }
+         ],
+         "style": {
+          "color": "#333333",
+          "fontSize": 9,
+          "textAlign": "right",
+          "fontFamily": "Open Sans",
+          "lineHeight": 1.4
+         }
+        }
+       ]
+      }
+     ]
+    }
+   }
+  ]
+ },
+ "theme": {
+  "tokens": {
+   "accent": {
+    "label": "Accent",
+    "default": "#830ab1"
+   }
+  }
+ },
+ "sections": [
+  {
+   "id": "header",
+   "edits": "invoiceDetails",
+   "label": "Invoice details",
+   "hidable": false
+  },
+  {
+   "id": "parties",
+   "edits": "customer",
+   "label": "Bill to",
+   "hidable": false
+  },
+  {
+   "id": "items",
+   "edits": "items",
+   "label": "Items",
+   "hidable": false
+  },
+  {
+   "id": "totals",
+   "edits": "discount",
+   "label": "Total",
+   "hidable": false
+  },
+  {
+   "id": "payment",
+   "edits": "bankDetails",
+   "label": "Payment details",
+   "hidable": true
+  },
+  {
+   "id": "signature",
+   "edits": "signature",
+   "label": "Signature",
+   "hidable": true
+  }
+ ],
+ "schemaVersion": 1,
+ "compilerVersion": 1
+}

@@ -96,6 +96,18 @@ enum class SectionEdits(val wireName: String) {
     Items("items"),
     Discount("discount"),
     Notes("notes"),
+
+    /** Bank name, account, IFSC and UPI — the four company fields a payment block prints (BE-011). */
+    BankDetails("bankDetails"),
+
+    /** The signature image on the company profile (BE-011). */
+    Signature("signature"),
+
+    /**
+     * The whole company form. Superseded by [BankDetails] and [Signature], which say what they
+     * actually edit — but still parsed, because a template version already published keeps
+     * emitting it and template versions are immutable.
+     */
     Company("company"),
     None("none"),
     ;

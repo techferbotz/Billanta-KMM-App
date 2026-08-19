@@ -64,6 +64,8 @@ class ProfileLocalDataSource(
                 email = company.email, logo = company.logo, signature = company.signature,
                 upiId = company.upiId, qr = company.qr, bankName = company.bankName,
                 accountNumber = company.accountNumber, ifsc = company.ifsc,
+                signatoryName = company.signatoryName,
+                signatoryDesignation = company.signatoryDesignation,
                 dirty = dirty.toDbLong(), updatedAtMillis = updatedAtMillis,
             )
         }
