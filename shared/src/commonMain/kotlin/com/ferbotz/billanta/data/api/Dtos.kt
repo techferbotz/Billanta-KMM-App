@@ -42,6 +42,11 @@ data class UserDto(
  */
 @Serializable
 data class CompanyDto(
+    // These property names ARE the wire names. Five of them differ from the domain model's, because
+    // the template *binding* namespace (company.logo, .signature, .qr, .accountNumber, .ifsc) is a
+    // render view the client assembles — it was never the REST shape. Inferring one from the other
+    // silently cleared account number and IFSC on every save, since PUT /company is a full replace
+    // and an unrecognised key reads as omitted. See BE-013.
     val name: String,
     val gstin: String? = null,
     val addressLine1: String? = null,
@@ -53,13 +58,13 @@ data class CompanyDto(
     val country: String? = null,
     val phone: String? = null,
     val email: String? = null,
-    val logo: String? = null,
-    val signature: String? = null,
+    val logoUrl: String? = null,
+    val signatureUrl: String? = null,
     val upiId: String? = null,
-    val qr: String? = null,
+    val qrImageUrl: String? = null,
     val bankName: String? = null,
-    val accountNumber: String? = null,
-    val ifsc: String? = null,
+    val bankAccountNumber: String? = null,
+    val bankIfsc: String? = null,
     val signatoryName: String? = null,
     val signatoryDesignation: String? = null,
     val updatedAt: String? = null,

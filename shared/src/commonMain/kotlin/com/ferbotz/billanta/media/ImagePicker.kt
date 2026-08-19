@@ -42,10 +42,11 @@ class ImagePickerCoordinator {
         const val MAX_BYTES = 8 * 1024 * 1024
 
         /**
-         * What the server accepts. Checked client-side so a 12 MB HEIC fails instantly and locally
-         * rather than after a slow upload — see APP-010, which asks the backend to confirm this list.
+         * What the server decodes (BE-013). It accepts any image type up to 8 MB and always returns
+         * WebP, so this list is only a client-side sanity check — the server remains the authority.
          */
-        val ACCEPTED_CONTENT_TYPES = setOf("image/jpeg", "image/png", "image/webp", "image/heic")
+        val ACCEPTED_CONTENT_TYPES =
+            setOf("image/jpeg", "image/png", "image/webp", "image/heic", "image/heif")
 
         /** Null when the image is fine; otherwise why it cannot be uploaded. */
         fun rejectionReason(image: PickedImage): String? = when {

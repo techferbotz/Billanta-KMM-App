@@ -40,19 +40,29 @@ fun UserDto.toDomain() = UserAccount(
 
 // ---- company -----------------------------------------------------------------------------------
 
+// The five renamed fields are spelled out rather than copied by name, so the REST-vs-render
+// difference is stated once, here, instead of being assumed anywhere else (BE-013).
 fun CompanyDto.toDomain() = CompanyProfile(
     name = name, gstin = gstin, addressLine1 = addressLine1, addressLine2 = addressLine2,
     city = city, state = state, stateCode = stateCode, pincode = pincode, country = country,
-    phone = phone, email = email, logo = logo, signature = signature, upiId = upiId, qr = qr,
-    bankName = bankName, accountNumber = accountNumber, ifsc = ifsc,
+    phone = phone, email = email, upiId = upiId, bankName = bankName,
+    logo = logoUrl,
+    signature = signatureUrl,
+    qr = qrImageUrl,
+    accountNumber = bankAccountNumber,
+    ifsc = bankIfsc,
     signatoryName = signatoryName, signatoryDesignation = signatoryDesignation,
 )
 
 fun CompanyProfile.toDto() = CompanyDto(
     name = name, gstin = gstin, addressLine1 = addressLine1, addressLine2 = addressLine2,
     city = city, state = state, stateCode = stateCode, pincode = pincode, country = country,
-    phone = phone, email = email, logo = logo, signature = signature, upiId = upiId, qr = qr,
-    bankName = bankName, accountNumber = accountNumber, ifsc = ifsc,
+    phone = phone, email = email, upiId = upiId, bankName = bankName,
+    logoUrl = logo,
+    signatureUrl = signature,
+    qrImageUrl = qr,
+    bankAccountNumber = accountNumber,
+    bankIfsc = ifsc,
     signatoryName = signatoryName, signatoryDesignation = signatoryDesignation,
 )
 

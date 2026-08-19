@@ -54,6 +54,21 @@ fun CompanyProfile.toSnapshot() = CompanySnapshot(
     signatoryName = signatoryName, signatoryDesignation = signatoryDesignation,
 )
 
+/**
+ * An invoice's frozen letterhead, back to an editable profile.
+ *
+ * Deliberately beside [toSnapshot]: the pair has to stay symmetric, and a field added to one and
+ * forgotten in the other is silent data loss — which is exactly how the authorised signatory got
+ * dropped when it was introduced.
+ */
+fun CompanySnapshot.toProfile() = CompanyProfile(
+    name = name, gstin = gstin, addressLine1 = addressLine1, addressLine2 = addressLine2,
+    city = city, state = state, stateCode = stateCode, pincode = pincode, country = country,
+    phone = phone, email = email, logo = logo, signature = signature, upiId = upiId, qr = qr,
+    bankName = bankName, accountNumber = accountNumber, ifsc = ifsc,
+    signatoryName = signatoryName, signatoryDesignation = signatoryDesignation,
+)
+
 fun CustomerRecord.toSnapshot() = CustomerSnapshot(
     name = name, gstin = gstin, phone = phone, email = email, addressLine1 = addressLine1,
     addressLine2 = addressLine2, city = city, state = state, stateCode = stateCode, pincode = pincode,

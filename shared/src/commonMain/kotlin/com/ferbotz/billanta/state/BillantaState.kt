@@ -15,6 +15,7 @@ import com.ferbotz.billanta.core.systemEpochMillis
 import com.ferbotz.billanta.data.repo.InvoiceRepository
 import com.ferbotz.billanta.di.AppContainer
 import com.ferbotz.billanta.domain.model.CompanyProfile
+import com.ferbotz.billanta.domain.model.toProfile
 import com.ferbotz.billanta.domain.model.toSnapshot
 import com.ferbotz.billanta.domain.model.CustomerRecord
 import com.ferbotz.billanta.domain.model.InvoiceDocStatus
@@ -488,14 +489,21 @@ class BillantaState(
      */
     fun setInvoiceCompany(
         invoiceId: String,
-        company: CompanyProfile,
         alsoUpdateProfile: Boolean,
         onSaved: () -> Unit = {},
+        mutate: (CompanyProfile) -> CompanyProfile,
     ) {
         if (savingSection) return
         scope.launch {
             savingSection = true
             draftError = null
+            // Read the stored profile and change only what the editor asked for. An editor that
+            // built a whole CompanyProfile from its own fields silently nulled every field it did
+            // not show — which is how editing bank details erased the signatory, and vice versa.
+            val current = container.companyRepository.getCompany()
+                ?: container.invoiceRepository.getInvoice(invoiceId)?.companySnapshot?.toProfile()
+                ?: CompanyProfile(name = "")
+            val company = mutate(current)
             // Saving the profile restamps every invoice, this one included; the override does not.
             val result: AppResult<*> = if (alsoUpdateProfile) {
                 container.companyRepository.save(company)
@@ -548,8 +556,9 @@ class BillantaState(
                 }
                 is AppResult.Success -> {
                     savingSection = false
-                    val base = company ?: CompanyProfile(name = "")
-                    setInvoiceCompany(invoiceId, apply(base, upload.value.url), alsoUpdateProfile, onDone)
+                    setInvoiceCompany(invoiceId, alsoUpdateProfile, onDone) {
+                        apply(it, upload.value.url)
+                    }
                 }
             }
         }

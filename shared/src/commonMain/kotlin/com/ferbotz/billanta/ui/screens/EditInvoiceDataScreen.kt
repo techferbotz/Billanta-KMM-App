@@ -871,10 +871,11 @@ private fun ColumnScope.CompanySection(state: BillantaState, invoice: InvoiceRec
         }
     }
 
+    // Copies onto the stored profile rather than rebuilding it, so fields this form does not show
+    // — logo, QR, the authorised signatory — are carried through untouched.
     SaveBar(state, enabled = name.isNotBlank()) {
-        state.setInvoiceCompany(
-            invoiceId = invoice.id,
-            company = CompanyProfile(
+        state.setInvoiceCompany(invoice.id, alsoUpdateProfile, onSaved = { state.pop() }) { current ->
+            current.copy(
                 name = name.trim(),
                 gstin = gstin.trim().ifBlank { null },
                 addressLine1 = line1.trim().ifBlank { null },
@@ -883,19 +884,14 @@ private fun ColumnScope.CompanySection(state: BillantaState, invoice: InvoiceRec
                 state = stateName.trim().ifBlank { null },
                 stateCode = stateCode.trim().ifBlank { null },
                 pincode = pincode.trim().ifBlank { null },
-                country = state.company?.country,
                 phone = phone.trim().ifBlank { null },
                 email = email.trim().ifBlank { null },
-                logo = state.company?.logo,
-                signature = state.company?.signature,
                 upiId = upi.trim().ifBlank { null },
-                qr = state.company?.qr,
                 bankName = bank.trim().ifBlank { null },
                 accountNumber = account.trim().ifBlank { null },
                 ifsc = ifsc.trim().ifBlank { null },
-            ),
-            alsoUpdateProfile = alsoUpdateProfile,
-        ) { state.pop() }
+            )
+        }
     }
 }
 
@@ -947,18 +943,15 @@ private fun ColumnScope.BankDetailsSection(state: BillantaState, invoice: Invoic
     }
 
     SaveBar(state, enabled = !needsName || businessName.isNotBlank()) {
-        val base = profile ?: snapshot?.toProfile() ?: CompanyProfile(name = businessName.trim())
-        state.setInvoiceCompany(
-            invoiceId = invoice.id,
-            company = base.copy(
-                name = base.name.ifBlank { businessName.trim() },
+        state.setInvoiceCompany(invoice.id, alsoUpdateProfile, onSaved = { state.pop() }) { current ->
+            current.copy(
+                name = current.name.ifBlank { businessName.trim() },
                 bankName = bank.trim().ifBlank { null },
                 accountNumber = account.trim().ifBlank { null },
                 ifsc = ifsc.trim().ifBlank { null },
                 upiId = upi.trim().ifBlank { null },
-            ),
-            alsoUpdateProfile = alsoUpdateProfile,
-        ) { state.pop() }
+            )
+        }
     }
 }
 
@@ -1028,16 +1021,13 @@ private fun ColumnScope.SignatureSection(state: BillantaState, invoice: InvoiceR
         PrimaryButton(
             if (state.savingSection) "Saving…" else "Save",
             onClick = {
-                val base = profile ?: snapshot?.toProfile() ?: CompanyProfile(name = businessName.trim())
-                state.setInvoiceCompany(
-                    invoiceId = invoice.id,
-                    company = base.copy(
-                        name = base.name.ifBlank { businessName.trim() },
+                state.setInvoiceCompany(invoice.id, alsoUpdateProfile, onSaved = { state.pop() }) { current ->
+                    current.copy(
+                        name = current.name.ifBlank { businessName.trim() },
                         signatoryName = signatoryName.trim().ifBlank { null },
                         signatoryDesignation = signatoryDesignation.trim().ifBlank { null },
-                    ),
-                    alsoUpdateProfile = alsoUpdateProfile,
-                ) { state.pop() }
+                    )
+                }
             },
             enabled = !state.savingSection && (!needsName || businessName.isNotBlank()),
             modifier = Modifier.fillMaxWidth(),
@@ -1066,12 +1056,9 @@ private fun ColumnScope.SignatureSection(state: BillantaState, invoice: InvoiceR
             SecondaryButton(
                 "Remove signature",
                 onClick = {
-                    val base = state.company ?: invoice.companySnapshot?.toProfile() ?: return@SecondaryButton
-                    state.setInvoiceCompany(
-                        invoiceId = invoice.id,
-                        company = base.copy(signature = null),
-                        alsoUpdateProfile = alsoUpdateProfile,
-                    ) { state.pop() }
+                    state.setInvoiceCompany(invoice.id, alsoUpdateProfile, onSaved = { state.pop() }) {
+                        it.copy(signature = null)
+                    }
                 },
                 enabled = !state.savingSection,
                 tint = c.danger,
@@ -1117,27 +1104,6 @@ private fun SaveToProfileSwitch(checked: Boolean, onChange: (Boolean) -> Unit) {
 }
 
 /** An invoice's frozen letterhead, back to an editable profile. */
-private fun CompanySnapshot.toProfile() = CompanyProfile(
-    name = name,
-    gstin = gstin,
-    addressLine1 = addressLine1,
-    addressLine2 = addressLine2,
-    city = city,
-    state = state,
-    stateCode = stateCode,
-    pincode = pincode,
-    country = country,
-    phone = phone,
-    email = email,
-    logo = logo,
-    signature = signature,
-    upiId = upiId,
-    qr = qr,
-    bankName = bankName,
-    accountNumber = accountNumber,
-    ifsc = ifsc,
-)
-
 @Composable
 private fun ColumnScope.SaveBar(state: BillantaState, enabled: Boolean, onSave: () -> Unit) {
     val c = BillantaTheme.colors
