@@ -85,8 +85,6 @@ fun ProfileScreen(state: BillantaState) {
                     Spacer(Modifier.height(8.dp))
                     SurfaceCard(Modifier.fillMaxWidth(), padding = 4) {
                         Column {
-                            SwitchRow("Dark mode", AppIcon.Moon, state.isDark) { state.setDarkTheme(it) }
-                            RowDivider()
                             ListRow(
                                 title = "Business profile",
                                 leading = { IconTile(AppIcon.Receipt) },
@@ -126,8 +124,10 @@ fun ProfileScreen(state: BillantaState) {
 
             item {
                 Text(
-                    "Billanta · v1.0 · Made for Indian freelancers",
-                    style = BillantaTheme.type.caption, color = c.textMuted,
+                    "Billanta v1.0",
+                    style = BillantaTheme.type.caption,
+                    color = c.textMuted,
+                    textAlign = TextAlign.Center,
                     modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
                 )
             }
@@ -361,20 +361,6 @@ fun SettingsScreen(state: BillantaState) {
             }
             // Signing in and out moved to Profile. What is left here is the one account action
             // that should take some finding.
-            if (state.currentUser != null) {
-                item {
-                    SettingsGroup("Account") {
-                        ListRow(
-                            "Delete account",
-                            subtitle = "Removes your account and all synced data",
-                            leading = { IconTile(AppIcon.Trash, tint = c.danger, bg = c.dangerBg) },
-                            onClick = { state.deleteAccount { state.popToRoot() } },
-                            danger = true,
-                            modifier = Modifier.padding(horizontal = 8.dp),
-                        )
-                    }
-                }
-            }
             item {
                 SettingsGroup("About") {
                     ValueRow("Version", "1.0.0")

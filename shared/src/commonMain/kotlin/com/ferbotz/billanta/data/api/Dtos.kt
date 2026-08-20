@@ -74,7 +74,7 @@ data class CompanyDto(
 data class SettingsDto(
     val defaultCurrency: String = "INR",
     val defaultTaxPercent: String = "18",
-    val invoiceNumberPrefix: String = "INV-",
+    val invoiceNumberPrefix: String = "",
     val nextInvoiceNumber: Long = 1,
     val defaultTemplateId: String? = null,
     val defaultNotes: String? = null,

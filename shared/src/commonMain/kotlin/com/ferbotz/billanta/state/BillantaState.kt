@@ -165,11 +165,24 @@ class BillantaState(
     fun closeSheet() { sheet = null }
 
     /** Global back handling. Returns true if it consumed the event. */
+    /** Shown when back is pressed with nowhere left to go; see [back]. */
+    var confirmingExit by mutableStateOf(false)
+
+    /**
+     * Where back goes, in order: close a sheet, pop a pushed screen, return to the Invoices tab,
+     * and only then offer to leave.
+     *
+     * The tab step matters because the tabs are siblings, not a history — without it, back from
+     * Catalogue closed the app outright, which is a surprising way to lose your place.
+     */
     fun back(): Boolean = when {
         sheet != null -> { sheet = null; true }
         stack.isNotEmpty() -> { pop(); true }
-        else -> false
+        tab != BottomTab.INVOICES -> { selectTab(BottomTab.INVOICES); true }
+        else -> { confirmingExit = true; true }
     }
+
+    fun dismissExitConfirmation() { confirmingExit = false }
 
     // ---- session -------------------------------------------------------------------------------
     var auth by mutableStateOf<AuthState>(AuthState.Restoring)

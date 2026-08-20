@@ -31,6 +31,8 @@ import com.ferbotz.billanta.state.EditSectionRoute
 import com.ferbotz.billanta.state.PreviewRoute
 import com.ferbotz.billanta.state.Route
 import com.ferbotz.billanta.state.SettingsRoute
+import androidx.compose.material3.AlertDialog
+import com.ferbotz.billanta.ui.components.TextButtonLink
 import com.ferbotz.billanta.theme.BillantaTheme
 import com.ferbotz.billanta.ui.components.BottomTab
 import com.ferbotz.billanta.ui.components.BottomTabBar
@@ -50,11 +52,22 @@ import com.ferbotz.billanta.ui.screens.TemplatesScreen
 import kotlinx.coroutines.delay
 
 @Composable
-fun App(container: AppContainer) {
+fun App(
+    container: AppContainer,
+    /**
+     * Closes the app when the user confirms they want to leave.
+     *
+     * Supplied by the platform because only it can do this meaningfully: on Android it finishes the
+     * activity, and on iOS an app is not supposed to exit itself, so the default does nothing.
+     */
+    onExit: () -> Unit = {},
+) {
     val scope = rememberCoroutineScope()
     val state = remember { BillantaState(container, scope) }
     BillantaTheme(darkTheme = state.isDark) {
-        SystemBackHandler(enabled = state.currentRoute != null || state.sheet != null) { state.back() }
+        // Always enabled: back now means something on a tab root too — return to Invoices, then
+        // ask before leaving — rather than falling through to the system and closing the app.
+        SystemBackHandler(enabled = true) { state.back() }
 
         Surface(Modifier.fillMaxSize(), color = BillantaTheme.colors.background) {
             Box(Modifier.fillMaxSize()) {
@@ -63,6 +76,12 @@ fun App(container: AppContainer) {
                 }
                 BillantaSheetHost(state)
                 UiMessageHost(state, Modifier.align(Alignment.BottomCenter))
+                if (state.confirmingExit) {
+                    ExitConfirmation(
+                        onDismiss = { state.dismissExitConfirmation() },
+                        onExit = { state.dismissExitConfirmation(); onExit() },
+                    )
+                }
             }
         }
     }
@@ -99,6 +118,26 @@ private fun RouteHost(state: BillantaState, route: Route) {
         is EditCustomerRoute -> EditCustomerScreen(state, route.customerId, route.attachToInvoiceId)
         is EditProductRoute -> EditProductScreen(state, route.productId)
     }
+}
+
+/** Asked once, on the last back press — leaving is cheap to undo but annoying to do by accident. */
+@Composable
+private fun ExitConfirmation(onDismiss: () -> Unit, onExit: () -> Unit) {
+    val c = BillantaTheme.colors
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = c.surface,
+        title = { Text("Close Billanta?", style = BillantaTheme.type.sectionTitle, color = c.textPrimary) },
+        text = {
+            Text(
+                "You can continue from where you left off next time.",
+                style = BillantaTheme.type.body,
+                color = c.textSecondary,
+            )
+        },
+        confirmButton = { TextButtonLink("Confirm", color = c.danger, onClick = onExit) },
+        dismissButton = { TextButtonLink("Cancel", onClick = onDismiss) },
+    )
 }
 
 /** Transient action errors (sync conflicts, validation) — tap or wait to dismiss. */

@@ -43,7 +43,8 @@ data class CompanyProfile(
 data class UserSettings(
     val defaultCurrency: String = "INR",
     val defaultTaxPercent: String = "18",
-    val invoiceNumberPrefix: String = "INV-",
+    /** Empty by default: a bare running number is the common case, and a prefix is a choice. */
+    val invoiceNumberPrefix: String = "",
     val nextInvoiceNumber: Long = 1,
     val defaultTemplateId: String? = null,
     val defaultNotes: String? = null,

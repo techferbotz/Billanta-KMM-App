@@ -18,7 +18,7 @@ class MainActivity : ComponentActivity() {
         container.imagePickerCoordinator.picker = AndroidImagePicker(this)
 
         setContent {
-            App(container)
+            App(container, onExit = { finish() })
         }
     }
 
