@@ -48,6 +48,7 @@ import com.ferbotz.billanta.state.EditCustomerRoute
 import com.ferbotz.billanta.state.PremiumSheet
 import com.ferbotz.billanta.theme.BillantaTheme
 import com.ferbotz.billanta.ui.AppIcon
+import com.ferbotz.billanta.ui.GoogleMark
 import com.ferbotz.billanta.ui.BillantaIcon
 import com.ferbotz.billanta.ui.components.Avatar
 import com.ferbotz.billanta.ui.components.BillantaTextField
@@ -234,10 +235,10 @@ private fun PremiumSheetContent(state: BillantaState, templateId: String) {
         }
         if (!state.signedIn) {
             PrimaryButton(
-                "Sign in",
+                "Continue with Google",
                 onClick = { state.signInWithGoogle { state.closeSheet() } },
                 modifier = Modifier.fillMaxWidth(),
-                leadingIcon = AppIcon.Google,
+                leadingSlot = { GoogleMark(size = 20.dp) },
             )
         }
         SecondaryButton(if (state.signedIn) "Got it" else "Maybe later", onClick = { state.closeSheet() }, modifier = Modifier.fillMaxWidth())

@@ -47,6 +47,7 @@ import com.ferbotz.billanta.model.initialsOf
 import com.ferbotz.billanta.ui.components.Avatar
 import com.ferbotz.billanta.theme.BillantaTheme
 import com.ferbotz.billanta.ui.AppIcon
+import com.ferbotz.billanta.ui.GoogleMark
 import com.ferbotz.billanta.ui.BillantaIcon
 import com.ferbotz.billanta.ui.components.BillantaTextField
 import com.ferbotz.billanta.ui.components.BottomActionBar
@@ -194,7 +195,7 @@ private fun SignInCard(state: BillantaState) {
             PrimaryButton(
                 if (state.signingIn) "Signing in…" else "Continue with Google",
                 onClick = { state.signInWithGoogle {} },
-                leadingIcon = AppIcon.Google,
+                leadingSlot = { GoogleMark(size = 20.dp) },
                 enabled = !state.signingIn,
                 modifier = Modifier.fillMaxWidth(),
             )

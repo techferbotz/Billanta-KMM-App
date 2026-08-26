@@ -29,6 +29,11 @@ fun PrimaryButton(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     leadingIcon: AppIcon? = null,
+    /**
+     * Drawn instead of [leadingIcon] when the mark must keep its own colours — [leadingIcon] is
+     * tinted to match the label, which is right for a glyph and wrong for a brand.
+     */
+    leadingSlot: (@Composable () -> Unit)? = null,
 ) {
     val c = BillantaTheme.colors
     Box(
@@ -41,7 +46,10 @@ fun PrimaryButton(
         contentAlignment = Alignment.Center,
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (leadingIcon != null) BillantaIcon(leadingIcon, c.onPrimary, size = 20.dp)
+            when {
+                leadingSlot != null -> leadingSlot()
+                leadingIcon != null -> BillantaIcon(leadingIcon, c.onPrimary, size = 20.dp)
+            }
             Text(text, style = BillantaTheme.type.bodyStrong, color = c.onPrimary, textAlign = TextAlign.Center)
         }
     }

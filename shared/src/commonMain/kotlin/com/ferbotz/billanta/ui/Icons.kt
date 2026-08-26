@@ -28,7 +28,7 @@ import androidx.compose.ui.unit.dp
 enum class AppIcon {
     Search, Bell, Tune, Plus, Receipt, People, Grid, Person,
     ChevronRight, ChevronDown, ArrowLeft, Check, Share, Download,
-    Pencil, Trash, Close, Lock, CloudOff, Star, Camera, Qr, Info, Plane, Copy, Dot, Google, Sun, Moon, Search2, Catalogue, Gear,
+    Pencil, Trash, Close, Lock, CloudOff, Star, Camera, Qr, Info, Plane, Copy, Dot, Sun, Moon, Search2, Catalogue, Gear,
 }
 
 @Composable
@@ -180,11 +180,6 @@ fun BillantaIcon(
                 p { moveTo(5f * k, 15.5f * k); lineTo(5f * k, 5f * k); lineTo(15.5f * k, 5f * k) }
             }
             AppIcon.Dot -> drawCircle(tint, 3f * k, Offset(12f * k, 12f * k))
-            AppIcon.Google -> {
-                // Simplified multi-arc "G" placeholder.
-                drawCircle(tint, 7f * k, Offset(12f * k, 12f * k), style = stroke)
-                line(12f, 12f, 19.5f, 12f)
-            }
             AppIcon.Sun -> {
                 drawCircle(tint, 3.6f * k, Offset(12f * k, 12f * k), style = stroke)
                 for (a in 0 until 8) {
