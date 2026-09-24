@@ -375,9 +375,9 @@ fun SettingsScreen(state: BillantaState) {
                 }
             }
             // Signing in and out live on Profile. What is left here is the one account action that
-            // should take some finding — and exactly where the public deletion page says it is:
-            // Settings → Account → Delete account. Play reviewers follow those words literally.
-            if (state.currentUser != null) {
+            // should take some finding: Settings → Account → Delete account. Hidden for now — see
+            // SHOW_DELETE_ACCOUNT.
+            if (SHOW_DELETE_ACCOUNT && state.currentUser != null) {
                 item {
                     SettingsGroup("Account") {
                         ListRow(
@@ -437,6 +437,17 @@ fun SettingsScreen(state: BillantaState) {
         }
     }
 }
+
+/**
+ * In-app account deletion (BE-015 / BE-017) is built but not offered yet: a product decision on
+ * 2026-09-24. Everything behind the row is in place — [DeleteAccountRoute], its confirmation
+ * screen, `DELETE /users/me` and the local wipe — so turning this on is the whole change.
+ *
+ * Until it is on, the public delete-account page must not send people to an in-app path that is
+ * not there; APP-013 asked the backend to give only the email route meanwhile. Google Play expects
+ * deletion to be possible inside any app that creates accounts, so revisit this before release.
+ */
+private const val SHOW_DELETE_ACCOUNT = false
 
 @Composable
 private fun SettingsGroup(title: String, content: @Composable () -> Unit) {
