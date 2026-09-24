@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1070505071996",
+    "project_id": "billanta-ffe19",
+    "storage_bucket": "billanta-ffe19.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1070505071996:android:328811b090f56d233a80f9",
+        "android_client_info": {
+          "package_name": "com.ferbotz.billanta"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCg07mozKiht-zTcN5B1X2RyOLAQ5lQGWc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
