@@ -5,6 +5,21 @@ plugins {
     alias(libs.plugins.composeCompiler)
 }
 
+// Firebase (Crashlytics + Cloud Messaging) reads its project from google-services.json, which comes
+// from the Firebase console and is not in the repo yet. The google-services plugin fails the whole
+// build without it, so both Firebase plugins are applied only once the file is there. Until then the
+// app builds and runs normally, with Firebase simply inactive — hence the loud warning.
+if (file("google-services.json").exists()) {
+    apply(plugin = libs.plugins.googleServices.get().pluginId)
+    apply(plugin = libs.plugins.firebaseCrashlytics.get().pluginId)
+} else {
+    logger.warn(
+        "w: androidApp/google-services.json is missing, so Firebase is OFF in this build: no crash " +
+            "reports and no push notifications. Download it from the Firebase console (Project " +
+            "settings → Your apps → com.ferbotz.billanta) and put it in androidApp/.",
+    )
+}
+
 kotlin {
     compilerOptions {
         jvmTarget = JvmTarget.JVM_11
@@ -23,6 +38,13 @@ dependencies {
     implementation(libs.androidx.credentials.play)
     implementation(libs.googleid)
     implementation(libs.kotlinx.coroutines.android)
+
+    // Crash reports and push notifications. Both stay inert without google-services.json (above).
+    implementation(platform(libs.firebase.bom))
+    implementation(libs.firebase.crashlytics)
+    implementation(libs.firebase.messaging)
+    // NotificationCompat, for posting a push that arrives while the app is open.
+    implementation(libs.androidx.core.ktx)
 }
 
 android {
