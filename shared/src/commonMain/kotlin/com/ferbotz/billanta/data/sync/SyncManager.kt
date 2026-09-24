@@ -70,6 +70,13 @@ class SyncManager(
     private val clock: EpochClock,
     /** Ends the session when the server says the account behind it is gone (BE-010). */
     private val onAccountVanished: suspend () -> Unit = {},
+    /**
+     * `features.cloudSync` from `GET /config` (BE-014). Off stops syncing app-wide: every pass
+     * becomes a no-op and local data is left exactly as it is, still dirty, for when it comes back.
+     */
+    private val syncEnabled: () -> Boolean = { true },
+    /** `limits.maxSyncBatchInvoices` — the most invoices the server takes in one sync push. */
+    private val maxPushBatch: () -> Int = { Int.MAX_VALUE },
 ) {
     private val _status = MutableStateFlow(SyncStatus())
     val status: StateFlow<SyncStatus> = _status.asStateFlow()
@@ -106,6 +113,7 @@ class SyncManager(
     /** Runs a full sync immediately (serialized — concurrent calls queue up). */
     suspend fun syncNow(): AppResult<Unit> = syncMutex.withLock {
         if (authState.value !is AuthState.SignedIn) return@withLock AppResult.Success(Unit)
+        if (!syncEnabled()) return@withLock AppResult.Success(Unit)
         _status.value = _status.value.copy(running = true)
         val error = try {
             doFullSync()
@@ -440,7 +448,7 @@ class SyncManager(
     /** The `/invoices/sync` conversation: push dirty batches, then drain the pull cursor. */
     private suspend fun syncInvoicesWithServer(): AppError? {
         val dirty = invoiceLocal.dirtyRecords().filter { it.deletedAtMillis == null }
-        val batches = dirty.chunked(PUSH_BATCH_SIZE)
+        val batches = dirty.chunked(PUSH_BATCH_SIZE.coerceAtMost(maxPushBatch()).coerceAtLeast(1))
         var since: String? = syncMeta.get(SyncMetaLocal.KEY_INVOICE_CURSOR)
         var batchIndex = 0
 

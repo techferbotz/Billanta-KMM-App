@@ -34,12 +34,15 @@ fun PrimaryButton(
      * tinted to match the label, which is right for a glyph and wrong for a brand.
      */
     leadingSlot: (@Composable () -> Unit)? = null,
+    /** The fill, when the action is not an ordinary one — a destructive button is `danger`. */
+    color: Color? = null,
 ) {
     val c = BillantaTheme.colors
+    val fill = color ?: c.primary
     Box(
         modifier
             .clip(RoundedCornerShape(14.dp))
-            .background(if (enabled) c.primary else c.primary.copy(alpha = 0.45f))
+            .background(if (enabled) fill else fill.copy(alpha = 0.45f))
             .clickable(enabled = enabled, onClick = onClick)
             .heightIn(min = 52.dp)
             .padding(horizontal = 20.dp),

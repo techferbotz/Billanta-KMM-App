@@ -1,8 +1,12 @@
 package com.ferbotz.billanta.data.api
 
+import com.ferbotz.billanta.config.AppIdentity
 import com.ferbotz.billanta.core.BillantaJson
 import com.ferbotz.billanta.session.TokenPair
 import io.ktor.client.HttpClient
+import io.ktor.client.HttpClientConfig
+import io.ktor.client.plugins.api.Send
+import io.ktor.client.plugins.api.createClientPlugin
 import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.plugins.auth.Auth
 import io.ktor.client.plugins.auth.providers.BearerTokens
@@ -11,6 +15,7 @@ import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.plugins.defaultRequest
 import io.ktor.client.plugins.logging.LogLevel
 import io.ktor.client.plugins.logging.Logging
+import io.ktor.http.Url
 import io.ktor.serialization.kotlinx.json.json
 
 data class BillantaApiConfig(
@@ -19,6 +24,9 @@ data class BillantaApiConfig(
 ) {
     /** Normalized to end with `/` so relative paths resolve under it. */
     val normalizedBaseUrl: String = if (baseUrl.endsWith("/")) baseUrl else "$baseUrl/"
+
+    /** The API's host — the only one that is sent the app's identity headers. */
+    val apiHost: String get() = Url(normalizedBaseUrl).host
 }
 
 /** Supplies/rotates tokens for the authed client. Implemented by the session TokenManager. */
@@ -36,7 +44,10 @@ interface TokenRefresher {
 private fun TokenPair.toBearer() = BearerTokens(accessToken, refreshToken)
 
 /** For the auth endpoints — no bearer, no refresh (avoids recursion into itself). */
-fun createAuthlessHttpClient(config: BillantaApiConfig): HttpClient = HttpClient {
+fun createAuthlessHttpClient(
+    config: BillantaApiConfig,
+    identity: AppIdentity? = null,
+): HttpClient = HttpClient {
     expectSuccess = false
     install(ContentNegotiation) { json(BillantaJson) }
     install(HttpTimeout) {
@@ -46,6 +57,7 @@ fun createAuthlessHttpClient(config: BillantaApiConfig): HttpClient = HttpClient
     if (config.enableHttpLogging) {
         install(Logging) { level = LogLevel.INFO }
     }
+    identity?.let { installAppHeaders(it, config.apiHost) }
     defaultRequest { url(config.normalizedBaseUrl) }
 }
 
@@ -53,7 +65,11 @@ fun createAuthlessHttpClient(config: BillantaApiConfig): HttpClient = HttpClient
  * The main client. Attaches `Authorization: Bearer` when a session exists (template browsing
  * works signed-out) and transparently rotates tokens on 401 via [TokenRefresher].
  */
-fun createAuthedHttpClient(config: BillantaApiConfig, refresher: TokenRefresher): HttpClient = HttpClient {
+fun createAuthedHttpClient(
+    config: BillantaApiConfig,
+    refresher: TokenRefresher,
+    identity: AppIdentity? = null,
+): HttpClient = HttpClient {
     expectSuccess = false
     install(ContentNegotiation) { json(BillantaJson) }
     install(HttpTimeout) {
@@ -71,5 +87,30 @@ fun createAuthedHttpClient(config: BillantaApiConfig, refresher: TokenRefresher)
             sendWithoutRequest { true }
         }
     }
+    identity?.let { installAppHeaders(it, config.apiHost) }
     defaultRequest { url(config.normalizedBaseUrl) }
+}
+
+/**
+ * The targeting headers (BE-014), on every request to the Billanta API — and on no other.
+ *
+ * These same clients fetch logo, signature and template images straight from S3, and a per-install
+ * id has no business in a third party's access logs. So the host is checked at send time, once the
+ * base URL has been applied, rather than the headers being stamped on everything the client sends.
+ */
+internal fun HttpClientConfig<*>.installAppHeaders(identity: AppIdentity, apiHost: String) {
+    install(
+        createClientPlugin("BillantaAppHeaders") {
+            on(Send) { request ->
+                if (request.url.host == apiHost) {
+                    request.headers[AppIdentity.HEADER_PLATFORM] = identity.platform
+                    request.headers[AppIdentity.HEADER_VERSION] = identity.version
+                    // "0" would read as a real build to a version rule; unknown is better left unsaid.
+                    if (identity.build > 0) request.headers[AppIdentity.HEADER_BUILD] = identity.build.toString()
+                    if (identity.deviceId.isNotBlank()) request.headers[AppIdentity.HEADER_DEVICE_ID] = identity.deviceId
+                }
+                proceed(request)
+            }
+        },
+    )
 }

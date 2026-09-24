@@ -47,6 +47,8 @@ kotlin {
             implementation(libs.compose.uiTooling)
             implementation(libs.androidx.activity.compose)
             implementation(libs.androidx.core.ktx)
+            // Custom Tabs: the legal pages open in an in-app browser tab (BE-015).
+            implementation(libs.androidx.browser)
             implementation(libs.kotlinx.coroutines.android)
             implementation(libs.ktor.client.okhttp)
             implementation(libs.sqldelight.android.driver)

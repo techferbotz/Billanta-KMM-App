@@ -36,6 +36,7 @@ import com.ferbotz.billanta.domain.model.CompanyProfile
 import com.ferbotz.billanta.model.stateCodeFromGstin
 import com.ferbotz.billanta.state.BillantaState
 import com.ferbotz.billanta.state.BusinessProfileRoute
+import com.ferbotz.billanta.state.DeleteAccountRoute
 import com.ferbotz.billanta.state.SettingsRoute
 import com.ferbotz.billanta.ui.components.SecondaryButton
 import coil3.compose.AsyncImage
@@ -58,6 +59,7 @@ import com.ferbotz.billanta.ui.components.LargeTopBar
 import com.ferbotz.billanta.ui.components.ListRow
 import com.ferbotz.billanta.ui.components.Overline
 import com.ferbotz.billanta.ui.components.PrimaryButton
+import com.ferbotz.billanta.ui.components.SignInConsentLine
 import com.ferbotz.billanta.ui.components.StackTopBar
 import com.ferbotz.billanta.ui.components.SurfaceCard
 
@@ -76,7 +78,12 @@ fun ProfileScreen(state: BillantaState) {
             // was the duplication rather than a shortcut.
             item {
                 val user = state.currentUser
-                if (user != null) AccountHeader(user) else SignInCard(state)
+                when {
+                    user != null -> AccountHeader(user)
+                    // Sign-in switched off (or the backend is in maintenance): the app is fully
+                    // usable offline, so there is nothing to offer here rather than a dead button.
+                    state.features.googleLogin -> SignInCard(state)
+                }
             }
 
             // Quick links
@@ -92,13 +99,15 @@ fun ProfileScreen(state: BillantaState) {
                                 onClick = { state.push(BusinessProfileRoute) },
                                 modifier = Modifier.padding(horizontal = 8.dp),
                             )
-                            RowDivider()
-                            ListRow(
-                                title = "Invoice templates",
-                                leading = { IconTile(AppIcon.Grid) },
-                                onClick = { state.selectTab(BottomTab.TEMPLATES) },
-                                modifier = Modifier.padding(horizontal = 8.dp),
-                            )
+                            if (state.features.templateStore) {
+                                RowDivider()
+                                ListRow(
+                                    title = "Invoice templates",
+                                    leading = { IconTile(AppIcon.Grid) },
+                                    onClick = { state.selectTab(BottomTab.TEMPLATES) },
+                                    modifier = Modifier.padding(horizontal = 8.dp),
+                                )
+                            }
                             RowDivider()
                             ListRow(
                                 title = "Settings",
@@ -125,7 +134,7 @@ fun ProfileScreen(state: BillantaState) {
 
             item {
                 Text(
-                    "Billanta v1.0",
+                    "Billanta v${state.container.identity.version}",
                     style = BillantaTheme.type.caption,
                     color = c.textMuted,
                     textAlign = TextAlign.Center,
@@ -197,6 +206,11 @@ private fun SignInCard(state: BillantaState) {
                 onClick = { state.signInWithGoogle {} },
                 leadingSlot = { GoogleMark(size = 20.dp) },
                 enabled = !state.signingIn,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            SignInConsentLine(
+                onTerms = { state.openTerms() },
+                onPrivacy = { state.openPrivacyPolicy() },
                 modifier = Modifier.fillMaxWidth(),
             )
             state.signInError?.let { error ->
@@ -360,23 +374,47 @@ fun SettingsScreen(state: BillantaState) {
                     }
                 }
             }
-            // Signing in and out moved to Profile. What is left here is the one account action
-            // that should take some finding.
+            // Signing in and out live on Profile. What is left here is the one account action that
+            // should take some finding — and exactly where the public deletion page says it is:
+            // Settings → Account → Delete account. Play reviewers follow those words literally.
+            if (state.currentUser != null) {
+                item {
+                    SettingsGroup("Account") {
+                        ListRow(
+                            "Delete account",
+                            subtitle = "Permanently delete your account and synced data",
+                            leading = { IconTile(AppIcon.Trash, tint = c.danger, bg = c.dangerBg) },
+                            onClick = { state.push(DeleteAccountRoute) },
+                            danger = true,
+                            modifier = Modifier.padding(horizontal = 8.dp),
+                        )
+                    }
+                }
+            }
+            // Every legal link comes from /config (BE-015), so the pages can move without a release.
             item {
                 SettingsGroup("About") {
-                    ValueRow("Version", "1.0.0")
+                    ValueRow("Version", state.container.identity.version)
                     RowDivider()
                     ListRow(
-                        "Terms of service",
-                        leading = { IconTile(AppIcon.Info) },
-                        onClick = { state.container.openUrl("${state.container.config.normalizedBaseUrl}terms") },
+                        "Privacy Policy",
+                        leading = { IconTile(AppIcon.Lock) },
+                        onClick = { state.openPrivacyPolicy() },
                         modifier = Modifier.padding(horizontal = 8.dp),
                     )
                     RowDivider()
                     ListRow(
-                        "Privacy policy",
+                        "Terms & Conditions",
                         leading = { IconTile(AppIcon.Info) },
-                        onClick = { state.container.openUrl("${state.container.config.normalizedBaseUrl}privacy") },
+                        onClick = { state.openTerms() },
+                        modifier = Modifier.padding(horizontal = 8.dp),
+                    )
+                    RowDivider()
+                    ListRow(
+                        "Contact support",
+                        subtitle = state.links.supportEmail,
+                        leading = { IconTile(AppIcon.Plane) },
+                        onClick = { state.contactSupport() },
                         modifier = Modifier.padding(horizontal = 8.dp),
                     )
                 }

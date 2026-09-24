@@ -1,10 +1,13 @@
 package com.ferbotz.billanta.di
 
+import com.ferbotz.billanta.config.AppIdentity
+import com.ferbotz.billanta.config.RemoteConfigManager
 import com.ferbotz.billanta.core.AlwaysOnlineConnectivity
 import com.ferbotz.billanta.core.ConnectivityObserver
 import com.ferbotz.billanta.core.EpochClock
 import com.ferbotz.billanta.core.KeyValueStore
 import com.ferbotz.billanta.core.SystemClock
+import com.ferbotz.billanta.core.randomUuid
 import com.ferbotz.billanta.data.api.AuthApi
 import com.ferbotz.billanta.data.api.BillantaApi
 import com.ferbotz.billanta.data.api.BillantaApiConfig
@@ -40,6 +43,9 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
 /**
@@ -54,10 +60,20 @@ class AppContainer(
     ioDispatcher: CoroutineDispatcher = Dispatchers.Default,
     val appScope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
     clock: EpochClock = SystemClock,
-    /** Opens an external URL (terms/privacy pages) — provided by the platform factory. */
+    /**
+     * Hands a URL to the system — a `mailto:`, a store listing — leaving the app. Provided by the
+     * platform factory.
+     */
     val openUrl: (String) -> Unit = {},
+    /**
+     * Opens a web page in an in-app browser tab (Custom Tabs / SFSafariViewController), for the
+     * legal pages (BE-015): the user reads them without being sent out of the app.
+     */
+    val openInAppBrowser: (String) -> Unit = openUrl,
     /** Platform share sheet for exported invoices. */
     shareService: FileShareService = NoopFileShareService,
+    /** Platform, version and build of this app — the device id is filled in here, per install. */
+    platformIdentity: AppIdentity = AppIdentity.Unknown,
 ) {
     /** The core deliverable: rendered invoice → PDF/PNG/JPEG → share sheet. */
     val invoiceExporter = InvoiceExporter(shareService)
@@ -78,12 +94,38 @@ class AppContainer(
     private val productLocal = ProductLocalDataSource(db, ioDispatcher)
     private val syncMetaLocal = SyncMetaLocal(db, ioDispatcher)
 
+    // ---- identity ----
+    /**
+     * Who this install is, as the targeting headers tell the server (BE-014). The device id is
+     * made once and kept for the life of the install; signing out removes only the token keys, so
+     * it survives that, and it is read by nothing but `/config`'s experiment bucketing.
+     */
+    val identity: AppIdentity = platformIdentity.copy(
+        deviceId = keyValueStore.getString(KEY_DEVICE_ID)
+            ?: randomUuid().also { keyValueStore.putString(KEY_DEVICE_ID, it) },
+    )
+
     // ---- network ----
     private val tokenStore = TokenStore(keyValueStore)
-    private val authlessClient = createAuthlessHttpClient(config)
+    private val authlessClient = createAuthlessHttpClient(config, identity)
     private val authApi = AuthApi(authlessClient)
     private val tokenManager = TokenManager(tokenStore, authApi, clock)
-    val api = BillantaApi(createAuthedHttpClient(config, tokenManager))
+    // Typed explicitly: the API reads its page cap from remoteConfig, which fetches through the API.
+    val api: BillantaApi = BillantaApi(
+        client = createAuthedHttpClient(config, tokenManager, identity),
+        maxPageSize = { remoteConfig.current.limits.maxPageSize },
+    )
+
+    /**
+     * The behaviour switches from `GET /config` (BE-014). Restored from this install's cache as it
+     * is constructed, so everything below reads a real document from the first frame.
+     */
+    val remoteConfig: RemoteConfigManager = RemoteConfigManager(
+        fetch = { api.getConfigBody() },
+        store = keyValueStore,
+        scope = appScope,
+        connectivity = connectivity,
+    )
 
     /** Fetches logo/signature/QR bitmaps so a shared file never has a half-loaded image. */
     val invoiceImageLoader = InvoiceImageLoader(authlessClient)
@@ -136,6 +178,8 @@ class AppContainer(
         connectivity = connectivity,
         clock = clock,
         onAccountVanished = { userManager.onAccountVanished() },
+        syncEnabled = { remoteConfig.current.effectiveFeatures.cloudSync },
+        maxPushBatch = { remoteConfig.current.limits.maxSyncBatchInvoices },
     )
 
     // ---- repositories ----
@@ -155,10 +199,25 @@ class AppContainer(
     val mediaRepository = MediaRepository(api)
 
     init {
+        // Cold start: fetch the config first thing, without waiting on it — the cached document is
+        // already in force, so nothing blocks on the network.
+        remoteConfig.start()
         appScope.launch {
             userManager.restore()
             // Warm the template catalogue opportunistically; offline failure is fine.
             templateRepository.refreshCatalogue()
         }
+        // Sync switched back on (or maintenance over): push what piled up while it was off.
+        appScope.launch {
+            remoteConfig.document
+                .map { it.config.effectiveFeatures.cloudSync }
+                .distinctUntilChanged()
+                .drop(1)
+                .collect { enabled -> if (enabled) syncManager.requestSync(immediate = true) }
+        }
+    }
+
+    private companion object {
+        const val KEY_DEVICE_ID = "install.deviceId"
     }
 }

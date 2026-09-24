@@ -28,7 +28,11 @@ import kotlin.coroutines.resume
  *
  * The launcher must be registered before the activity starts, so this is constructed in onCreate.
  */
-class AndroidImagePicker(internal val activity: ComponentActivity) : ImagePicker {
+class AndroidImagePicker(
+    internal val activity: ComponentActivity,
+    /** `limits.maxMediaBytes` from `GET /config`, read at pick time so a raised cap applies at once. */
+    private val maxBytes: () -> Long = { ImagePickerCoordinator.MAX_BYTES.toLong() },
+) : ImagePicker {
 
     /** Only one picker can be open at a time; the launcher callback resumes whoever is waiting. */
     private var pending: Continuation<Uri?>? = null
@@ -71,7 +75,7 @@ class AndroidImagePicker(internal val activity: ComponentActivity) : ImagePicker
         val contentType = resolver.getType(uri) ?: "image/jpeg"
         val picked = PickedImage(fileName = displayName(uri, contentType), contentType = contentType, bytes = bytes)
 
-        ImagePickerCoordinator.rejectionReason(picked)?.let {
+        ImagePickerCoordinator.rejectionReason(picked, maxBytes())?.let {
             return@withContext AppError.Validation(it).asFailure()
         }
         picked.asSuccess()

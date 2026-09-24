@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
@@ -75,6 +76,7 @@ import com.ferbotz.billanta.state.PremiumSheet
 import com.ferbotz.billanta.theme.BillantaTheme
 import com.ferbotz.billanta.ui.AppIcon
 import com.ferbotz.billanta.ui.BillantaIcon
+import com.ferbotz.billanta.ui.components.A4_ASPECT
 import com.ferbotz.billanta.ui.components.BottomActionBar
 import com.ferbotz.billanta.ui.components.ColorSwatchButton
 import com.ferbotz.billanta.ui.components.IconButtonBox
@@ -82,6 +84,7 @@ import com.ferbotz.billanta.ui.components.Overline
 import com.ferbotz.billanta.ui.components.PrimaryButton
 import com.ferbotz.billanta.ui.components.SecondaryButton
 import com.ferbotz.billanta.ui.components.StackTopBar
+import com.ferbotz.billanta.ui.components.TextButtonLink
 import kotlinx.coroutines.launch
 
 private sealed interface TemplateState {
@@ -110,6 +113,7 @@ fun PreviewScreen(state: BillantaState, invoiceId: String) {
     Column(Modifier.fillMaxSize().background(c.background)) {
         var choosingColor by remember { mutableStateOf(false) }
         var showingSettings by remember { mutableStateOf(false) }
+        var confirmingDelete by remember { mutableStateOf(false) }
         // Resolved once the template loads, below — the bar is drawn first so that "invoice not
         // found" still gets a back button.
         var accentArgb by remember(invoiceId) { mutableStateOf<Long?>(null) }
@@ -120,11 +124,13 @@ fun PreviewScreen(state: BillantaState, invoiceId: String) {
                 accentArgb?.let { argb ->
                     ColorSwatchButton(argb, onClick = { choosingColor = true })
                 }
-                IconButtonBox(AppIcon.Gear, c.textSecondary, onClick = { showingSettings = true })
-                IconButtonBox(AppIcon.Trash, c.danger, onClick = {
-                    state.deleteInvoice(record.id)
-                    state.pop()
-                })
+                // Its sheet is the template switcher and nothing else, so it goes when the store does.
+                if (state.features.templateStore) {
+                    IconButtonBox(AppIcon.Gear, c.textSecondary, onClick = { showingSettings = true })
+                }
+                // Asked first: this sits a thumb's width from the colour swatch, and there is
+                // nothing on the other side of it — no undo, and the invoice number is spent.
+                IconButtonBox(AppIcon.Trash, c.danger, onClick = { confirmingDelete = true })
             }
         })
 
@@ -194,11 +200,13 @@ fun PreviewScreen(state: BillantaState, invoiceId: String) {
             when {
                 template is TemplateState.Failed -> {
                     val failure = template as TemplateState.Failed
+                    // The upsell is only offered while premium templates are switched on.
+                    val upsell = failure.premium && state.features.premiumTemplates
                     TemplateProblem(
                         message = failure.message,
-                        actionLabel = if (failure.premium) "See premium" else "Retry",
+                        actionLabel = if (upsell) "See premium" else "Retry",
                         onAction = {
-                            if (failure.premium && templateId != null) state.openSheet(PremiumSheet(templateId))
+                            if (upsell && templateId != null) state.openSheet(PremiumSheet(templateId))
                             else reloadKey++
                         },
                     )
@@ -266,6 +274,18 @@ fun PreviewScreen(state: BillantaState, invoiceId: String) {
             }
 
             Spacer(Modifier.height(4.dp))
+        }
+
+        if (confirmingDelete) {
+            DeleteInvoiceDialog(
+                invoiceNumber = record.invoiceNumber,
+                onDismiss = { confirmingDelete = false },
+                onDelete = {
+                    confirmingDelete = false
+                    state.deleteInvoice(record.id)
+                    state.pop()
+                },
+            )
         }
 
         if (choosingColor) {
@@ -414,6 +434,31 @@ private fun EmptySectionHints(
 }
 
 @Composable
+private fun DeleteInvoiceDialog(invoiceNumber: String, onDismiss: () -> Unit, onDelete: () -> Unit) {
+    val c = BillantaTheme.colors
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = c.surface,
+        title = {
+            Text(
+                "Delete ${invoiceNumber.ifBlank { "this invoice" }}?",
+                style = BillantaTheme.type.sectionTitle,
+                color = c.textPrimary,
+            )
+        },
+        text = {
+            Text(
+                "It will be removed from this device and from your account. This can't be undone.",
+                style = BillantaTheme.type.body,
+                color = c.textSecondary,
+            )
+        },
+        confirmButton = { TextButtonLink("Delete", color = c.danger, onClick = onDelete) },
+        dismissButton = { TextButtonLink("Cancel", onClick = onDismiss) },
+    )
+}
+
+@Composable
 private fun PagePlaceholder(text: String) {
     val c = BillantaTheme.colors
     Box(
@@ -483,6 +528,3 @@ private fun androidx.compose.foundation.layout.RowScope.TemplateSwatch(
         )
     }
 }
-
-/** A4 proportions, used for the placeholder before the real page size is known. */
-private const val A4_ASPECT = 595f / 842f

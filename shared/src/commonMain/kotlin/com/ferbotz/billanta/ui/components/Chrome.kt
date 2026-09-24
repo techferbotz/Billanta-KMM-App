@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -26,6 +27,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -46,22 +48,34 @@ val BottomBarSpace: Dp = 96.dp
 @Composable
 fun IconButtonBox(icon: AppIcon, tint: Color, onClick: () -> Unit, size: Dp = 24.dp) {
     Box(
-        Modifier.clip(CircleShape).clickable(onClick = onClick).padding(6.dp),
+        Modifier.clip(CircleShape).clickable(onClick = onClick).padding(TOP_BAR_ICON_PADDING),
         contentAlignment = Alignment.Center,
     ) { BillantaIcon(icon, tint, size = size) }
 }
 
 /**
+ * The ring of empty space around a top-bar icon.
+ *
+ * It is the whole tap target beyond the glyph, so it is deliberately generous: the invoice screen
+ * puts a colour swatch, a settings icon and a delete icon side by side up there, and at 6dp they
+ * read as one lump of controls with the destructive one indistinguishable from its neighbour.
+ */
+private val TOP_BAR_ICON_PADDING = 9.dp
+
+/** Gap between adjacent top-bar actions, on top of each one's own padding. */
+private val TOP_BAR_ACTION_GAP = 2.dp
+
+/**
  * A colour swatch that sits in a top bar beside [IconButtonBox]es.
  *
- * Same 6dp padding and same tap target, so the row keeps one rhythm — the swatch is drawn where an
- * icon's glyph would be rather than being a bare circle with a hand-picked gap next to it.
+ * Same padding and the same tap target as an icon button, so the row keeps one rhythm — the swatch
+ * is drawn where a glyph would be rather than being a bare circle with a hand-picked gap next to it.
  */
 @Composable
 fun ColorSwatchButton(argb: Long, onClick: () -> Unit, size: Dp = 24.dp) {
     val c = BillantaTheme.colors
     Box(
-        Modifier.clip(CircleShape).clickable(onClick = onClick).padding(6.dp),
+        Modifier.clip(CircleShape).clickable(onClick = onClick).padding(TOP_BAR_ICON_PADDING),
         contentAlignment = Alignment.Center,
     ) {
         Box(
@@ -82,11 +96,11 @@ fun LargeTopBar(
     val c = BillantaTheme.colors
     Column(modifier.fillMaxWidth().background(c.background).statusBarsPadding()) {
         Row(
-            Modifier.fillMaxWidth().padding(start = 18.dp, end = 10.dp, top = 8.dp, bottom = 10.dp),
+            Modifier.fillMaxWidth().padding(start = 18.dp, end = 9.dp, top = 8.dp, bottom = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(title, style = BillantaTheme.type.screenTitle, color = c.textPrimary, modifier = Modifier.weight(1f))
-            actions()
+            TopBarActions(actions)
         }
     }
 }
@@ -102,7 +116,7 @@ fun StackTopBar(
     val c = BillantaTheme.colors
     Column(modifier.fillMaxWidth().background(c.background).statusBarsPadding()) {
         Row(
-            Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 6.dp),
+            Modifier.fillMaxWidth().padding(start = 3.dp, end = 9.dp, top = 6.dp, bottom = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             IconButtonBox(AppIcon.ArrowLeft, c.textPrimary, onBack)
@@ -110,11 +124,30 @@ fun StackTopBar(
                 title,
                 style = BillantaTheme.type.sectionTitle,
                 color = c.textPrimary,
-                modifier = Modifier.weight(1f).padding(start = 4.dp),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                // A title only has to give way to the actions when there are several of them, so the
+                // gap is on the title's side rather than being padding the actions always carry.
+                modifier = Modifier.weight(1f).padding(start = 4.dp, end = 8.dp),
             )
-            actions()
+            TopBarActions(actions)
         }
     }
+}
+
+/**
+ * The trailing end of a top bar.
+ *
+ * Its own row, so the actions are spaced against each other rather than against the title — three
+ * of them flush up with no gap is how the invoice screen's swatch, settings and delete ended up
+ * reading as one control that happened to be three wide.
+ */
+@Composable
+private fun TopBarActions(actions: @Composable () -> Unit) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(TOP_BAR_ACTION_GAP),
+    ) { actions() }
 }
 
 @Composable
@@ -180,13 +213,24 @@ private fun TabItem(
     }
 }
 
-/** Sticky bottom action area for stack screens (e.g. Save & Preview). */
+/**
+ * Sticky bottom action area for stack screens.
+ *
+ * Rides above the keyboard. The app draws edge to edge, so the window does not resize when the
+ * keyboard opens and this bar — along with the bottom of every form above it — was simply underneath
+ * it. Lifting the bar also shortens the scrolling body it sits below, since that body takes whatever
+ * space this one leaves, which is what lets a focused field scroll clear of the keys.
+ *
+ * `imePadding` is applied outside the background so the whole bar moves, and it consumes the inset
+ * it applies, so the `navigationBarsPadding` within adds nothing more while the keyboard is up.
+ */
 @Composable
 fun BottomActionBar(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
     val c = BillantaTheme.colors
     Column(
         modifier
             .fillMaxWidth()
+            .imePadding()
             .background(c.surface)
             .padding(horizontal = 18.dp, vertical = 12.dp)
             .navigationBarsPadding(),

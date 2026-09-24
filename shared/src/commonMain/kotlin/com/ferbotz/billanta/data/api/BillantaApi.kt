@@ -16,6 +16,7 @@ import io.ktor.client.request.patch
 import io.ktor.client.request.post
 import io.ktor.client.request.put
 import io.ktor.client.request.setBody
+import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
 import io.ktor.http.Headers
 import io.ktor.http.HttpHeaders
@@ -28,7 +29,33 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 
 /** All protected/optional-auth endpoints, on the bearer-authed client. One method per API.md route. */
-class BillantaApi(private val client: HttpClient) {
+class BillantaApi(
+    private val client: HttpClient,
+    /**
+     * The largest `?limit` the server accepts — `limits.maxPageSize` from `GET /config`. Every
+     * list call is clamped to it so a page request that would be refused is never sent.
+     */
+    private val maxPageSize: () -> Int = { 100 },
+) {
+
+    private fun pageSize(requested: Int): Int = requested.coerceAtMost(maxPageSize()).coerceAtLeast(1)
+
+    // ---- remote config -------------------------------------------------------------------------
+
+    /**
+     * `GET /config` (BE-014), as the raw body: it is read leaf by leaf, and cached verbatim so a
+     * later build can re-read it with its own defaults. Public — a token, when there is one, only
+     * lets the server apply per-user overrides.
+     */
+    suspend fun getConfigBody(): AppResult<String> = try {
+        val response = client.get("config")
+        if (response.status.isSuccess()) AppResult.Success(response.bodyAsText())
+        else httpErrorOf(response).asFailure()
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Throwable) {
+        AppError.Network(e.message).asFailure()
+    }
 
     // ---- users ---------------------------------------------------------------------------------
 
@@ -80,7 +107,7 @@ class BillantaApi(private val client: HttpClient) {
         apiCall {
             client.get("customers") {
                 if (!q.isNullOrBlank()) parameter("q", q)
-                parameter("limit", limit)
+                parameter("limit", pageSize(limit))
                 cursor?.let { parameter("cursor", it) }
             }
         }
@@ -110,7 +137,7 @@ class BillantaApi(private val client: HttpClient) {
         apiCall {
             client.get("products") {
                 if (!q.isNullOrBlank()) parameter("q", q)
-                parameter("limit", limit)
+                parameter("limit", pageSize(limit))
                 cursor?.let { parameter("cursor", it) }
             }
         }
@@ -144,7 +171,7 @@ class BillantaApi(private val client: HttpClient) {
         client.get("invoices") {
             status?.let { parameter("status", it) }
             if (!q.isNullOrBlank()) parameter("q", q)
-            parameter("limit", limit)
+            parameter("limit", pageSize(limit))
             cursor?.let { parameter("cursor", it) }
         }
     }
@@ -192,7 +219,7 @@ class BillantaApi(private val client: HttpClient) {
     suspend fun listTemplates(limit: Int = 100, cursor: String? = null): AppResult<PageDto<TemplateDto>> =
         apiCall {
             client.get("templates") {
-                parameter("limit", limit)
+                parameter("limit", pageSize(limit))
                 cursor?.let { parameter("cursor", it) }
             }
         }

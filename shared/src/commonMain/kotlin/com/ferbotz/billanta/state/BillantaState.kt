@@ -6,6 +6,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.snapshots.SnapshotStateList
+import com.ferbotz.billanta.config.LaunchGate
+import com.ferbotz.billanta.config.RemoteConfig
+import com.ferbotz.billanta.config.launchGate
 import com.ferbotz.billanta.core.AppResult
 import com.ferbotz.billanta.core.DecimalString
 import com.ferbotz.billanta.core.InvoiceDateFormat
@@ -42,6 +45,8 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 /** A screen pushed on top of the current tab root. */
 sealed interface Route
@@ -64,6 +69,8 @@ data class EditSectionRoute(
 ) : Route
 data object BusinessProfileRoute : Route
 data object SettingsRoute : Route
+/** Settings → Account → Delete account: the confirmation the public deletion page describes. */
+data object DeleteAccountRoute : Route
 /**
  * [attachToInvoiceId] is set when the editor was opened from an invoice's "Bill to" screen: saving
  * a new customer there means "use this one", so it is put on the invoice straight away.
@@ -110,7 +117,9 @@ class BillantaState(
      * after that goes straight into the create flow.
      */
     fun openCreate() {
-        if (settings.defaultTemplateId == null && templates.isNotEmpty()) push(ChooseTemplateRoute)
+        if (settings.defaultTemplateId == null && features.templateStore && visibleTemplates.isNotEmpty()) {
+            push(ChooseTemplateRoute)
+        }
         else createAndOpenInvoice { push(it) }
     }
 
@@ -237,6 +246,39 @@ class BillantaState(
     /** Transient error/info surfaced by actions; a screen shows and clears it. */
     var uiMessage by mutableStateOf<String?>(null)
 
+    // ---- remote config (BE-014) ----------------------------------------------------------------
+
+    /** The `GET /config` document in force, as Compose state. Never absent — see RemoteConfigManager. */
+    var remoteConfig by mutableStateOf(container.remoteConfig.current)
+        private set
+
+    /**
+     * Which UI entry points to offer. Maintenance switches the cloud-backed ones off (see
+     * [RemoteConfig.effectiveFeatures]); none of these touch the data layer.
+     */
+    val features: RemoteConfig.Features get() = remoteConfig.effectiveFeatures
+
+    /** The legal links — always from `/config`, never a hard-coded host (BE-015). */
+    val links: RemoteConfig.Links get() = remoteConfig.links
+
+    /** Maintenance, a forced update or a recommended one — whichever applies first. */
+    val launchGate: LaunchGate get() = launchGate(remoteConfig, container.identity)
+
+    /** A recommended update is a nudge: once waved away, not shown again until the next launch. */
+    var recommendedUpdateDismissed by mutableStateOf(false)
+
+    /**
+     * The catalogue as the pickers show it. With premium templates switched off there is nothing
+     * to upsell, so they are not offered at all — an invoice already on one still renders it.
+     */
+    val visibleTemplates: List<TemplateInfo>
+        get() = if (features.premiumTemplates) templates else templates.filterNot { it.isPremium }
+
+    fun openTerms() = container.openInAppBrowser(links.terms)
+    fun openPrivacyPolicy() = container.openInAppBrowser(links.privacyPolicy)
+    fun openAccountDeletionInfo() = container.openInAppBrowser(links.deleteAccount)
+    fun contactSupport() = container.openUrl("mailto:${links.supportEmail}")
+
     val selectedTemplateId: String?
         get() = settings.defaultTemplateId
             ?: templates.firstOrNull { !it.isPremium }?.id
@@ -266,6 +308,7 @@ class BillantaState(
         scope.launch { container.productRepository.observeProducts().collect { products = it } }
         scope.launch { container.settingsRepository.observeSettings().collect { settings = it } }
         scope.launch { container.companyRepository.observeCompany().collect { company = it } }
+        scope.launch { container.remoteConfig.document.collect { remoteConfig = it.config } }
     }
 
     // ---- invoice actions -----------------------------------------------------------------------
@@ -409,12 +452,34 @@ class BillantaState(
         scope.launch { container.userManager.signOut() }
     }
 
+    var deletingAccount by mutableStateOf(false)
+        private set
+
+    /** Why the last deletion attempt failed, shown on the confirmation screen itself. */
+    var deleteAccountError by mutableStateOf<String?>(null)
+
+    /**
+     * `DELETE /users/me`, then signed out locally (BE-015 / BE-017).
+     *
+     * The server cascades everything the account owns; the local copy goes with it, so a later
+     * sign-in with the same Google account cannot re-upload what was just deleted. Nothing changes
+     * locally if the server refuses — the account is still there.
+     */
     fun deleteAccount(onDone: () -> Unit = {}) {
+        if (deletingAccount) return
         scope.launch {
+            deletingAccount = true
+            deleteAccountError = null
             when (val result = container.userManager.deleteAccount()) {
-                is AppResult.Success -> onDone()
-                is AppResult.Failure -> uiMessage = result.error.userMessage()
+                is AppResult.Success -> {
+                    popToRoot()
+                    selectTab(BottomTab.PROFILE)
+                    uiMessage = "Your account has been deleted."
+                    onDone()
+                }
+                is AppResult.Failure -> deleteAccountError = result.error.userMessage()
             }
+            deletingAccount = false
         }
     }
 
@@ -429,28 +494,52 @@ class BillantaState(
         val taxRatePercent: String,
     )
 
-    var draftDiscountType by mutableStateOf<DiscountType?>(null)
-    var draftDiscountValue by mutableStateOf("")
-    var draftDiscountBeforeTax by mutableStateOf(true)
+    /** The last complaint from a section write. Cleared as soon as the next one is attempted. */
     var draftError by mutableStateOf<String?>(null)
 
-
-    /** Percent goes through as typed; Flat is entered in rupees and sent as paise (the wire unit). */
-    internal val draftDiscount: DiscountSpec?
-        get() {
-            val type = draftDiscountType ?: return null
-            val raw = draftDiscountValue.trim().takeIf { it.isNotEmpty() } ?: return null
-            return when (type) {
-                DiscountType.Percentage -> DiscountSpec(type, raw)
-                DiscountType.Flat -> parseRupeesToPaise(raw)?.let { DiscountSpec(type, it.toString()) }
-            }
-        }
-
-    /** Live totals via the exact server algorithm; null while any entry is unparsable. */
     // ---- section-by-section editing ------------------------------------------------------------
 
-    var savingSection by mutableStateOf(false)
+    /** How far a section editor's writing has got, for the line above its Done button. */
+    enum class SaveState { Clean, Saving, Saved }
+
+    /**
+     * Section editors have no Save button: they write themselves a moment after the user stops
+     * changing anything. That makes "did that stick?" a question the screen has to answer without
+     * being asked, which is what this is for.
+     */
+    var sectionSaveState by mutableStateOf(SaveState.Clean)
         private set
+
+    /** True while a section write is in flight — for buttons that must not fire twice. */
+    val savingSection: Boolean get() = sectionSaveState == SaveState.Saving
+
+    /**
+     * Section writes run one at a time.
+     *
+     * Auto-save can ask for a write while the previous one is still going. Dropping the newer one
+     * — which is what the Save button's `if (savingSection) return` did — would silently lose the
+     * most recent keystrokes, the one thing an auto-saving form must never do. So they queue.
+     */
+    private val sectionWriteLock = Mutex()
+
+    /** A section editor has just opened: its draft matches what is stored, and nothing has failed. */
+    fun resetSectionSaveState() {
+        sectionSaveState = SaveState.Clean
+        draftError = null
+    }
+
+    /**
+     * A failed section write, reported wherever the user can still see it.
+     *
+     * Auto-save means a write can land after its editor is gone — the last one fires as the screen
+     * is disposed — so a complaint that only ever reached that screen's own bar would be a silent
+     * loss. On screen, the bar says it; off screen, the app-wide message does.
+     */
+    private fun reportSectionFailure(message: String) {
+        sectionSaveState = SaveState.Clean
+        draftError = message
+        if (currentRoute !is EditSectionRoute) uiMessage = message
+    }
 
     fun openInvoiceData(invoiceId: String) = push(EditInvoiceDataRoute(invoiceId))
 
@@ -490,8 +579,23 @@ class BillantaState(
         setDetails(invoiceId, invoiceNumber.trim(), invoiceDateMillis, dueDateMillis, settings.defaultCurrency)
     }
 
-    fun setInvoiceDiscount(invoiceId: String, onSaved: () -> Unit = {}) =
-        saveSection(onSaved) { setDiscount(invoiceId, draftDiscount, draftDiscountBeforeTax) }
+    fun setInvoiceDiscount(
+        invoiceId: String,
+        type: DiscountType?,
+        value: String,
+        beforeTax: Boolean,
+        onSaved: () -> Unit = {},
+    ) = saveSection(onSaved) { setDiscount(invoiceId, discountSpec(type, value), beforeTax) }
+
+    /** Percent goes through as typed; Flat is entered in rupees and sent as paise (the wire unit). */
+    private fun discountSpec(type: DiscountType?, value: String): DiscountSpec? {
+        if (type == null) return null
+        val raw = value.trim().takeIf { it.isNotEmpty() } ?: return null
+        return when (type) {
+            DiscountType.Percentage -> DiscountSpec(type, raw)
+            DiscountType.Flat -> parseRupeesToPaise(raw)?.let { DiscountSpec(type, it.toString()) }
+        }
+    }
 
     /**
      * Saves the business details shown on an invoice.
@@ -506,27 +610,46 @@ class BillantaState(
         onSaved: () -> Unit = {},
         mutate: (CompanyProfile) -> CompanyProfile,
     ) {
-        if (savingSection) return
         scope.launch {
-            savingSection = true
-            draftError = null
-            // Read the stored profile and change only what the editor asked for. An editor that
-            // built a whole CompanyProfile from its own fields silently nulled every field it did
-            // not show — which is how editing bank details erased the signatory, and vice versa.
-            val current = container.companyRepository.getCompany()
-                ?: container.invoiceRepository.getInvoice(invoiceId)?.companySnapshot?.toProfile()
-                ?: CompanyProfile(name = "")
-            val company = mutate(current)
-            // Saving the profile restamps every invoice, this one included; the override does not.
-            val result: AppResult<*> = if (alsoUpdateProfile) {
-                container.companyRepository.save(company)
-            } else {
-                container.invoiceRepository.setCompanySnapshot(invoiceId, company.toSnapshot())
-            }
-            savingSection = false
-            when (result) {
-                is AppResult.Success -> onSaved()
-                is AppResult.Failure -> draftError = result.error.userMessage()
+            sectionWriteLock.withLock {
+                sectionSaveState = SaveState.Saving
+                draftError = null
+                // Read the stored profile and change only what the editor asked for. An editor that
+                // built a whole CompanyProfile from its own fields silently nulled every field it
+                // did not show — which is how editing bank details erased the signatory, and vice
+                // versa.
+                val stored = container.companyRepository.getCompany()
+                val invoice = container.invoiceRepository.getInvoice(invoiceId)
+                val current = stored
+                    ?: invoice?.companySnapshot?.toProfile()
+                    ?: CompanyProfile(name = "")
+                val company = mutate(current)
+                // Auto-save asks for a write whenever a field settles, and a field can settle back
+                // on the value it already held. Saving the profile restamps every invoice, so a
+                // write that would change nothing is worth not doing at all — it also stops a
+                // switch left on by default from wiping this invoice's override when the user
+                // opened the section and typed nothing.
+                val alreadyStored =
+                    if (alsoUpdateProfile) company == stored
+                    else company.toSnapshot() == invoice?.companySnapshot
+                if (alreadyStored) {
+                    sectionSaveState = SaveState.Saved
+                    onSaved()
+                    return@withLock
+                }
+                // Saving the profile restamps every invoice, this one included; the override does not.
+                val result: AppResult<*> = if (alsoUpdateProfile) {
+                    container.companyRepository.save(company)
+                } else {
+                    container.invoiceRepository.setCompanySnapshot(invoiceId, company.toSnapshot())
+                }
+                when (result) {
+                    is AppResult.Success -> {
+                        sectionSaveState = SaveState.Saved
+                        onSaved()
+                    }
+                    is AppResult.Failure -> reportSectionFailure(result.error.userMessage())
+                }
             }
         }
     }
@@ -548,30 +671,23 @@ class BillantaState(
     ) {
         if (savingSection) return
         scope.launch {
-            savingSection = true
+            sectionSaveState = SaveState.Saving
             draftError = null
             val image = when (val picked = container.imagePickerCoordinator.pick()) {
                 is AppResult.Failure -> {
-                    savingSection = false
-                    draftError = picked.error.userMessage()
+                    reportSectionFailure(picked.error.userMessage())
                     return@launch
                 }
                 // Null means they backed out: say nothing and leave everything as it was.
                 is AppResult.Success -> picked.value ?: run {
-                    savingSection = false
+                    sectionSaveState = SaveState.Clean
                     return@launch
                 }
             }
             when (val upload = container.mediaRepository.uploadImage(image.bytes, image.fileName, image.contentType)) {
-                is AppResult.Failure -> {
-                    savingSection = false
-                    draftError = upload.error.userMessage()
-                }
-                is AppResult.Success -> {
-                    savingSection = false
-                    setInvoiceCompany(invoiceId, alsoUpdateProfile, onDone) {
-                        apply(it, upload.value.url)
-                    }
+                is AppResult.Failure -> reportSectionFailure(upload.error.userMessage())
+                is AppResult.Success -> setInvoiceCompany(invoiceId, alsoUpdateProfile, onDone) {
+                    apply(it, upload.value.url)
                 }
             }
         }
@@ -580,20 +696,27 @@ class BillantaState(
     fun setInvoiceNotes(invoiceId: String, notes: String, onSaved: () -> Unit = {}) =
         saveSection(onSaved) { setNotes(invoiceId, notes.trim()) }
 
-    /** Every section editor saves the same way: write, surface any complaint, then step back. */
+    /**
+     * Every section editor saves the same way: write, surface any complaint in place.
+     *
+     * [onSaved] is for the writes that are also a navigation decision — choosing a customer is one
+     * whole answer, so it steps back. An auto-save passes nothing and leaves the user where they are.
+     */
     private fun saveSection(
         onSaved: () -> Unit,
         write: suspend InvoiceRepository.() -> AppResult<InvoiceRecord>,
     ) {
-        if (savingSection) return
         scope.launch {
-            savingSection = true
-            draftError = null
-            val result = container.invoiceRepository.write()
-            savingSection = false
-            when (result) {
-                is AppResult.Success -> onSaved()
-                is AppResult.Failure -> draftError = result.error.userMessage()
+            sectionWriteLock.withLock {
+                sectionSaveState = SaveState.Saving
+                draftError = null
+                when (val result = container.invoiceRepository.write()) {
+                    is AppResult.Success -> {
+                        sectionSaveState = SaveState.Saved
+                        onSaved()
+                    }
+                    is AppResult.Failure -> reportSectionFailure(result.error.userMessage())
+                }
             }
         }
     }
@@ -674,20 +797,6 @@ class BillantaState(
         taxRatePercent = taxRatePercent,
     )
 
-    fun seedDiscountFrom(record: InvoiceRecord) {
-        draftDiscountType = record.discount?.type
-        // Flat discounts are stored in paise but typed in rupees, so undo the conversion.
-        draftDiscountValue = record.discount?.let {
-            if (it.type != DiscountType.Flat) it.value else {
-                val paise = it.value.toLongOrNull() ?: 0L
-                if (paise % 100 == 0L) (paise / 100).toString()
-                else "${paise / 100}.${(paise % 100).toString().padStart(2, '0')}"
-            }
-        } ?: ""
-        draftDiscountBeforeTax = record.discountBeforeTax
-        draftError = null
-    }
-
     // ---- misc ----------------------------------------------------------------------------------
 
     private fun launchReporting(block: suspend () -> AppResult<*>) {
@@ -707,3 +816,17 @@ class BillantaState(
 }
 
 fun todayUtcMidnightMillis(): Long = (systemEpochMillis() / 86_400_000L) * 86_400_000L
+
+/**
+ * A stored discount back into the string its field shows — the inverse of what the wire wants.
+ *
+ * A percentage travels as typed; a flat discount is stored in paise but entered in rupees, so that
+ * conversion has to be undone or "₹500 off" would come back as "50000".
+ */
+internal fun discountValueInput(discount: DiscountSpec?): String {
+    val spec = discount ?: return ""
+    if (spec.type != DiscountType.Flat) return spec.value
+    val paise = spec.value.toLongOrNull() ?: 0L
+    return if (paise % 100 == 0L) (paise / 100).toString()
+    else "${paise / 100}.${(paise % 100).toString().padStart(2, '0')}"
+}

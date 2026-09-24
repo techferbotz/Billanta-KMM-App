@@ -38,7 +38,10 @@ class ImagePickerCoordinator {
             ?: AppError.Validation("Choosing an image isn't available in this build").asFailure()
 
     companion object {
-        /** `POST /media` rejects anything larger, so refuse before spending the upload. */
+        /**
+         * `POST /media` rejects anything larger, so refuse before spending the upload. The live
+         * value is `limits.maxMediaBytes` from `GET /config`; this is its compiled-in default.
+         */
         const val MAX_BYTES = 8 * 1024 * 1024
 
         /**
@@ -49,10 +52,10 @@ class ImagePickerCoordinator {
             setOf("image/jpeg", "image/png", "image/webp", "image/heic", "image/heif")
 
         /** Null when the image is fine; otherwise why it cannot be uploaded. */
-        fun rejectionReason(image: PickedImage): String? = when {
+        fun rejectionReason(image: PickedImage, maxBytes: Long = MAX_BYTES.toLong()): String? = when {
             image.bytes.isEmpty() -> "That image is empty."
-            image.bytes.size > MAX_BYTES ->
-                "That image is ${image.bytes.size / (1024 * 1024)} MB. The limit is 8 MB."
+            image.bytes.size > maxBytes ->
+                "That image is ${image.bytes.size / (1024 * 1024)} MB. The limit is ${maxBytes / (1024 * 1024)} MB."
             // Unknown types are allowed through: the picker's reported type is not always right,
             // and the server is the authority. Only a clearly non-image is refused here.
             !image.contentType.startsWith("image/") -> "That file isn't an image."

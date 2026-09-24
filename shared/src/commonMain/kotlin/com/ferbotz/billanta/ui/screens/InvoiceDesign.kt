@@ -9,6 +9,7 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
@@ -17,6 +18,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -35,9 +39,11 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import com.ferbotz.billanta.domain.model.InvoiceRecord
+import com.ferbotz.billanta.domain.model.TemplateInfo
 import com.ferbotz.billanta.render.CustomisationControl
 import com.ferbotz.billanta.render.TemplateDoc
 import com.ferbotz.billanta.state.BillantaState
@@ -48,6 +54,7 @@ import com.ferbotz.billanta.ui.BillantaIcon
 import com.ferbotz.billanta.ui.components.Overline
 import com.ferbotz.billanta.ui.components.PrimaryButton
 import com.ferbotz.billanta.ui.components.SecondaryButton
+import com.ferbotz.billanta.ui.components.TemplateThumbnail
 import kotlin.math.atan2
 import kotlin.math.abs
 import kotlin.math.cos
@@ -346,69 +353,73 @@ fun InvoiceSettingsSheetContent(
     modifier: Modifier = Modifier,
 ) {
     val c = BillantaTheme.colors
+    // No horizontal padding on the column itself: the row of templates scrolls, and it should run
+    // to the sheet's edges rather than being cut off 18 dp short of them mid-scroll.
     Column(
         modifier.fillMaxWidth().verticalScroll(rememberScrollState())
-            .padding(start = 18.dp, end = 18.dp, bottom = 24.dp)
+            .padding(bottom = 24.dp)
             .navigationBarsPadding(),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        Text("Template", style = BillantaTheme.type.sectionTitle, color = c.textPrimary)
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            state.templates.take(4).forEach { template ->
+        Text(
+            "Template",
+            style = BillantaTheme.type.sectionTitle,
+            color = c.textPrimary,
+            modifier = Modifier.padding(horizontal = 18.dp),
+        )
+        // Every template, scrolling — this used to be a row of the first four, so a fifth
+        // template could be chosen from the Templates tab but never switched to from an invoice.
+        LazyRow(
+            contentPadding = PaddingValues(horizontal = 18.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            items(state.visibleTemplates, key = { it.id }) { template ->
                 TemplateChoice(
-                    name = template.name,
-                    premium = template.isPremium,
+                    template = template,
                     selected = template.id == (record.templateId ?: state.selectedTemplateId),
                     onClick = {
                         if (template.isPremium && !state.isPremium) state.openSheet(PremiumSheet(template.id))
                         else state.setInvoiceTemplate(record.id, template)
                     },
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.width(96.dp),
                 )
             }
         }
-        if (state.templates.isEmpty()) {
+        if (state.visibleTemplates.isEmpty()) {
             Text(
                 "No templates yet — connect once to download them.",
                 style = BillantaTheme.type.caption,
                 color = c.textMuted,
+                modifier = Modifier.padding(horizontal = 18.dp),
             )
         }
     }
 }
 
+/** One template in the switcher: its page, and its name under it. */
 @Composable
 private fun TemplateChoice(
-    name: String,
-    premium: Boolean,
+    template: TemplateInfo,
     selected: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val c = BillantaTheme.colors
+    val shape = RoundedCornerShape(12.dp)
     Column(
-        modifier.clip(RoundedCornerShape(12.dp)).clickable(onClick = onClick),
+        // The same inset as the grid cards' labels, for the same reason: the ripple is clipped to
+        // these corners, and the name must sit inside their curve, not under it.
+        modifier.clip(shape).clickable(onClick = onClick).padding(bottom = 6.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Box(
-            Modifier.fillMaxWidth().height(64.dp).clip(RoundedCornerShape(12.dp))
-                .background(c.surface)
-                .border(
-                    if (selected) 2.dp else 1.dp,
-                    if (selected) c.primary else c.border,
-                    RoundedCornerShape(12.dp),
-                ),
-            contentAlignment = Alignment.Center,
+        TemplateThumbnail(
+            template = template,
+            modifier = Modifier.fillMaxWidth(),
+            shape = shape,
+            borderWidth = if (selected) 2.dp else 1.dp,
+            borderColor = if (selected) c.primary else c.border,
         ) {
-            Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Box(
-                    Modifier.fillMaxWidth(0.5f).height(5.dp).clip(RoundedCornerShape(3.dp))
-                        .background(if (premium) c.textPrimary else c.primary),
-                )
-                Box(Modifier.fillMaxWidth(0.9f).height(3.dp).clip(RoundedCornerShape(2.dp)).background(c.border))
-                Box(Modifier.fillMaxWidth(0.75f).height(3.dp).clip(RoundedCornerShape(2.dp)).background(c.border))
-            }
-            if (premium) {
+            if (template.isPremium) {
                 Box(
                     Modifier.align(Alignment.TopEnd).padding(5.dp).size(18.dp)
                         .clip(CircleShape).background(c.primaryMuted),
@@ -418,11 +429,14 @@ private fun TemplateChoice(
         }
         Spacer(Modifier.height(6.dp))
         Text(
-            name,
+            template.name,
             style = BillantaTheme.type.caption.copy(
                 fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
             ),
             color = if (selected) c.textPrimary else c.textSecondary,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(horizontal = 4.dp),
         )
     }
 }

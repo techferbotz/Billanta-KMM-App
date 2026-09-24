@@ -65,7 +65,8 @@ private enum class CataloguePane(val label: String) {
 @Composable
 fun CatalogueScreen(state: BillantaState) {
     val c = BillantaTheme.colors
-    val panes = CataloguePane.entries
+    // `features.productCatalogue` off hides the products; customers are not part of that switch.
+    val panes = if (state.features.productCatalogue) CataloguePane.entries else listOf(CataloguePane.CUSTOMERS)
     val pager = rememberPagerState(pageCount = { panes.size })
     val scope = rememberCoroutineScope()
 
@@ -73,19 +74,22 @@ fun CatalogueScreen(state: BillantaState) {
         LargeTopBar("Catalogue", actions = {
             // The add button follows the pane you are looking at, so it always means one thing.
             IconButtonBox(AppIcon.Plus, c.primary, onClick = {
-                when (panes[pager.currentPage]) {
+                when (panes.getOrElse(pager.currentPage) { panes.first() }) {
                     CataloguePane.CUSTOMERS -> state.push(EditCustomerRoute(null))
                     CataloguePane.PRODUCTS -> state.push(EditProductRoute(null))
                 }
             })
         })
 
-        PaneTabs(
-            panes = panes,
-            selected = pager.currentPage,
-            offsetFraction = pager.currentPage + pager.currentPageOffsetFraction,
-            onSelect = { index -> scope.launch { pager.animateScrollToPage(index) } },
-        )
+        // One pane needs no tabs to choose between.
+        if (panes.size > 1) {
+            PaneTabs(
+                panes = panes,
+                selected = pager.currentPage,
+                offsetFraction = pager.currentPage + pager.currentPageOffsetFraction,
+                onSelect = { index -> scope.launch { pager.animateScrollToPage(index) } },
+            )
+        }
 
         HorizontalPager(state = pager, modifier = Modifier.fillMaxSize()) { page ->
             when (panes[page]) {

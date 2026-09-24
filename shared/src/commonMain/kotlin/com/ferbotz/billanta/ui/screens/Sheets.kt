@@ -52,8 +52,10 @@ import com.ferbotz.billanta.ui.GoogleMark
 import com.ferbotz.billanta.ui.BillantaIcon
 import com.ferbotz.billanta.ui.components.Avatar
 import com.ferbotz.billanta.ui.components.BillantaTextField
+import com.ferbotz.billanta.ui.components.LegalLinksRow
 import com.ferbotz.billanta.ui.components.PrimaryButton
 import com.ferbotz.billanta.ui.components.SecondaryButton
+import com.ferbotz.billanta.ui.components.SignInConsentLine
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -121,7 +123,7 @@ private fun AddItemSheetContent(state: BillantaState, invoiceId: String) {
             if (typed.isEmpty()) state.products.take(8)
             else state.products.filter { it.name.contains(typed, ignoreCase = true) }.take(8)
         }
-        if (suggestions.isNotEmpty()) {
+        if (suggestions.isNotEmpty() && state.features.productCatalogue) {
             LazyRow(
                 Modifier.fillMaxWidth(),
                 contentPadding = PaddingValues(horizontal = 18.dp),
@@ -221,11 +223,17 @@ private fun PremiumSheetContent(state: BillantaState, templateId: String) {
             BillantaIcon(AppIcon.Star, c.primary, size = 30.dp)
         }
         Text("$templateName is a premium template", style = BillantaTheme.type.sectionTitle, color = c.textPrimary, textAlign = TextAlign.Center)
+        // Signing in is how premium unlocks, so with sign-in switched off there is no button to
+        // offer — and the copy must not tell people to press one.
+        val canSignIn = !state.signedIn && state.features.googleLogin
         Text(
-            if (state.signedIn) {
-                "Premium templates unlock when your account has Billanta Premium. Once it's active, they download automatically."
-            } else {
-                "Premium templates are tied to your account. Sign in first — if your account has Billanta Premium, they unlock automatically."
+            when {
+                state.signedIn ->
+                    "Premium templates unlock when your account has Billanta Premium. Once it's active, they download automatically."
+                canSignIn ->
+                    "Premium templates are tied to your account. Sign in first — if your account has Billanta Premium, they unlock automatically."
+                else ->
+                    "Premium templates are tied to your account, and signing in isn't available right now. Please try again later."
             },
             style = BillantaTheme.type.body, color = c.textSecondary, textAlign = TextAlign.Center,
         )
@@ -233,7 +241,7 @@ private fun PremiumSheetContent(state: BillantaState, templateId: String) {
             PremiumFeature("All premium templates, including $templateName")
             PremiumFeature("New designs arrive without app updates")
         }
-        if (!state.signedIn) {
+        if (canSignIn) {
             PrimaryButton(
                 "Continue with Google",
                 onClick = { state.signInWithGoogle { state.closeSheet() } },
@@ -242,6 +250,21 @@ private fun PremiumSheetContent(state: BillantaState, templateId: String) {
             )
         }
         SecondaryButton(if (state.signedIn) "Got it" else "Maybe later", onClick = { state.closeSheet() }, modifier = Modifier.fillMaxWidth())
+        // The upgrade screen links both legal pages (BE-015). Where it also asks for sign-in, the
+        // consent line carries them; otherwise they stand on their own.
+        if (canSignIn) {
+            SignInConsentLine(
+                onTerms = { state.openTerms() },
+                onPrivacy = { state.openPrivacyPolicy() },
+                modifier = Modifier.fillMaxWidth(),
+            )
+        } else {
+            LegalLinksRow(
+                onTerms = { state.openTerms() },
+                onPrivacy = { state.openPrivacyPolicy() },
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
     }
 }
 

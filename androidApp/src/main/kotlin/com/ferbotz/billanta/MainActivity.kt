@@ -15,7 +15,8 @@ class MainActivity : ComponentActivity() {
         container.signInCoordinator.provider = GoogleCredentialTokenProvider(this)
         // Registering a result launcher has to happen before the activity starts, so this is
         // constructed here rather than lazily on first use.
-        container.imagePickerCoordinator.picker = AndroidImagePicker(this)
+        container.imagePickerCoordinator.picker =
+            AndroidImagePicker(this) { container.remoteConfig.current.limits.maxMediaBytes }
 
         setContent {
             App(container, onExit = { finish() })

@@ -21,11 +21,13 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
@@ -67,6 +69,7 @@ import coil3.compose.AsyncImage
 import com.ferbotz.billanta.domain.model.CompanySnapshot
 import com.ferbotz.billanta.state.BillantaState
 import com.ferbotz.billanta.state.BusinessProfileRoute
+import com.ferbotz.billanta.state.discountValueInput
 import com.ferbotz.billanta.ui.AppIcon
 import com.ferbotz.billanta.ui.BillantaIcon
 import com.ferbotz.billanta.ui.components.BillantaTextField
@@ -81,6 +84,7 @@ import com.ferbotz.billanta.ui.components.SecondaryButton
 import com.ferbotz.billanta.ui.components.StackTopBar
 import com.ferbotz.billanta.ui.components.SurfaceCard
 import com.ferbotz.billanta.theme.BillantaTheme
+import kotlinx.coroutines.delay
 
 /**
  * What an invoice is made of, in the order the template says to fill it in.
@@ -120,7 +124,8 @@ fun EditInvoiceDataScreen(state: BillantaState, invoiceId: String) {
         }
 
         LazyColumn(
-            contentPadding = PaddingValues(18.dp, 4.dp, 18.dp, 120.dp),
+            Modifier.weight(1f),
+            contentPadding = PaddingValues(18.dp, 4.dp, 18.dp, 24.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             items(sections, key = { it.id }) { section ->
@@ -133,6 +138,10 @@ fun EditInvoiceDataScreen(state: BillantaState, invoiceId: String) {
                 )
             }
         }
+
+        // Deliberately not reset on the way in: arriving here straight from a section editor, the
+        // bar still says "Saved", which is the reassurance the missing Save button used to give.
+        DoneBar(state) { state.pop() }
     }
 }
 
@@ -355,6 +364,10 @@ fun EditSectionScreen(
     val c = BillantaTheme.colors
     val record by remember(invoiceId) { state.invoiceFlow(invoiceId) }.collectAsState(initial = null)
 
+    // A fresh editor starts with nothing saved and nothing complained about; the state is app-wide
+    // so that the bar can report a write that outlives the screen, which means it needs clearing.
+    LaunchedEffect(invoiceId, sectionId) { state.resetSectionSaveState() }
+
     Column(Modifier.fillMaxSize().background(c.background)) {
         StackTopBar(label, onBack = { state.pop() })
         val invoice = record ?: run {
@@ -406,9 +419,9 @@ fun EditSectionScreen(
 }
 
 /**
- * The editable area of a section: everything between the top bar and the save bar.
+ * The editable area of a section: everything between the top bar and the Done bar.
  *
- * Takes the weight itself and scrolls, so a long form uses the whole screen. [SaveBar] must not
+ * Takes the weight itself and scrolls, so a long form uses the whole screen. [DoneBar] must not
  * also claim a weight — two equal weights in one Column split it down the middle, which is how the
  * business-details form ended up occupying half the screen with blank space beneath it.
  */
@@ -424,9 +437,9 @@ private fun ColumnScope.ColumnScopeBody(content: @Composable () -> Unit) {
 /**
  * Choosing who the invoice is for.
  *
- * The list is the screen — no picker button, no Save. Choosing a customer is a single, complete
- * decision, so it commits and steps back on the tap; a Save button would only ask the user to
- * confirm something they had already said.
+ * The list is the screen — no picker button. Choosing a customer is a single, complete decision, so
+ * the tap both writes it and steps back; nothing here needs confirming afterwards. Done is only the
+ * way out for someone who opened the list and decided to keep the customer they already had.
  */
 @Composable
 private fun ColumnScope.CustomerSection(state: BillantaState, invoice: InvoiceRecord) {
@@ -486,6 +499,7 @@ private fun ColumnScope.CustomerSection(state: BillantaState, invoice: InvoiceRe
             }
         }
     }
+    DoneBar(state) { state.pop() }
 }
 
 @Composable
@@ -503,6 +517,19 @@ private fun ColumnScope.DetailsSection(state: BillantaState, invoice: InvoiceRec
         )
     }
     var pickingDate by remember { mutableStateOf(false) }
+
+    // A blank number is refused by the write, so there is nothing to send until it has one.
+    AutoSave(number, dateMillis, dueDays) {
+        if (number.isNotBlank()) {
+            state.setInvoiceDetails(
+                invoiceId = invoice.id,
+                invoiceNumber = number,
+                invoiceDateMillis = dateMillis,
+                dueDateMillis = if (dueDays <= 0) null
+                else dateMillis + dueDays * BillantaState.MILLIS_PER_DAY,
+            )
+        }
+    }
 
     ColumnScopeBody {
         BillantaTextField(number, { number = it }, label = "Invoice number", placeholder = "INV-0001")
@@ -553,15 +580,10 @@ private fun ColumnScope.DetailsSection(state: BillantaState, invoice: InvoiceRec
         }
     }
 
-    SaveBar(state, enabled = number.isNotBlank()) {
-        state.setInvoiceDetails(
-            invoiceId = invoice.id,
-            invoiceNumber = number,
-            invoiceDateMillis = dateMillis,
-            dueDateMillis = if (dueDays <= 0) null
-            else dateMillis + dueDays * BillantaState.MILLIS_PER_DAY,
-        ) { state.pop() }
-    }
+    DoneBar(
+        state,
+        blocker = if (number.isBlank()) "An invoice needs a number — this can't be saved without one." else null,
+    ) { state.pop() }
 }
 
 private data class DueOption(val label: String, val days: Int)
@@ -577,8 +599,8 @@ private val DUE_OPTIONS = listOf(
  * The invoice's line items.
  *
  * Same shape as the customer screen: "add new" on top, then a list to pick from — here the product
- * catalogue, which is what the user has invoiced before. There is no Save: each change writes
- * straight through, so backing out cannot lose a line.
+ * catalogue, which is what the user has invoiced before. Every change writes straight through, so
+ * backing out cannot lose a line and Done means only "this invoice has everything on it".
  *
  * A product that is already on the invoice drops out of the catalogue list and appears above it
  * with a quantity stepper. Tapping it again meant "two of these", not "a second identical line".
@@ -653,7 +675,10 @@ private fun ColumnScope.ItemsSection(state: BillantaState, invoice: InvoiceRecor
         // Matching on the name is what the catalogue itself keys on, so a line added from a
         // product and the product it came from stay recognisably the same thing.
         val onInvoice = invoice.items.map { ProductRecord.nameKeyOf(it.description) }.toSet()
-        val available = state.products.filterNot { ProductRecord.nameKeyOf(it.name) in onInvoice }
+        val catalogue = state.features.productCatalogue
+        val available =
+            if (!catalogue) emptyList()
+            else state.products.filterNot { ProductRecord.nameKeyOf(it.name) in onInvoice }
         if (available.isNotEmpty()) {
             item { Overline("From your catalogue") }
             items(available, key = { it.id }) { product ->
@@ -682,7 +707,7 @@ private fun ColumnScope.ItemsSection(state: BillantaState, invoice: InvoiceRecor
                     }
                 }
             }
-        } else if (invoice.items.isEmpty()) {
+        } else if (invoice.items.isEmpty() && catalogue) {
             item {
                 Text(
                     "Nothing in your catalogue yet. Add an item and it will be saved here for next time.",
@@ -693,6 +718,7 @@ private fun ColumnScope.ItemsSection(state: BillantaState, invoice: InvoiceRecor
             }
         }
     }
+    DoneBar(state) { state.pop() }
 }
 
 /** Steps a line's quantity. Whole units only — a fractional quantity is typed, not tapped. */
@@ -727,30 +753,37 @@ private fun StepButton(label: String, onClick: () -> Unit) {
 
 @Composable
 private fun ColumnScope.DiscountSection(state: BillantaState, invoice: InvoiceRecord) {
-    LaunchedEffect(invoice.id) { state.seedDiscountFrom(invoice) }
+    // Seeded straight from the record rather than through app-level draft state: the seeding used to
+    // land one composition late, which an auto-saving form reads as the user having changed something.
+    var kind by remember(invoice.id) { mutableStateOf(invoice.discount?.type) }
+    var amount by remember(invoice.id) { mutableStateOf(discountValueInput(invoice.discount)) }
+
+    AutoSave(kind, amount) {
+        state.setInvoiceDiscount(invoice.id, kind, amount, invoice.discountBeforeTax)
+    }
 
     ColumnScopeBody {
         FieldLabel("Discount")
         ChipRow(
             items = DISCOUNT_KINDS,
-            isSelected = { it.type == state.draftDiscountType },
+            isSelected = { it.type == kind },
             label = { it.label },
             onSelect = {
-                state.draftDiscountType = it.type
-                if (it.type == null) state.draftDiscountValue = ""
+                kind = it.type
+                if (it.type == null) amount = ""
             },
         )
-        if (state.draftDiscountType != null) {
+        if (kind != null) {
             BillantaTextField(
-                state.draftDiscountValue,
-                { state.draftDiscountValue = it },
-                label = if (state.draftDiscountType == DiscountType.Percentage) "Percent off" else "Amount off (₹)",
+                amount,
+                { amount = it },
+                label = if (kind == DiscountType.Percentage) "Percent off" else "Amount off (₹)",
                 placeholder = "0",
                 keyboardType = KeyboardType.Decimal,
             )
         }
     }
-    SaveBar(state, enabled = true) { state.setInvoiceDiscount(invoice.id) { state.pop() } }
+    DoneBar(state) { state.pop() }
 }
 
 private data class DiscountKind(val label: String, val type: DiscountType?)
@@ -764,6 +797,7 @@ private val DISCOUNT_KINDS = listOf(
 @Composable
 private fun ColumnScope.NotesSection(state: BillantaState, invoice: InvoiceRecord) {
     var notes by remember(invoice.id) { mutableStateOf(invoice.notes.orEmpty()) }
+    AutoSave(notes) { state.setInvoiceNotes(invoice.id, notes) }
     ColumnScopeBody {
         BillantaTextField(
             notes,
@@ -773,7 +807,7 @@ private fun ColumnScope.NotesSection(state: BillantaState, invoice: InvoiceRecor
             singleLine = false,
         )
     }
-    SaveBar(state, enabled = true) { state.setInvoiceNotes(invoice.id, notes) { state.pop() } }
+    DoneBar(state) { state.pop() }
 }
 
 /**
@@ -804,6 +838,34 @@ private fun ColumnScope.CompanySection(state: BillantaState, invoice: InvoiceRec
     var account by remember(invoice.id) { mutableStateOf(snapshot?.accountNumber ?: profile?.accountNumber ?: "") }
     var ifsc by remember(invoice.id) { mutableStateOf(snapshot?.ifsc ?: profile?.ifsc ?: "") }
     var alsoUpdateProfile by remember(invoice.id) { mutableStateOf(true) }
+
+    // Copies onto the stored profile rather than rebuilding it, so fields this form does not show
+    // — logo, QR, the authorised signatory — are carried through untouched.
+    fun commit() = state.setInvoiceCompany(invoice.id, alsoUpdateProfile) { current ->
+        current.copy(
+            name = name.trim(),
+            gstin = gstin.trim().ifBlank { null },
+            addressLine1 = line1.trim().ifBlank { null },
+            addressLine2 = line2.trim().ifBlank { null },
+            city = city.trim().ifBlank { null },
+            state = stateName.trim().ifBlank { null },
+            stateCode = stateCode.trim().ifBlank { null },
+            pincode = pincode.trim().ifBlank { null },
+            phone = phone.trim().ifBlank { null },
+            email = email.trim().ifBlank { null },
+            upiId = upi.trim().ifBlank { null },
+            bankName = bank.trim().ifBlank { null },
+            accountNumber = account.trim().ifBlank { null },
+            ifsc = ifsc.trim().ifBlank { null },
+        )
+    }
+
+    // The switch is a key as well as a field: flipping it is the user saying where these details
+    // belong, so the draft follows it to the other destination straight away.
+    AutoSave(
+        name, gstin, phone, email, line1, line2, city, stateName, stateCode, pincode,
+        upi, bank, account, ifsc, alsoUpdateProfile,
+    ) { if (name.isNotBlank()) commit() }
 
     ColumnScopeBody {
         BillantaTextField(name, { name = it }, label = "Business name", modifier = Modifier.fillMaxWidth())
@@ -871,28 +933,10 @@ private fun ColumnScope.CompanySection(state: BillantaState, invoice: InvoiceRec
         }
     }
 
-    // Copies onto the stored profile rather than rebuilding it, so fields this form does not show
-    // — logo, QR, the authorised signatory — are carried through untouched.
-    SaveBar(state, enabled = name.isNotBlank()) {
-        state.setInvoiceCompany(invoice.id, alsoUpdateProfile, onSaved = { state.pop() }) { current ->
-            current.copy(
-                name = name.trim(),
-                gstin = gstin.trim().ifBlank { null },
-                addressLine1 = line1.trim().ifBlank { null },
-                addressLine2 = line2.trim().ifBlank { null },
-                city = city.trim().ifBlank { null },
-                state = stateName.trim().ifBlank { null },
-                stateCode = stateCode.trim().ifBlank { null },
-                pincode = pincode.trim().ifBlank { null },
-                phone = phone.trim().ifBlank { null },
-                email = email.trim().ifBlank { null },
-                upiId = upi.trim().ifBlank { null },
-                bankName = bank.trim().ifBlank { null },
-                accountNumber = account.trim().ifBlank { null },
-                ifsc = ifsc.trim().ifBlank { null },
-            )
-        }
-    }
+    DoneBar(
+        state,
+        blocker = if (name.isBlank()) "A business name is required — nothing is saved without it." else null,
+    ) { state.pop() }
 }
 
 /**
@@ -916,6 +960,20 @@ private fun ColumnScope.BankDetailsSection(state: BillantaState, invoice: Invoic
     val needsName = profile?.name.isNullOrBlank() && snapshot?.name.isNullOrBlank()
     var businessName by remember(invoice.id) {
         mutableStateOf(profile?.name ?: snapshot?.name ?: "")
+    }
+
+    fun commit() = state.setInvoiceCompany(invoice.id, alsoUpdateProfile) { current ->
+        current.copy(
+            name = current.name.ifBlank { businessName.trim() },
+            bankName = bank.trim().ifBlank { null },
+            accountNumber = account.trim().ifBlank { null },
+            ifsc = ifsc.trim().ifBlank { null },
+            upiId = upi.trim().ifBlank { null },
+        )
+    }
+
+    AutoSave(bank, account, ifsc, upi, businessName, alsoUpdateProfile) {
+        if (!needsName || businessName.isNotBlank()) commit()
     }
 
     ColumnScopeBody {
@@ -942,17 +1000,12 @@ private fun ColumnScope.BankDetailsSection(state: BillantaState, invoice: Invoic
         SaveToProfileSwitch(alsoUpdateProfile) { alsoUpdateProfile = it }
     }
 
-    SaveBar(state, enabled = !needsName || businessName.isNotBlank()) {
-        state.setInvoiceCompany(invoice.id, alsoUpdateProfile, onSaved = { state.pop() }) { current ->
-            current.copy(
-                name = current.name.ifBlank { businessName.trim() },
-                bankName = bank.trim().ifBlank { null },
-                accountNumber = account.trim().ifBlank { null },
-                ifsc = ifsc.trim().ifBlank { null },
-                upiId = upi.trim().ifBlank { null },
-            )
-        }
-    }
+    DoneBar(
+        state,
+        blocker = if (needsName && businessName.isBlank()) {
+            "A business name is required — nothing is saved without it."
+        } else null,
+    ) { state.pop() }
 }
 
 /** The signature image (BE-011): choose one from the device, or take the current one off. */
@@ -973,11 +1026,25 @@ private fun ColumnScope.SignatureSection(state: BillantaState, invoice: InvoiceR
     val needsName = profile?.name.isNullOrBlank() && snapshot?.name.isNullOrBlank()
     var businessName by remember(invoice.id) { mutableStateOf(profile?.name ?: snapshot?.name ?: "") }
 
+    // Picking an image no longer steps back: the point of the screen is to show what the invoice
+    // will print, so the user should see the signature they just chose land on it.
     fun choose() = state.pickAndUploadCompanyImage(
         invoiceId = invoice.id,
         alsoUpdateProfile = alsoUpdateProfile,
         apply = { company, url -> company.copy(signature = url) },
-    ) { state.pop() }
+    )
+
+    AutoSave(signatoryName, signatoryDesignation, businessName, alsoUpdateProfile) {
+        if (!needsName || businessName.isNotBlank()) {
+            state.setInvoiceCompany(invoice.id, alsoUpdateProfile) { current ->
+                current.copy(
+                    name = current.name.ifBlank { businessName.trim() },
+                    signatoryName = signatoryName.trim().ifBlank { null },
+                    signatoryDesignation = signatoryDesignation.trim().ifBlank { null },
+                )
+            }
+        }
+    }
 
     ColumnScopeBody {
         if (signature.isNullOrBlank()) {
@@ -1018,23 +1085,14 @@ private fun ColumnScope.SignatureSection(state: BillantaState, invoice: InvoiceR
 
         SaveToProfileSwitch(alsoUpdateProfile) { alsoUpdateProfile = it }
 
-        PrimaryButton(
-            if (state.savingSection) "Saving…" else "Save",
-            onClick = {
-                state.setInvoiceCompany(invoice.id, alsoUpdateProfile, onSaved = { state.pop() }) { current ->
-                    current.copy(
-                        name = current.name.ifBlank { businessName.trim() },
-                        signatoryName = signatoryName.trim().ifBlank { null },
-                        signatoryDesignation = signatoryDesignation.trim().ifBlank { null },
-                    )
-                }
-            },
-            enabled = !state.savingSection && (!needsName || businessName.isNotBlank()),
-            modifier = Modifier.fillMaxWidth(),
-        )
-
-        if (state.canPickImages) {
-            SecondaryButton(
+        when {
+            // `features.mediaUpload` (BE-014). Removing a signature is not an upload, so that stays.
+            !state.features.mediaUpload -> Text(
+                "Adding a signature image isn't available right now.",
+                style = BillantaTheme.type.caption,
+                color = c.textMuted,
+            )
+            state.canPickImages -> SecondaryButton(
                 when {
                     state.savingSection -> "Uploading…"
                     signature.isNullOrBlank() -> "Choose signature"
@@ -1044,8 +1102,7 @@ private fun ColumnScope.SignatureSection(state: BillantaState, invoice: InvoiceR
                 enabled = !state.savingSection,
                 modifier = Modifier.fillMaxWidth(),
             )
-        } else {
-            Text(
+            else -> Text(
                 "Choosing an image isn't available in this build.",
                 style = BillantaTheme.type.caption,
                 color = c.textMuted,
@@ -1056,21 +1113,23 @@ private fun ColumnScope.SignatureSection(state: BillantaState, invoice: InvoiceR
             SecondaryButton(
                 "Remove signature",
                 onClick = {
-                    state.setInvoiceCompany(invoice.id, alsoUpdateProfile, onSaved = { state.pop() }) {
-                        it.copy(signature = null)
-                    }
+                    state.setInvoiceCompany(invoice.id, alsoUpdateProfile) { it.copy(signature = null) }
                 },
                 enabled = !state.savingSection,
                 tint = c.danger,
                 modifier = Modifier.fillMaxWidth(),
             )
         }
-
-        // Uploads need the network; there is no offline queue for media.
-        state.draftError?.let {
-            Text(it, style = BillantaTheme.type.caption, color = c.danger)
-        }
     }
+
+    // Uploads need the network; there is no offline queue for media, so a failure is reported in
+    // the bar along with everything else this section writes.
+    DoneBar(
+        state,
+        blocker = if (needsName && businessName.isBlank()) {
+            "A business name is required — nothing is saved without it."
+        } else null,
+    ) { state.pop() }
 }
 
 /** Shared by every editor that writes company fields: does this change stop at this invoice? */
@@ -1103,25 +1162,87 @@ private fun SaveToProfileSwitch(checked: Boolean, onChange: (Boolean) -> Unit) {
     }
 }
 
-/** An invoice's frozen letterhead, back to an editable profile. */
+// ---- saving --------------------------------------------------------------------------------
+
+/** How long after the user's last change a section editor writes itself. */
+private const val AUTO_SAVE_DELAY_MILLIS = 700L
+
+/**
+ * Writes a section's draft a moment after the user stops changing it, and once more on the way out.
+ *
+ * [keys] are everything the write reads: a change to any of them restarts the timer, so a burst of
+ * typing costs one write rather than one per keystroke. The first composition never writes — the
+ * draft is seeded from the record it would be written to, so saving on open would mark an invoice
+ * the user merely looked at as changed.
+ *
+ * The write on dispose is what makes Done, the back arrow and the system back mean the same thing:
+ * whichever one the user reaches for, the last thing they typed is already on its way to the
+ * database. It runs on the app's scope rather than this screen's, so the screen going away cannot
+ * cancel it half-written.
+ */
 @Composable
-private fun ColumnScope.SaveBar(state: BillantaState, enabled: Boolean, onSave: () -> Unit) {
-    val c = BillantaTheme.colors
-    state.draftError?.let {
-        Text(
-            it,
-            style = BillantaTheme.type.caption,
-            color = c.danger,
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 6.dp),
-        )
+private fun AutoSave(vararg keys: Any?, save: () -> Unit) {
+    // Kept up to date so that both the timer and the write on the way out see the latest draft
+    // rather than the one that happened to be in the composition they were started from.
+    val latest by rememberUpdatedState(save)
+    val pending = remember { PendingSave() }
+    LaunchedEffect(*keys) {
+        if (!pending.seeded) {
+            pending.seeded = true
+            return@LaunchedEffect
+        }
+        pending.dirty = true
+        delay(AUTO_SAVE_DELAY_MILLIS)
+        pending.flush(latest)
     }
+    DisposableEffect(Unit) { onDispose { pending.flush(latest) } }
+}
+
+/** Whether an [AutoSave] still owes a write — the bit that has to outlive each recomposition. */
+private class PendingSave {
+    var seeded = false
+    var dirty = false
+
+    fun flush(save: () -> Unit) {
+        if (!dirty) return
+        dirty = false
+        save()
+    }
+}
+
+/**
+ * The bottom of every section editor: what the saving is doing, and the way back out.
+ *
+ * There is no Save button — the section writes itself — so this one only ever means "I am finished
+ * with this section". [blocker] is the exception: it says the draft cannot be written at all, which
+ * is the one case where walking away would lose an edit, so Done waits until it is cleared. The
+ * back arrow still works, and what is on the invoice is the last draft that *was* writable.
+ */
+@Composable
+private fun ColumnScope.DoneBar(state: BillantaState, blocker: String? = null, onDone: () -> Unit) {
+    val c = BillantaTheme.colors
+    val problem = state.draftError ?: blocker
     BottomActionBar {
-        PrimaryButton(
-            if (state.savingSection) "Saving…" else "Save",
-            onClick = onSave,
-            enabled = enabled && !state.savingSection,
-            modifier = Modifier.fillMaxWidth(),
-        )
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(
+                problem ?: when (state.sectionSaveState) {
+                    BillantaState.SaveState.Saving -> "Saving…"
+                    BillantaState.SaveState.Saved -> "Saved"
+                    BillantaState.SaveState.Clean -> "Changes are saved as you make them"
+                },
+                style = BillantaTheme.type.caption,
+                color = if (problem != null) c.danger else c.textMuted,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            PrimaryButton(
+                "Done",
+                onClick = onDone,
+                enabled = blocker == null,
+                leadingIcon = AppIcon.Check,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
     }
 }
 
