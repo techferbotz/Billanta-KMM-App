@@ -134,6 +134,23 @@ object Iso8601 {
         return "$d ${MONTHS_SHORT[m - 1]} $y"
     }
 
+    /** `28 Jul` — for a list already grouped under a month-and-year heading. */
+    fun formatDayMonth(epochMillis: Long): String {
+        val (_, m, d) = civilFromUtcMillis(epochMillis)
+        return "$d ${MONTHS_SHORT[m - 1]}"
+    }
+
+    /** `July 2026` — a month heading. */
+    fun formatMonthYear(epochMillis: Long): String {
+        val (y, m, _) = civilFromUtcMillis(epochMillis)
+        return "${MONTHS_LONG[m - 1]} $y"
+    }
+
+    private val MONTHS_LONG = listOf(
+        "January", "February", "March", "April", "May", "June",
+        "July", "August", "September", "October", "November", "December",
+    )
+
     /** UTC month bounds around an instant: [startInclusive, endExclusive). */
     fun monthRange(epochMillis: Long): LongRange {
         var days = epochMillis / MILLIS_PER_DAY

@@ -121,7 +121,19 @@ data class InvoiceRecord(
     val themeOverrides: Map<String, Long> = emptyMap(),
     /** Template sections the user has switched off, by section id. */
     val hiddenSections: Set<String> = emptySet(),
-)
+    /**
+     * What a list card shows about the lines, set on list projections — where [items] is empty.
+     * Read it through [lineSummary], which falls back to [items] for a fully loaded invoice.
+     */
+    val itemSummary: InvoiceItemSummary? = null,
+) {
+    /** The line count and first description, whichever way this record was loaded. */
+    val lineSummary: InvoiceItemSummary
+        get() = itemSummary ?: InvoiceItemSummary(items.size, items.firstOrNull()?.description)
+}
+
+/** How many lines an invoice has, and the first one's description — "what was this for". */
+data class InvoiceItemSummary(val count: Int, val firstDescription: String?)
 
 /**
  * A reusable product or service, built from the line items actually invoiced and offered back

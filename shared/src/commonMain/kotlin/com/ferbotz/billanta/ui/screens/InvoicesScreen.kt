@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -30,6 +31,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.ferbotz.billanta.core.Iso8601
+import com.ferbotz.billanta.model.formatPaiseTrimmed
 import com.ferbotz.billanta.state.BillantaState
 import com.ferbotz.billanta.state.PreviewRoute
 import com.ferbotz.billanta.theme.BillantaTheme
@@ -60,11 +63,36 @@ fun InvoicesScreen(state: BillantaState) {
             } else if (list.isEmpty()) {
                 item { EmptyInvoices(hasQuery = state.query.isNotBlank(), onCreate = { state.openCreate() }) }
             } else {
-                items(list, key = { it.id }) { inv ->
-                    InvoiceCard(inv, onClick = { state.push(PreviewRoute(inv.id)) })
+                // Newest first already, so grouping keeps the order: each month's heading lands
+                // directly above that month's invoices.
+                list.groupBy { Iso8601.monthRange(it.invoiceDateMillis).first }.forEach { (month, invoices) ->
+                    item(key = "month-$month") {
+                        MonthHeader(month, invoices.sumOf { it.grandTotalPaise })
+                    }
+                    items(invoices, key = { it.id }) { inv ->
+                        InvoiceCard(inv, onClick = { state.push(PreviewRoute(inv.id)) })
+                    }
                 }
             }
         }
+    }
+}
+
+/** "September 2026 · ₹3,43,905": where one month's invoices start, and what they add up to. */
+@Composable
+private fun MonthHeader(monthStartMillis: Long, totalPaise: Long) {
+    val c = BillantaTheme.colors
+    Row(
+        Modifier.fillMaxWidth().padding(start = 4.dp, end = 4.dp, top = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            Iso8601.formatMonthYear(monthStartMillis),
+            style = BillantaTheme.type.label,
+            color = c.textSecondary,
+            modifier = Modifier.weight(1f),
+        )
+        Text(totalPaise.formatPaiseTrimmed(), style = BillantaTheme.type.label, color = c.textSecondary)
     }
 }
 
@@ -104,14 +132,29 @@ private fun ShimmerCard() {
         initialValue = 0.45f, targetValue = 0.9f,
         animationSpec = infiniteRepeatable(tween(750), RepeatMode.Reverse),
     )
+    // The shape of an InvoiceCard — face, three lines, a dated footer — so the list does not jump
+    // when the real cards replace these.
     Box(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(c.surface)
-            .border(1.dp, c.border, RoundedCornerShape(18.dp)).padding(16.dp),
+            .border(1.dp, c.border, RoundedCornerShape(18.dp)),
     ) {
         Column {
-            Bar(0.5f, 16, alpha)
-            Spacer(Modifier.height(10.dp))
-            Bar(0.72f, 12, alpha)
+            Row(Modifier.padding(start = 14.dp, end = 16.dp, top = 14.dp, bottom = 12.dp)) {
+                Box(
+                    Modifier.size(42.dp).clip(RoundedCornerShape(21.dp))
+                        .graphicsLayer { this.alpha = alpha }.background(c.surfaceAlt),
+                )
+                Spacer(Modifier.width(12.dp))
+                Column(Modifier.weight(1f)) {
+                    Bar(0.55f, 16, alpha)
+                    Spacer(Modifier.height(8.dp))
+                    Bar(0.35f, 11, alpha)
+                    Spacer(Modifier.height(8.dp))
+                    Bar(0.75f, 11, alpha)
+                }
+            }
+            Box(Modifier.fillMaxWidth().height(1.dp).background(c.border))
+            Box(Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) { Bar(0.4f, 10, alpha) }
         }
     }
 }
@@ -144,7 +187,7 @@ private fun EmptyInvoices(hasQuery: Boolean, onCreate: () -> Unit) {
         )
         Spacer(Modifier.height(6.dp))
         Text(
-            if (hasQuery) "Try a different search or filter." else "Create your first invoice in under 30 seconds.",
+            if (hasQuery) "Try a different number or customer name." else "Create your first invoice in under 30 seconds.",
             style = BillantaTheme.type.body, color = c.textSecondary, textAlign = TextAlign.Center,
         )
         if (!hasQuery) {

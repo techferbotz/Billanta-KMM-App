@@ -57,6 +57,40 @@ operator fun Paise.times(qty: Int) = Paise(value * qty)
 fun Long.formatPaise(withPaise: Boolean = true, withSymbol: Boolean = true): String =
     Paise(this).format(withPaise = withPaise, withSymbol = withSymbol)
 
+/**
+ * Whole rupees when there are no paise — `₹2,36,000` — and exact when there are — `₹18,880.50`.
+ * For a list, where ".00" on every amount is noise but a real 50 paise must not be rounded away.
+ */
+fun Long.formatPaiseTrimmed(): String = formatPaise(withPaise = this % 100 != 0L)
+
+/**
+ * Indian compact form for a narrow column: `₹37,760` below a lakh, `₹4.56 L`, `₹1.2 Cr`. Rounded
+ * to two decimals of the unit, so never use it where the exact amount matters.
+ */
+fun Long.formatPaiseCompact(): String {
+    val sign = if (this < 0) "-" else ""
+    val rupees = abs(this) / 100
+    fun scaled(unit: Long): String {
+        val hundredths = (rupees * 100 + unit / 2) / unit
+        val whole = hundredths / 100
+        val frac = hundredths % 100
+        return when {
+            frac == 0L -> "$whole"
+            frac % 10 == 0L -> "$whole.${frac / 10}"
+            else -> "$whole.${frac.toString().padStart(2, '0')}"
+        }
+    }
+    return when {
+        rupees >= CRORE -> "$sign₹${scaled(CRORE)} Cr"
+        // 99,99,999 would round up to "100 L": that is a crore, so say so.
+        rupees >= LAKH -> if ((rupees * 100 + LAKH / 2) / LAKH >= 10_000) "$sign₹1 Cr" else "$sign₹${scaled(LAKH)} L"
+        else -> formatPaise(withPaise = false)
+    }
+}
+
+private const val LAKH = 1_00_000L
+private const val CRORE = 1_00_00_000L
+
 /** `"1500.5"` (rupees, plain decimal, no grouping) → 150050 paise. Null when malformed. */
 fun parseRupeesToPaise(text: String): Long? {
     val parsed = com.ferbotz.billanta.core.DecimalString.parseOrNull(text.trim()) ?: return null

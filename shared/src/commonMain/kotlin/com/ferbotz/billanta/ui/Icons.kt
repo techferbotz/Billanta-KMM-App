@@ -29,6 +29,7 @@ enum class AppIcon {
     Search, Bell, Tune, Plus, Receipt, People, Grid, Person,
     ChevronRight, ChevronDown, ArrowLeft, Check, Share, Download,
     Pencil, Trash, Close, Lock, CloudOff, Star, Camera, Qr, Info, Plane, Copy, Dot, Sun, Moon, Search2, Catalogue, Gear,
+    Briefcase, Package, PriceTag, MapPin, Phone, Calendar,
 }
 
 @Composable
@@ -95,6 +96,44 @@ fun BillantaIcon(
                         lineTo(12f * k + cos(a) * 9.4f * k, 12f * k + sin(a) * 9.4f * k)
                     }
                 }
+            }
+            // A service on a catalogue card.
+            AppIcon.Briefcase -> {
+                drawRoundRectStroke(3.5f, 7.5f, 17f, 12f, 2.2f, k, tint, stroke)
+                p { moveTo(9f * k, 7.5f * k); lineTo(9f * k, 5.8f * k); cubicTo(9f * k, 5f * k, 9.5f * k, 4.5f * k, 10.3f * k, 4.5f * k); lineTo(13.7f * k, 4.5f * k); cubicTo(14.5f * k, 4.5f * k, 15f * k, 5f * k, 15f * k, 5.8f * k); lineTo(15f * k, 7.5f * k) }
+                line(3.5f, 12.5f, 20.5f, 12.5f)
+            }
+            // Goods: a box, drawn as a cube.
+            AppIcon.Package -> {
+                p { moveTo(12f * k, 3.5f * k); lineTo(19.5f * k, 7.5f * k); lineTo(19.5f * k, 16.5f * k); lineTo(12f * k, 20.5f * k); lineTo(4.5f * k, 16.5f * k); lineTo(4.5f * k, 7.5f * k); close() }
+                p { moveTo(4.5f * k, 7.5f * k); lineTo(12f * k, 11.5f * k); lineTo(19.5f * k, 7.5f * k) }
+                line(12f, 11.5f, 12f, 20.5f)
+                line(8.2f, 5.5f, 15.8f, 9.5f)
+            }
+            // A catalogue line with no HSN/SAC code: priced, but not classified.
+            AppIcon.PriceTag -> {
+                p { moveTo(4.5f * k, 4.5f * k); lineTo(11f * k, 4.5f * k); lineTo(19.5f * k, 13f * k); lineTo(13f * k, 19.5f * k); lineTo(4.5f * k, 11f * k); close() }
+                drawCircle(tint, 1.4f * k, Offset(8.3f * k, 8.3f * k), style = stroke)
+            }
+            AppIcon.MapPin -> {
+                p {
+                    moveTo(12f * k, 20.5f * k)
+                    cubicTo(12f * k, 20.5f * k, 5.5f * k, 14.8f * k, 5.5f * k, 10f * k)
+                    cubicTo(5.5f * k, 6.3f * k, 8.4f * k, 3.5f * k, 12f * k, 3.5f * k)
+                    cubicTo(15.6f * k, 3.5f * k, 18.5f * k, 6.3f * k, 18.5f * k, 10f * k)
+                    cubicTo(18.5f * k, 14.8f * k, 12f * k, 20.5f * k, 12f * k, 20.5f * k)
+                }
+                drawCircle(tint, 2.3f * k, Offset(12f * k, 10f * k), style = stroke)
+            }
+            AppIcon.Phone -> {
+                drawRoundRectStroke(7f, 3.5f, 10f, 17f, 2.2f, k, tint, stroke)
+                line(11f, 17.3f, 13f, 17.3f)
+            }
+            AppIcon.Calendar -> {
+                drawRoundRectStroke(4f, 5.5f, 16f, 14.5f, 2.2f, k, tint, stroke)
+                line(4f, 10f, 20f, 10f)
+                line(8.5f, 3.5f, 8.5f, 7f)
+                line(15.5f, 3.5f, 15.5f, 7f)
             }
             AppIcon.Catalogue -> {
                 drawRoundRectStroke(4f, 4f, 16f, 16f, 2.4f, k, tint, stroke)

@@ -6,9 +6,11 @@ import com.ferbotz.billanta.core.BillantaJson
 import com.ferbotz.billanta.data.db.BillantaDb
 import com.ferbotz.billanta.domain.model.InvoiceDocStatus
 import com.ferbotz.billanta.domain.model.CompanySnapshot
+import com.ferbotz.billanta.domain.model.InvoiceItemSummary
 import com.ferbotz.billanta.domain.model.InvoiceRecord
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 
@@ -19,11 +21,23 @@ class InvoiceLocalDataSource(
     private val q get() = db.invoicesQueries
     private val itemsQ get() = db.invoiceItemsQueries
 
-    /** Live list (tombstones excluded). Items are not populated in list projections. */
+    /**
+     * Live list (tombstones excluded). Items are not populated in list projections; each record
+     * carries an [InvoiceItemSummary] instead, from its own query — so editing a line updates the
+     * card without the list loading every invoice's lines.
+     */
     fun observeList(status: InvoiceDocStatus?, query: String): Flow<List<InvoiceRecord>> =
-        q.list(status = status?.name, q = query.trim())
-            .asFlow().mapToList(dispatcher)
-            .map { rows -> rows.map { it.toDomain() } }
+        combine(
+            q.list(status = status?.name, q = query.trim()).asFlow().mapToList(dispatcher),
+            itemsQ.summaries().asFlow().mapToList(dispatcher),
+        ) { rows, summaries ->
+            val byInvoice = summaries.associate {
+                it.invoiceId to InvoiceItemSummary(it.itemCount.toInt(), it.firstDescription)
+            }
+            rows.map { row ->
+                row.toDomain().copy(itemSummary = byInvoice[row.id] ?: InvoiceItemSummary(0, null))
+            }
+        }
 
     fun observeById(id: String): Flow<InvoiceRecord?> =
         q.byId(id).asFlow().mapToList(dispatcher).map { rows ->

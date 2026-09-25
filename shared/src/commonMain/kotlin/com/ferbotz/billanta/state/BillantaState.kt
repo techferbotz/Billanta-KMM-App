@@ -1,5 +1,6 @@
 package com.ferbotz.billanta.state
 
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -36,6 +37,7 @@ import com.ferbotz.billanta.domain.money.GstSplit
 import com.ferbotz.billanta.domain.money.InvoiceCalculator
 import com.ferbotz.billanta.domain.money.InvoiceTotals
 import com.ferbotz.billanta.model.parseRupeesToPaise
+import com.ferbotz.billanta.model.stateCodeFromGstin
 import com.ferbotz.billanta.render.SectionEdits
 import com.ferbotz.billanta.render.TemplateSection
 import com.ferbotz.billanta.session.AuthState
@@ -287,6 +289,25 @@ class BillantaState(
     fun templateById(id: String): TemplateInfo? = templates.firstOrNull { it.id == id }
     fun customerById(id: String?): CustomerRecord? = id?.let { cid -> customers.firstOrNull { it.id == cid } }
     fun invoiceFlow(id: String): Flow<InvoiceRecord?> = container.invoiceRepository.observeInvoice(id)
+
+    /**
+     * Invoices, amount billed and latest invoice date for every customer, computed in one pass and
+     * only when the invoices change — the catalogue shows these on every customer card, where
+     * scanning all invoices once per row would grow with customers times invoices.
+     */
+    val customerStats: Map<String, CustomerStats> by derivedStateOf {
+        allInvoices.filter { it.customerId != null }.groupBy { it.customerId!! }.mapValues { (_, list) ->
+            CustomerStats(
+                invoiceCount = list.size,
+                billedPaise = list.sumOf { it.grandTotalPaise },
+                lastInvoiceMillis = list.maxOf { it.invoiceDateMillis },
+            )
+        }
+    }
+
+    /** Where this business is registered, for telling a same-state sale from an inter-state one. */
+    val sellerStateCode: String?
+        get() = company?.let { it.stateCode?.takeIf(String::isNotBlank) ?: it.gstin?.let(::stateCodeFromGstin) }
 
     fun invoiceCountFor(customerId: String): Int = allInvoices.count { it.customerId == customerId }
     fun billedTotalFor(customerId: String): Long =
@@ -830,3 +851,10 @@ internal fun discountValueInput(discount: DiscountSpec?): String {
     return if (paise % 100 == 0L) (paise / 100).toString()
     else "${paise / 100}.${(paise % 100).toString().padStart(2, '0')}"
 }
+
+/** What a customer card summarises about the invoices made out to them. */
+data class CustomerStats(
+    val invoiceCount: Int,
+    val billedPaise: Long,
+    val lastInvoiceMillis: Long,
+)
