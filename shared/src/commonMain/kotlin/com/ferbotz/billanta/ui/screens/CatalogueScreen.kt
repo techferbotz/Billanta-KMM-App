@@ -4,6 +4,11 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import com.ferbotz.billanta.ui.components.ProductImage
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -18,6 +23,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -193,13 +199,17 @@ private fun CustomersPane(state: BillantaState) {
 
 @Composable
 private fun ProductsPane(state: BillantaState) {
-    LazyColumn(
-        Modifier.fillMaxSize(),
+    // A grid of photo cards: a catalogue is browsed by eye, and two across still leaves each card
+    // room for a two-line name. Adaptive, so a tablet gets more columns rather than wider cards.
+    LazyVerticalGrid(
+        columns = GridCells.Adaptive(minSize = ProductCardMinWidth),
+        modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = 12.dp, bottom = BottomBarSpace),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         if (state.products.isEmpty()) {
-            item {
+            item(span = { GridItemSpan(maxLineSpan) }) {
                 EmptyPane(
                     icon = AppIcon.Catalogue,
                     title = "No products yet",
@@ -211,7 +221,7 @@ private fun ProductsPane(state: BillantaState) {
             }
         } else {
             items(state.products, key = { it.id }) { product ->
-                ProductCard(product, onClick = { state.push(EditProductRoute(product.id)) })
+                ProductGridCard(product, onClick = { state.push(EditProductRoute(product.id)) })
             }
         }
     }
@@ -289,80 +299,92 @@ private fun CustomerCard(
 }
 
 /**
- * Something you sell: a square tile that says service or goods (read from the SAC/HSN code), the
- * rate and what it is per, its GST rate, and how often it has actually been invoiced.
+ * Something you sell, as a card in the catalogue grid: its photo on top — or the service/goods
+ * tile until it has one — then the name, the rate and what it is per, its GST rate and SAC/HSN
+ * code, and how often it has actually been invoiced.
+ *
+ * Every card reserves two lines for the name and shows every row, so the cards in a grid row come
+ * out the same height and their bottoms line up.
  */
 @Composable
-private fun ProductCard(product: ProductRecord, onClick: () -> Unit) {
+private fun ProductGridCard(product: ProductRecord, onClick: () -> Unit) {
     val c = BillantaTheme.colors
     val kind = ProductKind.of(product.hsnSac)
     val code = product.hsnSac?.trim()?.takeIf { it.isNotEmpty() }
-    val (tileBg, tileFg) = when (kind) {
-        ProductKind.Service -> c.primaryMuted to c.primary
-        ProductKind.Goods -> c.warningBg to c.warning
-        ProductKind.Unspecified -> c.surfaceAlt to c.textSecondary
-    }
-    val icon = when (kind) {
-        ProductKind.Service -> AppIcon.Briefcase
-        ProductKind.Goods -> AppIcon.Package
-        ProductKind.Unspecified -> AppIcon.PriceTag
-    }
-    val classification = when (kind) {
-        ProductKind.Service -> "Service · SAC $code"
-        ProductKind.Goods -> "Goods · HSN $code"
-        ProductKind.Unspecified -> "No HSN/SAC code"
-    }
-
-    SurfaceCard(Modifier.fillMaxWidth(), onClick = onClick, padding = 14) {
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Box(
-                Modifier.size(46.dp).clip(RoundedCornerShape(12.dp)).background(tileBg),
-                contentAlignment = Alignment.Center,
-            ) { BillantaIcon(icon, tileFg, size = 22.dp) }
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                Row(verticalAlignment = Alignment.Top) {
-                    Text(
-                        product.name,
-                        style = BillantaTheme.type.cardTitle,
+    SurfaceCard(Modifier.fillMaxWidth(), onClick = onClick, padding = 0) {
+        Column {
+            Box {
+                ProductImage(
+                    url = product.previewImageUrl,
+                    kind = kind,
+                    modifier = Modifier.fillMaxWidth().aspectRatio(4f / 3f),
+                    iconSize = 34.dp,
+                )
+                // With a photo the tile's icon is hidden, so what the product is moves to a label.
+                if (product.previewImageUrl != null && kind != ProductKind.Unspecified) {
+                    Tag(
+                        if (kind == ProductKind.Service) "Service" else "Goods",
                         color = c.textPrimary,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f),
+                        background = c.surface.copy(alpha = 0.92f),
+                        modifier = Modifier.align(Alignment.TopStart).padding(8.dp),
                     )
-                    Spacer(Modifier.width(10.dp))
-                    Text(product.unitPricePaise.formatPaiseTrimmed(), style = BillantaTheme.type.amount, color = c.textPrimary)
                 }
-                Row(verticalAlignment = Alignment.CenterVertically) {
+            }
+            Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    product.name,
+                    style = BillantaTheme.type.bodyStrong,
+                    color = c.textPrimary,
+                    minLines = 2,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Row(verticalAlignment = Alignment.Bottom) {
                     Text(
-                        classification,
+                        product.unitPricePaise.formatPaiseTrimmed(),
+                        style = BillantaTheme.type.amount,
+                        color = c.textPrimary,
+                        maxLines = 1,
+                    )
+                    product.unit?.trim()?.takeIf { it.isNotEmpty() }?.let {
+                        Text(
+                            " / $it",
+                            style = BillantaTheme.type.caption,
+                            color = c.textSecondary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.padding(bottom = 1.dp),
+                        )
+                    }
+                }
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Tag("${product.taxRatePercent}% GST", color = c.textSecondary, background = c.surfaceAlt)
+                    Text(
+                        when (kind) {
+                            ProductKind.Service -> "SAC $code"
+                            ProductKind.Goods -> "HSN $code"
+                            ProductKind.Unspecified -> "No HSN/SAC"
+                        },
                         style = BillantaTheme.type.caption,
                         color = if (kind == ProductKind.Unspecified) c.textMuted else c.textSecondary,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f),
-                    )
-                    product.unit?.trim()?.takeIf { it.isNotEmpty() }?.let {
-                        Text("per $it", style = BillantaTheme.type.caption, color = c.textSecondary)
-                    }
-                }
-                Row(
-                    Modifier.padding(top = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    Tag("${product.taxRatePercent}% GST", color = c.textSecondary, background = c.surfaceAlt)
-                    Text(
-                        usageLine(product),
-                        style = BillantaTheme.type.caption,
-                        color = c.textSecondary,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
                     )
                 }
+                Text(
+                    usageLine(product),
+                    style = BillantaTheme.type.caption,
+                    color = c.textMuted,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
         }
     }
 }
+
+/** The narrowest a product card gets before the grid drops a column: two across on any phone. */
+private val ProductCardMinWidth = 150.dp
 
 /** Counted per line added, not per invoice — so "times", which is what it actually measures. */
 private fun usageLine(product: ProductRecord): String {

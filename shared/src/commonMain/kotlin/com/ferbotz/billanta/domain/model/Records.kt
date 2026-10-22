@@ -151,7 +151,14 @@ data class ProductRecord(
     val createdAtMillis: Long? = null,
     val updatedAtMillis: Long = 0,
     val pendingSync: Boolean = false,
+    /** The product photo (APP-015), full size — shown when the product is opened. */
+    val imageUrl: String? = null,
+    /** The same photo at ≤512 px — what the catalogue grid loads. */
+    val imageThumbnailUrl: String? = null,
 ) {
+    /** The smallest image that exists, for places that only need a glance at it. */
+    val previewImageUrl: String? get() = imageThumbnailUrl ?: imageUrl
+
     companion object {
         /** Case- and whitespace-insensitive identity, so "Logo design " repeats "logo  design". */
         fun nameKeyOf(name: String): String =

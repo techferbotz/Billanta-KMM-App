@@ -1,0 +1,8 @@
+-- Schema 3 -> 4
+--   * a photo per product (APP-015): the full image and its thumbnail, as POST /media returned them
+--
+-- Additive and nullable: every existing product reads back with no photo, and the catalogue shows
+-- it with the drawn service/goods tile it had before.
+
+ALTER TABLE productRow ADD COLUMN imageUrl TEXT;
+ALTER TABLE productRow ADD COLUMN imageThumbnailUrl TEXT;

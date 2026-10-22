@@ -1,5 +1,11 @@
 package com.ferbotz.billanta
 
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.graphics.ImageDecoder
+import android.os.Build
+import java.io.ByteArrayOutputStream
+import java.nio.ByteBuffer
 import android.net.Uri
 import android.provider.OpenableColumns
 import androidx.activity.ComponentActivity
@@ -73,12 +79,58 @@ class AndroidImagePicker(
         } ?: return@withContext AppError.Validation("That image could not be read.").asFailure()
 
         val contentType = resolver.getType(uri) ?: "image/jpeg"
-        val picked = PickedImage(fileName = displayName(uri, contentType), contentType = contentType, bytes = bytes)
+        val original = PickedImage(fileName = displayName(uri, contentType), contentType = contentType, bytes = bytes)
+        val picked = shrinkForUpload(original) ?: original
 
         ImagePickerCoordinator.rejectionReason(picked, maxBytes())?.let {
             return@withContext AppError.Validation(it).asFailure()
         }
         picked.asSuccess()
+    }
+
+    /**
+     * A photo straight off a phone camera can be 8,000 px across and well over the upload cap, and
+     * the server keeps at most 1280 px of it anyway (BE-020). So anything larger than
+     * [UPLOAD_LONG_EDGE] or the cap is decoded smaller and re-encoded before it is sent: faster, far
+     * less data, and no "too large" refusal for an ordinary photo.
+     *
+     * Transparency decides the format: an image with an alpha channel — a signature on a clear
+     * background — stays PNG, because JPEG would fill the clear parts with black. Everything else
+     * becomes JPEG. Returns null to mean "send the original": small enough already, a format
+     * [ImageDecoder] cannot read, or an Android version without it (before 9), where the size check
+     * still applies as before.
+     */
+    private fun shrinkForUpload(image: PickedImage): PickedImage? {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) return null
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeByteArray(image.bytes, 0, image.bytes.size, bounds)
+        val longEdge = maxOf(bounds.outWidth, bounds.outHeight)
+        if (longEdge in 1..UPLOAD_LONG_EDGE && image.bytes.size <= maxBytes()) return null
+        return runCatching {
+            // ImageDecoder applies the photo's EXIF rotation, so a portrait shot stays upright once
+            // the metadata that described the rotation is gone. Power-of-two sampling keeps the
+            // aspect ratio whatever that rotation is.
+            val bitmap = ImageDecoder.decodeBitmap(ImageDecoder.createSource(ByteBuffer.wrap(image.bytes))) { decoder, info, _ ->
+                val edge = maxOf(info.size.width, info.size.height)
+                var sample = 1
+                while (edge / sample > UPLOAD_LONG_EDGE) sample *= 2
+                decoder.setTargetSampleSize(sample)
+                // Software memory, because a hardware bitmap cannot be compressed back to bytes.
+                decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
+            }
+            val png = bitmap.hasAlpha()
+            val out = ByteArrayOutputStream()
+            bitmap.compress(if (png) Bitmap.CompressFormat.PNG else Bitmap.CompressFormat.JPEG, JPEG_QUALITY, out)
+            bitmap.recycle()
+            val extension = if (png) "png" else "jpg"
+            PickedImage(
+                fileName = "${image.fileName.substringBeforeLast('.')}.$extension",
+                contentType = if (png) "image/png" else "image/jpeg",
+                bytes = out.toByteArray(),
+            )
+        }.onFailure {
+            logWarn(LOG_TAG, "could not shrink a ${image.contentType} of ${image.bytes.size} bytes: ${it::class.simpleName}")
+        }.getOrNull()
     }
 
     /** The picker's own name when it has one, so an upload is recognisable server-side. */
@@ -93,5 +145,11 @@ class AndroidImagePicker(
 
     private companion object {
         const val LOG_TAG = "ImagePicker"
+
+        /** Room for the server's 1280 px copy, with nothing sent that it would throw away. */
+        const val UPLOAD_LONG_EDGE = 2048
+
+        /** Ignored for PNG, which is lossless. */
+        const val JPEG_QUALITY = 85
     }
 }

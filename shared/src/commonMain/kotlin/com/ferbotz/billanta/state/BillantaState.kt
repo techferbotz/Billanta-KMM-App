@@ -383,6 +383,8 @@ class BillantaState(
         price: String,
         taxRatePercent: String,
         unit: String,
+        imageUrl: String? = null,
+        imageThumbnailUrl: String? = null,
         onSaved: () -> Unit = {},
     ) {
         if (savingProduct) return
@@ -401,6 +403,8 @@ class BillantaState(
                 unitPricePaise = paise,
                 taxRatePercent = taxRatePercent.trim().ifBlank { "0" },
                 unit = unit,
+                imageUrl = imageUrl,
+                imageThumbnailUrl = imageThumbnailUrl,
             )
             savingProduct = false
             when (result) {
@@ -412,6 +416,51 @@ class BillantaState(
 
     fun deleteProduct(id: String) {
         scope.launch { container.productRepository.delete(id) }
+    }
+
+    // ---- product photos (APP-015) ----------------------------------------------------------------
+
+    /** True from the moment a picked photo starts uploading until the URLs are back. */
+    var uploadingProductPhoto by mutableStateOf(false)
+        private set
+
+    /**
+     * Why a photo cannot be added right now, or null when it can. Uploads go straight to
+     * `POST /media`, which needs an account and a connection — media has no offline queue — so a
+     * signed-out user is told what would make it possible rather than shown a button that fails.
+     */
+    val productPhotoBlocker: String?
+        get() = when {
+            !features.mediaUpload -> "Adding photos isn't available right now."
+            !canPickImages -> "Choosing a photo isn't available in this build."
+            !signedIn -> "Sign in from Profile to add photos."
+            else -> null
+        }
+
+    /**
+     * Picks a photo and uploads it, handing back the full image and its thumbnail. Nothing is
+     * saved: the product editor has a Save button, and the photo is part of what it saves — so
+     * backing out of the editor leaves the product exactly as it was.
+     */
+    fun pickProductPhoto(onUploaded: (url: String, thumbnailUrl: String?) -> Unit) {
+        if (uploadingProductPhoto || productPhotoBlocker != null) return
+        scope.launch {
+            productError = null
+            val image = when (val picked = container.imagePickerCoordinator.pick()) {
+                is AppResult.Failure -> {
+                    productError = picked.error.userMessage()
+                    return@launch
+                }
+                // Null means they backed out of the picker: a decision, so say nothing.
+                is AppResult.Success -> picked.value ?: return@launch
+            }
+            uploadingProductPhoto = true
+            when (val upload = container.mediaRepository.uploadImage(image.bytes, image.fileName, image.contentType)) {
+                is AppResult.Success -> onUploaded(upload.value.url, upload.value.thumbnailUrl)
+                is AppResult.Failure -> productError = upload.error.userMessage()
+            }
+            uploadingProductPhoto = false
+        }
     }
 
     // ---- template / settings / company actions -------------------------------------------------

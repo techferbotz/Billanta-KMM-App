@@ -30,6 +30,13 @@ dependencies {
 
     implementation(libs.androidx.activity.compose)
 
+    // Not used directly — the app has no Fragments. It is declared because several transitive
+    // dependencies still *request* fragment 1.0.0–1.2.5, and lint's
+    // InvalidFragmentVersionForActivityResult reads those requested versions rather than the one
+    // Gradle actually resolves (1.5.7), failing the release build over a version nothing uses.
+    // Declaring a current version makes the graph say what was already true.
+    implementation(libs.androidx.fragment)
+
     implementation(libs.compose.uiToolingPreview)
     debugImplementation(libs.compose.uiTooling)
 

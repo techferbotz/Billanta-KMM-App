@@ -396,6 +396,13 @@ class SyncManager(
 
     private suspend fun pullProducts(justPushed: Set<String>): AppError? {
         val serverIds = mutableSetOf<String>()
+        // BE-020's handover: the first pull that carries photo keys cannot tell "removed on another
+        // device" from "pushed before the server stored photos", and the second is the only way
+        // this build could have met it. So until one pull has seen the keys, a server null never
+        // clears a photo on this phone; it sends it again instead.
+        val reconciling = syncMeta.get(SyncMetaLocal.KEY_PRODUCT_PHOTOS_RECONCILED) == null
+        var sawPhotoKeys = false
+        var rescued = 0
         var cursor: String? = null
         while (true) {
             val page = when (val result = api.listProducts(limit = 100, cursor = cursor)) {
@@ -409,7 +416,13 @@ class SyncManager(
                     continue
                 }
                 serverIds += record.id
-                productLocal.applyServer(record)
+                if (dto.carriesImages) sawPhotoKeys = true
+                val kept = productLocal.applyServer(
+                    record,
+                    serverKnowsImages = dto.carriesImages,
+                    rescueUnsentPhoto = reconciling,
+                )
+                if (kept) rescued++
             }
             cursor = page.nextCursor
             if (!page.hasMore || cursor == null) break
@@ -418,6 +431,11 @@ class SyncManager(
         // deleted from another device.
         (productLocal.syncedCleanIds().toSet() - serverIds - justPushed)
             .forEach { productLocal.hardDelete(it) }
+        if (reconciling && sawPhotoKeys) syncMeta.put(SyncMetaLocal.KEY_PRODUCT_PHOTOS_RECONCILED, "1")
+        if (rescued > 0) {
+            logWarn(LOG_TAG, "re-sending $rescued product photo(s) the server never stored")
+            requestSync()
+        }
         return null
     }
 

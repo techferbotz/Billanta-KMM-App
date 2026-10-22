@@ -132,6 +132,10 @@ fun ProductDto.toDomain(fallbackUpdatedAtMillis: Long): ProductRecord = ProductR
     createdAtMillis = isoToMillis(createdAt),
     updatedAtMillis = isoToMillis(updatedAt) ?: fallbackUpdatedAtMillis,
     pendingSync = false,
+    // "Not sent" becomes null here; whether to believe that null is the pull's decision, made
+    // with carriesImages (see ProductLocalDataSource.applyServer).
+    imageUrl = imageUrl.takeUnless { it == ProductDto.NOT_SENT },
+    imageThumbnailUrl = imageThumbnailUrl.takeUnless { it == ProductDto.NOT_SENT },
 )
 
 fun ProductRecord.toDto() = ProductDto(
@@ -141,6 +145,8 @@ fun ProductRecord.toDto() = ProductDto(
     unitPrice = unitPricePaise.toString(),
     taxRatePercent = taxRatePercent,
     unit = unit,
+    imageUrl = imageUrl,
+    imageThumbnailUrl = imageThumbnailUrl,
 )
 
 /** Full-field patch (explicit nulls) so clearing a field offline clears it on the server too. */
@@ -150,6 +156,10 @@ fun ProductRecord.toPatchBody(): JsonObject = buildJsonObject {
     put("unitPrice", JsonPrimitive(unitPricePaise.toString()))
     put("taxRatePercent", JsonPrimitive(taxRatePercent))
     putNullable("unit", unit)
+    // Always both, and an explicit null when there is no photo — that is how removing it reaches
+    // the server (APP-015). A server that predates photos ignores the keys.
+    putNullable("imageUrl", imageUrl)
+    putNullable("imageThumbnailUrl", imageThumbnailUrl)
 }
 
 // ---- invoices ----------------------------------------------------------------------------------

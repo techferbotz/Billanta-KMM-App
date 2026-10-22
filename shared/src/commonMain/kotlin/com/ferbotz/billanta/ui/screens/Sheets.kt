@@ -41,6 +41,7 @@ import com.ferbotz.billanta.core.DecimalString
 import com.ferbotz.billanta.domain.model.ProductRecord
 import com.ferbotz.billanta.model.formatPaise
 import com.ferbotz.billanta.model.initialsOf
+import com.ferbotz.billanta.model.ProductKind
 import com.ferbotz.billanta.model.parseRupeesToPaise
 import com.ferbotz.billanta.state.AddItemSheet
 import com.ferbotz.billanta.state.BillantaState
@@ -54,6 +55,7 @@ import com.ferbotz.billanta.ui.components.Avatar
 import com.ferbotz.billanta.ui.components.BillantaTextField
 import com.ferbotz.billanta.ui.components.LegalLinksRow
 import com.ferbotz.billanta.ui.components.PrimaryButton
+import com.ferbotz.billanta.ui.components.ProductImage
 import com.ferbotz.billanta.ui.components.SecondaryButton
 import com.ferbotz.billanta.ui.components.SignInConsentLine
 
@@ -180,26 +182,36 @@ private fun AddItemSheetContent(state: BillantaState, invoiceId: String) {
 @Composable
 private fun SavedProductChip(product: ProductRecord, onClick: () -> Unit) {
     val c = BillantaTheme.colors
-    Column(
+    Row(
         Modifier.clip(RoundedCornerShape(12.dp))
             .background(c.surfaceAlt)
             .border(1.dp, c.border, RoundedCornerShape(12.dp))
             .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 8.dp),
+            .padding(start = 8.dp, end = 12.dp, top = 8.dp, bottom = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Text(
-            product.name,
-            style = BillantaTheme.type.bodyStrong,
-            color = c.textPrimary,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
+        ProductImage(
+            url = product.previewImageUrl,
+            kind = ProductKind.of(product.hsnSac),
+            modifier = Modifier.size(34.dp).clip(RoundedCornerShape(8.dp)),
+            iconSize = 16.dp,
         )
-        Text(
-            "${product.unitPricePaise.formatPaise(withPaise = false)} · GST ${product.taxRatePercent}%",
-            style = BillantaTheme.type.caption,
-            color = c.textSecondary,
-            maxLines = 1,
-        )
+        Column {
+            Text(
+                product.name,
+                style = BillantaTheme.type.bodyStrong,
+                color = c.textPrimary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                "${product.unitPricePaise.formatPaise(withPaise = false)} · GST ${product.taxRatePercent}%",
+                style = BillantaTheme.type.caption,
+                color = c.textSecondary,
+                maxLines = 1,
+            )
+        }
     }
 }
 

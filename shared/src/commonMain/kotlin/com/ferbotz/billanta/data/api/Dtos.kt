@@ -122,7 +122,25 @@ data class ProductDto(
     val unit: String? = null,
     val createdAt: String? = null,
     val updatedAt: String? = null,
-)
+    /**
+     * The photo (APP-015): what `POST /media` returned, full size and thumbnail.
+     *
+     * Both default to [NOT_SENT] rather than null. A server from before APP-015 leaves these keys
+     * out entirely, and the pull has to tell that silence apart from an explicit `null`, which
+     * really does mean the photo was removed. The marker itself is never sent: defaults are not
+     * encoded.
+     */
+    val imageUrl: String? = NOT_SENT,
+    val imageThumbnailUrl: String? = NOT_SENT,
+) {
+    /** False when the server said nothing about photos — one that has not shipped APP-015 yet. */
+    val carriesImages: Boolean get() = imageUrl != NOT_SENT || imageThumbnailUrl != NOT_SENT
+
+    companion object {
+        /** A value no URL can take, standing for "this key was not in the JSON at all". */
+        const val NOT_SENT = "\u0000not-sent"
+    }
+}
 
 // ---- pagination --------------------------------------------------------------------------------
 

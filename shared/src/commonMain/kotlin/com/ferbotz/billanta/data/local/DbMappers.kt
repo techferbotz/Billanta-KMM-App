@@ -81,6 +81,7 @@ internal fun ProductRow.toDomain() = ProductRecord(
     taxRatePercent = taxRatePercent, unit = unit, usageCount = usageCount,
     lastUsedAtMillis = lastUsedAtMillis, createdAtMillis = createdAtMillis,
     updatedAtMillis = updatedAtMillis, pendingSync = dirty.toBool(),
+    imageUrl = imageUrl, imageThumbnailUrl = imageThumbnailUrl,
 )
 
 /** `{"accent":"#c2410c"}` — hex strings, so the stored form matches what the API will accept. */

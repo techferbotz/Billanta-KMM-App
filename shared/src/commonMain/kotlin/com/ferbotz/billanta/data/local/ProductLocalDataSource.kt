@@ -45,6 +45,8 @@ class ProductLocalDataSource(
                 dirty = dirty.toDbLong(),
                 isDeleted = 0L,
                 isSynced = isSynced.toDbLong(),
+                imageUrl = record.imageUrl,
+                imageThumbnailUrl = record.imageThumbnailUrl,
             )
         }
 
@@ -65,10 +67,26 @@ class ProductLocalDataSource(
     /**
      * Server state. A row with unpushed local edits is left alone — the push half of the pass owns
      * it, and overwriting here would lose whatever the user just typed.
+     *
+     * [serverKnowsImages] is false when the server's answer carried no photo keys at all — a
+     * backend from before APP-015. That silence is not "the photo was removed", so the phone's
+     * photo is kept; once the server does send the keys, it is authoritative, `null` included.
+     *
+     * [rescueUnsentPhoto] covers the handover (BE-020): until the backend stored photos it dropped
+     * the keys it was sent, so a photo pushed then comes back now as `null` — never stored, rather
+     * than removed. While it is set, such a row keeps its photo and is marked for a PATCH instead of
+     * being cleared. Returns true when that happened.
      */
-    suspend fun applyServer(record: ProductRecord) = withContext(dispatcher) {
+    suspend fun applyServer(
+        record: ProductRecord,
+        serverKnowsImages: Boolean = true,
+        rescueUnsentPhoto: Boolean = false,
+    ): Boolean = withContext(dispatcher) {
         val local = q.byIdIncludingDeleted(record.id).executeAsOneOrNull()
-        if (local != null && local.dirty.toBool()) return@withContext
+        if (local != null && local.dirty.toBool()) return@withContext false
+        val rescue = rescueUnsentPhoto && serverKnowsImages && local != null &&
+            (local.imageUrl != null || local.imageThumbnailUrl != null) &&
+            record.imageUrl == null && record.imageThumbnailUrl == null
         q.upsert(
             id = record.id,
             name = record.name,
@@ -82,10 +100,15 @@ class ProductLocalDataSource(
             lastUsedAtMillis = local?.lastUsedAtMillis ?: record.lastUsedAtMillis,
             createdAtMillis = record.createdAtMillis,
             updatedAtMillis = record.updatedAtMillis,
-            dirty = 0L,
+            // Rescued: pending again, and still marked as known to the server, so the push sends
+            // it as a PATCH carrying both photo keys rather than a POST that replaces the row.
+            dirty = if (rescue) 1L else 0L,
             isDeleted = 0L,
             isSynced = 1L,
+            imageUrl = if (serverKnowsImages && !rescue) record.imageUrl else local?.imageUrl,
+            imageThumbnailUrl = if (serverKnowsImages && !rescue) record.imageThumbnailUrl else local?.imageThumbnailUrl,
         )
+        rescue
     }
 
     suspend fun hardDelete(id: String) = withContext(dispatcher) { q.hardDelete(id) }

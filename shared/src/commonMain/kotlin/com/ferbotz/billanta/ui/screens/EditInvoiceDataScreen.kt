@@ -39,6 +39,7 @@ import com.ferbotz.billanta.core.AppResult
 import com.ferbotz.billanta.domain.model.InvoiceRecord
 import com.ferbotz.billanta.domain.money.DiscountType
 import com.ferbotz.billanta.model.formatPaise
+import com.ferbotz.billanta.model.ProductKind
 import com.ferbotz.billanta.render.SectionEdits
 import com.ferbotz.billanta.render.TemplateDoc
 import com.ferbotz.billanta.render.TemplateParser
@@ -80,6 +81,7 @@ import com.ferbotz.billanta.ui.components.ListRow
 import com.ferbotz.billanta.ui.components.Overline
 import com.ferbotz.billanta.ui.components.PickerField
 import com.ferbotz.billanta.ui.components.PrimaryButton
+import com.ferbotz.billanta.ui.components.ProductImage
 import com.ferbotz.billanta.ui.components.SecondaryButton
 import com.ferbotz.billanta.ui.components.StackTopBar
 import com.ferbotz.billanta.ui.components.SurfaceCard
@@ -694,7 +696,14 @@ private fun ColumnScope.ItemsSection(state: BillantaState, invoice: InvoiceRecor
                         )
                     },
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        // The same picture as in the catalogue, so a product is recognised by sight.
+                        ProductImage(
+                            url = product.previewImageUrl,
+                            kind = ProductKind.of(product.hsnSac),
+                            modifier = Modifier.size(44.dp).clip(RoundedCornerShape(10.dp)),
+                            iconSize = 20.dp,
+                        )
                         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                             Text(product.name, style = BillantaTheme.type.bodyStrong, color = c.textPrimary)
                             Text(

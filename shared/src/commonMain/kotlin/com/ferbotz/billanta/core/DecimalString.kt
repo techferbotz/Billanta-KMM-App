@@ -40,6 +40,11 @@ data class DecimalString(val unscaled: Long, val scale: Int) {
         )
         const val MAX_SCALE = 8
 
+        /**
+         * The message names the field, never the text: if one of these ever escaped uncaught,
+         * Crashlytics would record the message, and the privacy policy promises crash reports
+         * carry none of the user's invoice data (BE-019). Every caller swallows it today anyway.
+         */
         class ParseException(message: String) : IllegalArgumentException(message)
 
         /**
@@ -52,16 +57,16 @@ data class DecimalString(val unscaled: Long, val scale: Int) {
             val dot = t.indexOf('.')
             val intPart = if (dot >= 0) t.substring(0, dot) else t
             var fracPart = if (dot >= 0) t.substring(dot + 1) else ""
-            if (intPart.isEmpty() && fracPart.isEmpty()) throw ParseException("$what is not a number: \"$text\"")
+            if (intPart.isEmpty() && fracPart.isEmpty()) throw ParseException("$what is not a number")
             if (intPart.any { it !in '0'..'9' } || fracPart.any { it !in '0'..'9' }) {
-                throw ParseException("$what is not a plain decimal: \"$text\"")
+                throw ParseException("$what is not a plain decimal")
             }
             // Trailing fraction zeros carry no value — trimming keeps the scale small.
             fracPart = fracPart.trimEnd('0')
-            if (fracPart.length > MAX_SCALE) throw ParseException("$what has too many decimal places: \"$text\"")
+            if (fracPart.length > MAX_SCALE) throw ParseException("$what has too many decimal places")
 
             val digits = (intPart.trimStart('0') + fracPart)
-            if (digits.length > 18) throw ParseException("$what is too large: \"$text\"")
+            if (digits.length > 18) throw ParseException("$what is too large")
             val unscaled = if (digits.isEmpty()) 0L else digits.toLong()
             return DecimalString(unscaled, fracPart.length)
         }

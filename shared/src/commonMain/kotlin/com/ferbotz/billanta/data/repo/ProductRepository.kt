@@ -86,6 +86,9 @@ class ProductRepository(
         unitPricePaise: Long,
         taxRatePercent: String,
         unit: String?,
+        /** The photo exactly as the editor holds it — null means none, including "removed". */
+        imageUrl: String? = null,
+        imageThumbnailUrl: String? = null,
     ): AppResult<ProductRecord> {
         val trimmed = name.trim()
         if (trimmed.isBlank()) return AppError.Validation("Name is required").asFailure()
@@ -107,6 +110,8 @@ class ProductRepository(
             taxRatePercent = taxRatePercent,
             unit = unit?.takeIf { it.isNotBlank() },
             updatedAtMillis = now,
+            imageUrl = imageUrl,
+            imageThumbnailUrl = imageThumbnailUrl,
         ) ?: ProductRecord(
             id = id ?: randomUuid(),
             name = trimmed,
@@ -118,6 +123,8 @@ class ProductRepository(
             lastUsedAtMillis = 0,
             createdAtMillis = now,
             updatedAtMillis = now,
+            imageUrl = imageUrl,
+            imageThumbnailUrl = imageThumbnailUrl,
         )
         local.upsert(record, dirty = true, isSynced = existing?.pendingSync?.not() ?: false)
         onLocalMutation()
