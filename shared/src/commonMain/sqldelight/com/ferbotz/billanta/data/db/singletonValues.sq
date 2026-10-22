@@ -1,0 +1,27 @@
+-- The two one-per-user records of BE-021, keyed by `kind`: 'company' (the business profile) and
+-- 'settings'. Each is a values map (field id → value) stored as opaque JSON, never one column per
+-- id: the list of ids grows from the backend without an app release.
+--
+-- `dirtyKeysJson` lists the ids changed since the last successful push. They go up as a PATCH of
+-- just those keys (null for a cleared one), so two devices editing different fields both win.
+CREATE TABLE singletonValues (
+    kind TEXT NOT NULL PRIMARY KEY,
+    valuesJson TEXT NOT NULL,
+    dirtyKeysJson TEXT NOT NULL,
+    createdAtMillis INTEGER,
+    updatedAtMillis INTEGER NOT NULL
+);
+
+get:
+SELECT * FROM singletonValues WHERE kind = ?;
+
+upsert:
+INSERT OR REPLACE INTO singletonValues(kind, valuesJson, dirtyKeysJson, createdAtMillis, updatedAtMillis)
+VALUES (?, ?, ?, ?, ?);
+
+-- Guarded by updatedAtMillis, so an edit made while the PATCH was in flight stays dirty.
+markClean:
+UPDATE singletonValues SET dirtyKeysJson = '[]' WHERE kind = ? AND updatedAtMillis = ?;
+
+clear:
+DELETE FROM singletonValues;

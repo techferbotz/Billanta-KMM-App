@@ -1,10 +1,8 @@
 package com.ferbotz.billanta.render
 
-import com.ferbotz.billanta.core.Iso8601
-import com.ferbotz.billanta.domain.model.CompanySnapshot
-import com.ferbotz.billanta.domain.model.CustomerSnapshot
-import com.ferbotz.billanta.domain.model.InvoiceItemRecord
-import com.ferbotz.billanta.domain.model.InvoiceRecord
+import com.ferbotz.billanta.domain.money.InvoiceMath
+import com.ferbotz.billanta.fields.FieldValues
+import kotlinx.serialization.json.JsonArray
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -144,47 +142,48 @@ class TemplateParserTest {
 
     // ---- bindings ------------------------------------------------------------------------------
 
-    private fun sampleRecord() = InvoiceRecord(
-        id = "i1",
-        invoiceNumber = "INV-7",
-        invoiceDateMillis = Iso8601.epochMillisFor(2026, 8, 5),
-        currency = "INR",
-        companySnapshot = CompanySnapshot(name = "Studio Nine", upiId = "studio@upi", stateCode = "27"),
-        customerSnapshot = CustomerSnapshot(name = "Kavya", stateCode = "27"),
-        items = listOf(
-            InvoiceItemRecord(description = "Design", quantity = "2.50", unitPricePaise = 1000, taxRatePercent = "18", lineTotalPaise = 2500),
-        ),
-        subtotalPaise = 2500,
-        taxTotalPaise = 450,
-        grandTotalPaise = 2950,
-        updatedAtMillis = 1,
-    )
+    /** A small invoice as BE-021 shapes it: flat field ids, totals worked out by the money rules. */
+    private fun sampleContext() = run {
+        val values = FieldValues.EMPTY
+            .withString("invoice_number", "INV-7")
+            .withString("invoice_date", "2026-08-05")
+            .withString("currency", "INR")
+            .withString("company_name", "Studio Nine")
+            .withString("company_upi_id", "studio@upi")
+            .withString("company_state", "27")
+            .withString("customer_name", "Kavya")
+            .withString("customer_state", "27")
+        val line = FieldValues.EMPTY.withString("description", "Design").withString("quantity", "2.50")
+            .withString("unit_price", "1000").withString("tax_rate", "18")
+        val computed = InvoiceMath.compute(values, listOf(line))
+        renderContextOf(values, listOf(RenderLine(line, computed.lines.single().toMap())), computed.totalsMap())
+    }
 
     @Test
     fun bindings_resolve_paths_aliases_and_formats() {
-        val ctx = BindingContext(bindingDataFor(sampleRecord()), "INR")
+        val ctx = BindingContext(sampleContext(), "INR")
 
-        assertEquals("INV-7", ctx.resolveText(TValue.Bind("invoice.number", "text", "")))
-        assertEquals("₹29.50", ctx.resolveText(TValue.Bind("invoice.total", "currency", "")))
-        assertEquals("5 Aug 2026", ctx.resolveText(TValue.Bind("invoice.date", "date", "")))
-        assertEquals("Studio Nine", ctx.resolveText(TValue.Bind("company.name", "text", "")))
+        assertEquals("INV-7", ctx.resolveText(TValue.Bind("invoice_number", "text", "")))
+        assertEquals("₹29.50", ctx.resolveText(TValue.Bind("grand_total", "currency", "")))
+        assertEquals("5 Aug 2026", ctx.resolveText(TValue.Bind("invoice_date", "date", "")))
+        assertEquals("Studio Nine", ctx.resolveText(TValue.Bind("company_name", "text", "")))
 
-        val items = ctx.resolveRaw("items") as List<*>
+        val items = ctx.resolve("line_items") as JsonArray
         val alias = mapOf("item" to items.single())
         assertEquals("Design", ctx.resolveText(TValue.Bind("item.description", "text", ""), alias))
-        assertEquals("₹25.00", ctx.resolveText(TValue.Bind("item.amount", "currency", ""), alias))
+        assertEquals("₹25.00", ctx.resolveText(TValue.Bind("item.line_total", "currency", ""), alias))
         assertEquals("2.5", ctx.resolveText(TValue.Bind("item.quantity", "number", ""), alias))
     }
 
     @Test
     fun bindings_fall_back_when_empty_and_gate_truthiness() {
-        val ctx = BindingContext(bindingDataFor(sampleRecord()), "INR")
+        val ctx = BindingContext(sampleContext(), "INR")
 
-        assertEquals("N/A", ctx.resolveText(TValue.Bind("customer.gstin", "text", "N/A")))
-        assertTrue(ctx.isTruthy("payment.upi"))
-        assertFalse(ctx.isTruthy("customer.gstin"))
-        assertFalse(ctx.isTruthy("invoice.discount")) // zero money is falsy — hides discount rows
-        assertTrue(ctx.isTruthy("invoice.total"))
+        assertEquals("N/A", ctx.resolveText(TValue.Bind("customer_gstin", "text", "N/A")))
+        assertTrue(ctx.isTruthy("company_upi_id"))
+        assertFalse(ctx.isTruthy("customer_gstin"))
+        assertFalse(ctx.isTruthy("discount_total")) // zero money is falsy — hides discount rows
+        assertTrue(ctx.isTruthy("grand_total"))
         assertFalse(ctx.isTruthy("no.such.path"))
     }
 }

@@ -32,7 +32,14 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ferbotz.billanta.core.Iso8601
-import com.ferbotz.billanta.domain.model.CompanyProfile
+import com.ferbotz.billanta.core.InvoiceDateFormat
+import com.ferbotz.billanta.core.SystemClock
+import com.ferbotz.billanta.core.todayIso
+import com.ferbotz.billanta.fields.FieldValues
+import com.ferbotz.billanta.fields.StartingValues
+import com.ferbotz.billanta.state.InvoiceDefaultsRoute
+import com.ferbotz.billanta.ui.components.ChipRow
+import com.ferbotz.billanta.ui.fields.RecordForm
 import com.ferbotz.billanta.model.stateCodeFromGstin
 import com.ferbotz.billanta.state.BillantaState
 import com.ferbotz.billanta.state.BusinessProfileRoute
@@ -226,25 +233,19 @@ private fun SignInCard(state: BillantaState) {
     }
 }
 
-/** The company form — exactly the PUT /company field set. */
+/**
+ * The business profile: `GET /forms` → `company`, so a field the backend adds shows up here without
+ * an app release. Invoices not yet shared follow every change saved here (FIELDS.md §8.4).
+ */
 @Composable
 fun BusinessProfileScreen(state: BillantaState) {
     val c = BillantaTheme.colors
-    val existing = state.company
-    var name by remember { mutableStateOf(existing?.name ?: "") }
-    var gstin by remember { mutableStateOf(existing?.gstin ?: "") }
-    var email by remember { mutableStateOf(existing?.email ?: "") }
-    var phone by remember { mutableStateOf(existing?.phone ?: "") }
-    var addressLine1 by remember { mutableStateOf(existing?.addressLine1 ?: "") }
-    var addressLine2 by remember { mutableStateOf(existing?.addressLine2 ?: "") }
-    var city by remember { mutableStateOf(existing?.city ?: "") }
-    var stateName by remember { mutableStateOf(existing?.state ?: "") }
-    var stateCode by remember { mutableStateOf(existing?.stateCode ?: "") }
-    var pincode by remember { mutableStateOf(existing?.pincode ?: "") }
-    var upiId by remember { mutableStateOf(existing?.upiId ?: "") }
-    var bankName by remember { mutableStateOf(existing?.bankName ?: "") }
-    var accountNumber by remember { mutableStateOf(existing?.accountNumber ?: "") }
-    var ifsc by remember { mutableStateOf(existing?.ifsc ?: "") }
+    val existing = state.profile?.values
+    var values by remember {
+        mutableStateOf(
+            existing ?: StartingValues.forNewRecord(state.forms.company, state.settings?.values ?: FieldValues.EMPTY, SystemClock.todayIso()),
+        )
+    }
 
     Column(Modifier.fillMaxSize().background(c.background)) {
         StackTopBar("Business profile", onBack = { state.pop() })
@@ -252,72 +253,71 @@ fun BusinessProfileScreen(state: BillantaState) {
             Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 18.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            Overline("Details")
-            BillantaTextField(name, { name = it }, label = "Business name", modifier = Modifier.fillMaxWidth())
-            BillantaTextField(
-                gstin,
-                {
-                    gstin = it
-                    stateCodeFromGstin(it)?.let { derived -> if (stateCode.isBlank()) stateCode = derived }
-                },
-                label = "GSTIN", placeholder = "27ABCDE1234F1Z5", modifier = Modifier.fillMaxWidth(),
+            RecordForm(
+                sections = state.forms.company,
+                values = values,
+                onValuesChange = { values = it.withStateFromGstin(COMPANY_GSTIN, COMPANY_STATE) },
+                context = state.fieldContext(valueOf = { values[it] }),
             )
-            BillantaTextField(email, { email = it }, label = "Email", keyboardType = KeyboardType.Email, modifier = Modifier.fillMaxWidth())
-            BillantaTextField(phone, { phone = it }, label = "Phone", keyboardType = KeyboardType.Phone, modifier = Modifier.fillMaxWidth())
-            BillantaTextField(addressLine1, { addressLine1 = it }, label = "Address line 1", modifier = Modifier.fillMaxWidth())
-            BillantaTextField(addressLine2, { addressLine2 = it }, label = "Address line 2 (optional)", modifier = Modifier.fillMaxWidth())
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                BillantaTextField(city, { city = it }, label = "City", modifier = Modifier.weight(1f))
-                BillantaTextField(pincode, { pincode = it }, label = "PIN code", keyboardType = KeyboardType.Number, modifier = Modifier.weight(1f))
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                BillantaTextField(stateName, { stateName = it }, label = "State", placeholder = "Maharashtra", modifier = Modifier.weight(2f))
-                BillantaTextField(
-                    stateCode, { stateCode = it.filter { ch -> ch.isDigit() }.take(2) },
-                    label = "Code", placeholder = "27", keyboardType = KeyboardType.Number, modifier = Modifier.weight(1f),
-                )
-            }
-            Overline("Payment")
-            BillantaTextField(upiId, { upiId = it }, label = "UPI ID", placeholder = "you@bank", modifier = Modifier.fillMaxWidth())
-            BillantaTextField(bankName, { bankName = it }, label = "Bank", modifier = Modifier.fillMaxWidth())
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                BillantaTextField(accountNumber, { accountNumber = it }, label = "Account number", keyboardType = KeyboardType.Number, modifier = Modifier.weight(3f))
-                BillantaTextField(ifsc, { ifsc = it }, label = "IFSC", modifier = Modifier.weight(2f))
-            }
             Text(
-                "These details appear on your invoices and in the payment block.",
+                "These details appear on your invoices. Invoices you haven't shared yet follow every change you save here.",
                 style = BillantaTheme.type.caption, color = c.textMuted,
             )
             Spacer(Modifier.height(4.dp))
         }
         BottomActionBar {
-            PrimaryButton("Save profile", onClick = {
-                if (name.isNotBlank()) {
-                    state.saveCompany(
-                        CompanyProfile(
-                            name = name.trim(),
-                            gstin = gstin.trim().ifBlank { null },
-                            addressLine1 = addressLine1.trim().ifBlank { null },
-                            addressLine2 = addressLine2.trim().ifBlank { null },
-                            city = city.trim().ifBlank { null },
-                            state = stateName.trim().ifBlank { null },
-                            stateCode = stateCode.trim().ifBlank { null },
-                            pincode = pincode.trim().ifBlank { null },
-                            country = existing?.country ?: "India",
-                            phone = phone.trim().ifBlank { null },
-                            email = email.trim().ifBlank { null },
-                            logo = existing?.logo,
-                            signature = existing?.signature,
-                            upiId = upiId.trim().ifBlank { null },
-                            qr = existing?.qr,
-                            bankName = bankName.trim().ifBlank { null },
-                            accountNumber = accountNumber.trim().ifBlank { null },
-                            ifsc = ifsc.trim().ifBlank { null },
-                        ),
-                    )
+            PrimaryButton(
+                "Save profile",
+                onClick = {
+                    state.saveProfile(values)
                     state.pop()
-                }
-            }, modifier = Modifier.fillMaxWidth())
+                },
+                enabled = values != existing && !state.uploadingImage,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+    }
+}
+
+/**
+ * Invoice numbering and the defaults a new invoice starts from: `GET /forms` → `settings`. Saved
+ * with a PATCH of the changed keys, so the running invoice number is never rolled back by a device
+ * that had an older copy.
+ */
+@Composable
+fun InvoiceDefaultsScreen(state: BillantaState) {
+    val c = BillantaTheme.colors
+    val stored = state.settings?.values ?: FieldValues.EMPTY
+    val shown = StartingValues.withFormDefaults(state.forms.settings, stored)
+    var values by remember { mutableStateOf(shown) }
+
+    Column(Modifier.fillMaxSize().background(c.background)) {
+        StackTopBar("Invoice defaults", onBack = { state.pop() })
+        Column(
+            Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 18.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            RecordForm(
+                sections = state.forms.settings,
+                values = values,
+                onValuesChange = { values = it },
+                context = state.fieldContext(valueOf = { values[it] }),
+            )
+            Text(
+                "Next invoice: ${values.string(SETTINGS_PREFIX).orEmpty()}${values.string(SETTINGS_NEXT_NUMBER) ?: "1"}",
+                style = BillantaTheme.type.caption, color = c.textMuted,
+            )
+        }
+        BottomActionBar {
+            PrimaryButton(
+                "Save",
+                onClick = {
+                    state.saveSettings(values)
+                    state.pop()
+                },
+                enabled = values != shown,
+                modifier = Modifier.fillMaxWidth(),
+            )
         }
     }
 }
@@ -326,18 +326,6 @@ fun BusinessProfileScreen(state: BillantaState) {
 @Composable
 fun SettingsScreen(state: BillantaState) {
     val c = BillantaTheme.colors
-    val settings = state.settings
-    var taxPercent by remember(settings) { mutableStateOf(settings.defaultTaxPercent) }
-    var prefix by remember(settings) { mutableStateOf(settings.invoiceNumberPrefix) }
-    var nextNumber by remember(settings) { mutableStateOf(settings.nextInvoiceNumber.toString()) }
-    var currency by remember(settings) { mutableStateOf(settings.defaultCurrency) }
-    var defaultNotes by remember(settings) { mutableStateOf(settings.defaultNotes ?: "") }
-
-    val dirty = taxPercent != settings.defaultTaxPercent ||
-        prefix != settings.invoiceNumberPrefix ||
-        nextNumber != settings.nextInvoiceNumber.toString() ||
-        currency != settings.defaultCurrency ||
-        defaultNotes != (settings.defaultNotes ?: "")
 
     Column(Modifier.fillMaxSize().background(c.background)) {
         StackTopBar("Settings", onBack = { state.pop() })
@@ -352,26 +340,33 @@ fun SettingsScreen(state: BillantaState) {
                 }
             }
             item {
+                SettingsGroup("Invoicing") {
+                    ListRow(
+                        "Invoice defaults",
+                        subtitle = "Numbering, currency, GST %, due date, notes",
+                        leading = { IconTile(AppIcon.Receipt) },
+                        onClick = { state.push(InvoiceDefaultsRoute) },
+                        modifier = Modifier.padding(horizontal = 8.dp),
+                    )
+                }
+            }
+            item {
                 Column {
-                    Overline("Invoicing defaults")
+                    Overline("Date format")
                     Spacer(Modifier.height(8.dp))
-                    SurfaceCard(Modifier.fillMaxWidth(), padding = 14) {
-                        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                                BillantaTextField(taxPercent, { taxPercent = it }, label = "Default GST %", keyboardType = KeyboardType.Decimal, modifier = Modifier.weight(1f))
-                                BillantaTextField(currency, { currency = it.uppercase().take(3) }, label = "Currency", modifier = Modifier.weight(1f))
-                            }
-                            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                                BillantaTextField(prefix, { prefix = it }, label = "Number prefix", placeholder = "INV-", modifier = Modifier.weight(2f))
-                                BillantaTextField(nextNumber, { nextNumber = it.filter { ch -> ch.isDigit() } }, label = "Next #", keyboardType = KeyboardType.Number, modifier = Modifier.weight(1f))
-                            }
-                            Text(
-                                "Next invoice: $prefix${nextNumber.ifBlank { "1" }}",
-                                style = BillantaTheme.type.caption, color = c.textMuted,
-                            )
-                            BillantaTextField(defaultNotes, { defaultNotes = it }, label = "Default notes", placeholder = "Payment terms shown on every new invoice", singleLine = false, modifier = Modifier.fillMaxWidth())
-                        }
-                    }
+                    Text(
+                        "How dates are printed on every invoice.",
+                        style = BillantaTheme.type.caption,
+                        color = c.textSecondary,
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    // The sample *is* the label: nobody recognises a format from its name.
+                    ChipRow(
+                        items = InvoiceDateFormat.entries,
+                        isSelected = { it == state.dateFormat },
+                        label = { it.format(SystemClock.nowMillis()) },
+                        onSelect = { state.chooseDateFormat(it) },
+                    )
                 }
             }
             // Signing in and out live on Profile. What is left here is the one account action that
@@ -420,21 +415,6 @@ fun SettingsScreen(state: BillantaState) {
                 }
             }
         }
-        if (dirty) {
-            BottomActionBar {
-                PrimaryButton("Save settings", onClick = {
-                    state.saveSettings(
-                        settings.copy(
-                            defaultTaxPercent = taxPercent.trim(),
-                            invoiceNumberPrefix = prefix,
-                            nextInvoiceNumber = nextNumber.toLongOrNull() ?: settings.nextInvoiceNumber,
-                            defaultCurrency = currency.trim().ifBlank { "INR" },
-                            defaultNotes = defaultNotes.trim().ifBlank { null },
-                        ),
-                    )
-                }, modifier = Modifier.fillMaxWidth())
-            }
-        }
     }
 }
 
@@ -448,6 +428,11 @@ fun SettingsScreen(state: BillantaState) {
  * deletion to be possible inside any app that creates accounts, so revisit this before release.
  */
 private const val SHOW_DELETE_ACCOUNT = false
+
+private const val COMPANY_GSTIN = "company_gstin"
+private const val COMPANY_STATE = "company_state"
+private const val SETTINGS_PREFIX = "settings_invoice_prefix"
+private const val SETTINGS_NEXT_NUMBER = "settings_next_invoice_number"
 
 @Composable
 private fun SettingsGroup(title: String, content: @Composable () -> Unit) {

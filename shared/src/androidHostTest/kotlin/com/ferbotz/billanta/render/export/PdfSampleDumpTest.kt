@@ -1,12 +1,11 @@
 package com.ferbotz.billanta.render.export
 
-import com.ferbotz.billanta.core.Iso8601
-import com.ferbotz.billanta.domain.model.CompanySnapshot
-import com.ferbotz.billanta.domain.model.CustomerSnapshot
-import com.ferbotz.billanta.domain.model.InvoiceItemRecord
-import com.ferbotz.billanta.domain.model.InvoiceRecord
+import com.ferbotz.billanta.core.BillantaJson
+import com.ferbotz.billanta.fields.Be021Fixtures
+import kotlinx.serialization.json.jsonObject
 import com.ferbotz.billanta.render.InvoiceRenderer
 import com.ferbotz.billanta.render.TemplateParser
+import com.ferbotz.billanta.render.TestInvoices
 import com.ferbotz.billanta.render.text.FakeTextShaper
 import com.ferbotz.billanta.render.text.FontRegistry
 import com.ferbotz.billanta.render.text.TrueTypeFont
@@ -49,66 +48,30 @@ class PdfSampleDumpTest {
         )
     }
 
-    private fun record(itemCount: Int) = InvoiceRecord(
-        id = "inv-1",
-        invoiceNumber = "INV-2026-0042",
-        invoiceDateMillis = Iso8601.epochMillisFor(2026, 8, 5),
-        dueDateMillis = Iso8601.epochMillisFor(2026, 8, 19),
-        currency = "INR",
-        companySnapshot = CompanySnapshot(
-            name = "Studio Nine",
-            gstin = "27ABCDE1234F1Z5",
-            addressLine1 = "A-901, Oberoi Springs, Andheri West",
-            city = "Mumbai",
-            pincode = "400053",
-            state = "Maharashtra",
-            stateCode = "27",
-            phone = "+91 98765 43210",
-            email = "hello@studionine.in",
-            upiId = "studionine@okhdfcbank",
-            bankName = "HDFC Bank",
-            accountNumber = "50100234567821",
-            ifsc = "HDFC0000123",
-        ),
-        customerSnapshot = CustomerSnapshot(
-            name = "Kavya Iyer",
-            gstin = "27AAJCB1111C1Z2",
-            addressLine1 = "12 Carter Road, Bandra West",
-            city = "Mumbai",
-            pincode = "400050",
-            state = "Maharashtra",
-            stateCode = "27",
-        ),
-        items = (1..itemCount).map { i ->
-            InvoiceItemRecord(
-                description = "Brand identity design — phase $i",
-                hsnSac = "998311",
-                quantity = "1",
-                unitPricePaise = 6800000,
-                taxRatePercent = "18",
-                lineTotalPaise = 6800000,
-                taxAmountPaise = 1224000,
-            )
-        },
-        subtotalPaise = 6800000L * itemCount,
-        taxTotalPaise = 1224000L * itemCount,
-        grandTotalPaise = 8024000L * itemCount,
-        notes = "Thanks for your business. Payable within 14 days via UPI or bank transfer.",
-        updatedAtMillis = 1L,
-    )
+    /**
+     * BE-021's Classic drawn with the backend's example context. Open it beside
+     * `be021/template-classic.thumbnail.png`, the server's own render of the same pair: the layout
+     * and the values should match, though the pixels will not.
+     */
+    @Test
+    fun dumps_the_be021_classic_example() {
+        val doc = assertNotNull(TemplateParser.parse(Be021Fixtures.text("template-classic.compiled.json")))
+        val context = BillantaJson.parseToJsonElement(Be021Fixtures.text("render-context.json")).jsonObject
+        val document = InvoiceRenderer(FakeTextShaper()).render(doc, context, Be021Fixtures.forms.optionLists)
+        val file = File(File("build/samples").apply { mkdirs() }, "invoice-classic-v2.pdf")
+        file.writeBytes(PdfWriter(faces()).write(document))
+        assertTrue(file.length() > 0)
+        println("[pdf-sample] classic v2: ${file.absolutePath} (${document.pageCount} pages)")
+    }
 
     @Test
     fun dumps_single_and_multi_page_samples() {
-        val templateFile = resource(
-            "src/androidHostTest/resources/templates/classic.json",
-            "shared/src/androidHostTest/resources/templates/classic.json",
-        )
-        val doc = assertNotNull(TemplateParser.parse(templateFile.readText()))
         val renderer = InvoiceRenderer(FakeTextShaper())
         val outputDir = File("build/samples").apply { mkdirs() }
 
         listOf("single" to 4, "multipage" to 45).forEach { (label, itemCount) ->
-            val document = renderer.render(doc, record(itemCount))
+            val invoice = TestInvoices.invoice(itemCount) { "Brand identity design — phase $it" }
+            val document = renderer.render(TestInvoices.classic, invoice.renderContext(), TestInvoices.optionLists)
             val bytes = PdfWriter(faces()).write(document)
             val file = File(outputDir, "invoice-$label.pdf")
             file.writeBytes(bytes)

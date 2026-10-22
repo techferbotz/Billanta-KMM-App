@@ -52,6 +52,11 @@ data class RemoteConfig(
         val maxMediaBytes: Long = 8_388_608,
         val maxSyncBatchInvoices: Int = 500,
         val maxPageSize: Int = 100,
+        /** The largest one record's `values` map may be, as JSON bytes (BE-021). */
+        val maxValuesBytes: Int = 65_536,
+        /** The largest one invoice line's `values` may be, as JSON bytes. */
+        val maxLineValuesBytes: Int = 8_192,
+        val maxLineItems: Int = 500,
     )
 
     /** Absolute URLs, so the legal pages can move without an app release. */
@@ -165,6 +170,10 @@ fun parseRemoteConfig(body: String): RemoteConfigDocument? {
                     maxSyncBatchInvoices = limits.int("maxSyncBatchInvoices", d.maxSyncBatchInvoices)
                         .takeIf { it > 0 } ?: d.maxSyncBatchInvoices,
                     maxPageSize = limits.int("maxPageSize", d.maxPageSize).takeIf { it > 0 } ?: d.maxPageSize,
+                    maxValuesBytes = limits.int("maxValuesBytes", d.maxValuesBytes).takeIf { it > 0 } ?: d.maxValuesBytes,
+                    maxLineValuesBytes = limits.int("maxLineValuesBytes", d.maxLineValuesBytes)
+                        .takeIf { it > 0 } ?: d.maxLineValuesBytes,
+                    maxLineItems = limits.int("maxLineItems", d.maxLineItems).takeIf { it > 0 } ?: d.maxLineItems,
                 )
             },
             // Links are opened as given, so only an absolute web URL (or an address) is accepted.

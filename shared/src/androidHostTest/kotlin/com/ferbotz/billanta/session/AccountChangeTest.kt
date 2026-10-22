@@ -9,13 +9,17 @@ import com.ferbotz.billanta.core.KeyValueStore
 import com.ferbotz.billanta.data.api.AuthApi
 import com.ferbotz.billanta.data.api.BillantaApi
 import com.ferbotz.billanta.data.db.BillantaDb
-import com.ferbotz.billanta.data.local.CustomerLocalDataSource
-import com.ferbotz.billanta.data.local.InvoiceLocalDataSource
-import com.ferbotz.billanta.data.local.ProductLocalDataSource
+import com.ferbotz.billanta.data.local.CustomerValuesLocal
+import com.ferbotz.billanta.data.local.InvoiceValuesLocal
+import com.ferbotz.billanta.data.local.ProductValuesLocal
 import com.ferbotz.billanta.data.local.ProfileLocalDataSource
+import com.ferbotz.billanta.data.local.RememberedValuesLocal
+import com.ferbotz.billanta.data.local.SingletonValuesLocal
 import com.ferbotz.billanta.data.local.SyncMetaLocal
-import com.ferbotz.billanta.domain.model.CustomerRecord
-import com.ferbotz.billanta.domain.model.InvoiceRecord
+import com.ferbotz.billanta.fields.FieldValues
+import com.ferbotz.billanta.records.Customer
+import com.ferbotz.billanta.records.Invoice
+import kotlinx.serialization.json.JsonPrimitive
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
@@ -60,9 +64,11 @@ class AccountChangeTest {
     private class Harness(dispatcher: CoroutineDispatcher) {
         private val driver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
         val db = BillantaDb(driver).also { BillantaDb.Schema.create(driver) }
-        val invoices = InvoiceLocalDataSource(db, dispatcher)
-        val customers = CustomerLocalDataSource(db, dispatcher)
-        val products = ProductLocalDataSource(db, dispatcher)
+        val invoices = InvoiceValuesLocal(db, dispatcher)
+        val customers = CustomerValuesLocal(db, dispatcher)
+        val products = ProductValuesLocal(db, dispatcher)
+        val singletons = SingletonValuesLocal(db, dispatcher)
+        val remembered = RememberedValuesLocal(db, dispatcher)
         val profile = ProfileLocalDataSource(db, dispatcher)
         val syncMeta = SyncMetaLocal(db, dispatcher)
         val store = Store()
@@ -97,26 +103,29 @@ class AccountChangeTest {
             tokenManager = TokenManager(TokenStore(store), AuthApi(client), EpochClock { 1_000L }),
             profileLocal = profile,
             keyValueStore = store,
+            // The same two steps AppContainer wires up.
             wipeLocalData = {
                 wiped++
                 invoices.clearAll(); customers.clearAll(); products.clearAll()
-                profile.clearProfile(); syncMeta.clearAll()
+                singletons.clearAll(); remembered.clearAll()
+                profile.clearAccount(); syncMeta.clearAll()
             },
             reownLocalData = {
                 reowned++
                 syncMeta.clearAll()
                 invoices.markAllDirty(); customers.markAllDirty(); products.markAllDirty()
-                profile.markProfileDirty()
+                singletons.markAllDirty()
             },
             clock = EpochClock { 1_000L },
         )
 
         suspend fun seedWork() {
             invoices.upsert(
-                InvoiceRecord(id = "inv-1", invoiceNumber = "INV-1", invoiceDateMillis = 0L, updatedAtMillis = 1L),
+                Invoice(id = "inv-1", values = FieldValues.EMPTY.withString("invoice_number", "INV-1"), updatedAtMillis = 1L),
                 dirty = false,
             )
-            customers.upsertLocal(CustomerRecord(id = "cust-1", name = "Kavya Iyer", updatedAtMillis = 1L))
+            customers.saveLocal(Customer("cust-1", FieldValues.EMPTY.withString("customer_name", "Kavya Iyer"), updatedAtMillis = 1L))
+            remembered.put("po_number", JsonPrimitive("PO-7781"))
             // Pretend the old account had already synced them. Both marks are guarded by
             // updatedAt, so they must match the rows written above or they silently do nothing.
             invoices.markClean("inv-1", 1L)
@@ -186,6 +195,7 @@ class AccountChangeTest {
         assertEquals(1, h.wiped, "a different person must not inherit the previous one's data")
         assertEquals(0, h.reowned)
         assertEquals(null, h.invoices.getById("inv-1"))
+        assertTrue(h.remembered.all().isEmpty(), "one person's remembered entries must not prefill another's invoices")
     }
 
     /**
@@ -208,7 +218,7 @@ class AccountChangeTest {
             h.customers.syncedCleanIds().isEmpty(),
             "a re-owned customer still looks synced, so the pull would delete it",
         )
-        assertEquals(listOf("inv-1"), h.invoices.dirtyRecords().map { it.id }, "the invoice must re-push")
+        assertEquals(listOf("inv-1"), h.invoices.dirtyInvoices().map { it.id }, "the invoice must re-push")
         assertEquals(listOf("cust-1"), h.customers.dirtyRows().map { it.id }, "the customer must re-push")
         assertEquals(
             null,

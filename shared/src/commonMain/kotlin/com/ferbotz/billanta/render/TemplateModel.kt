@@ -1,5 +1,9 @@
 package com.ferbotz.billanta.render
 
+import com.ferbotz.billanta.fields.FieldDef
+import com.ferbotz.billanta.fields.FieldSection
+import com.ferbotz.billanta.fields.Gate
+
 /**
  * Typed model of the Billanta Template JSON render tree (TEMPLATE_JSON.md). The tree arrives
  * fully resolved — absolute styles, points, hex colors — so this model is deliberately dumb.
@@ -27,6 +31,23 @@ data class TemplateDoc(
 
     /** Whether the template ships any editing-only content, e.g. its own empty-state placeholders. */
     val hasEditorOnly: Boolean by lazy { root.containsEditorOnly() }
+
+    /**
+     * Sections the template draws its own editing-only empty state for (BE-009): an `editorOnly`
+     * node tagged with the section, or inside a node that is. A section may be tagged on several
+     * nodes (FIELDS_APP_GUIDE.md §3.5), so the prompt can sit beside the section's block rather
+     * than inside it, as Amethyst's "+ Add a signature" does.
+     */
+    val sectionsWithOwnEmptyState: Set<String> by lazy {
+        buildSet {
+            fun visit(node: TNode, enclosing: String?) {
+                val section = node.section ?: enclosing
+                if (node.editorOnly && section != null) add(section)
+                node.childNodes().forEach { visit(it, section) }
+            }
+            visit(root, null)
+        }
+    }
 
     fun defaultColorFor(token: String): Long? =
         themeTokens.firstOrNull { it.name == token }?.defaultArgb
@@ -78,44 +99,16 @@ data class TemplateSection(
     val id: String,
     val label: String,
     val hidable: Boolean,
-    /** What editing this section actually changes. [SectionEdits.None] means it is display-only. */
-    val edits: SectionEdits = SectionEdits.None,
-) {
-    val isEditable: Boolean get() = edits != SectionEdits.None
-}
-
-/**
- * The data behind a section, so the app knows which editor to open for it (APP-007).
- *
- * An absent or unrecognised value is [None] rather than an error, so the backend can introduce a
- * new kind of editor before this build knows how to show it.
- */
-enum class SectionEdits(val wireName: String) {
-    Customer("customer"),
-    InvoiceDetails("invoiceDetails"),
-    Items("items"),
-    Discount("discount"),
-    Notes("notes"),
-
-    /** Bank name, account, IFSC and UPI — the four company fields a payment block prints (BE-011). */
-    BankDetails("bankDetails"),
-
-    /** The signature image on the company profile (BE-011). */
-    Signature("signature"),
-
     /**
-     * The whole company form. Superseded by [BankDetails] and [Signature], which say what they
-     * actually edit — but still parsed, because a template version already published keeps
-     * emitting it and template versions are immutable.
+     * The fields this section's editor shows, in order (BE-021). The template chooses them, fully
+     * resolved, so the editor is built from this list alone.
      */
-    Company("company"),
-    None("none"),
-    ;
+    val fields: List<FieldDef> = emptyList(),
+) {
+    val isEditable: Boolean get() = fields.isNotEmpty()
 
-    companion object {
-        fun fromWire(value: String?): SectionEdits =
-            entries.firstOrNull { it.wireName == value } ?: None
-    }
+    /** As a [FieldSection], the shape the editor and the global forms share. */
+    fun asFieldSection(): FieldSection = FieldSection(id, label, hidable, fields)
 }
 
 /**
@@ -272,22 +265,27 @@ sealed interface TNode {
     val editorOnly: Boolean get() = false
 }
 
+/** The nodes directly under this one, in document order. */
+fun TNode.childNodes(): List<TNode> = when (this) {
+    is TBox -> children
+    is TCell -> children
+    is TRow -> cells
+    is TTable -> header + when (val b = body) {
+        is TTableBody.Repeat -> listOf(b.row)
+        is TTableBody.Rows -> b.rows
+        null -> emptyList()
+    } + footer
+    is TRepeat -> listOf(child)
+    is TConditional -> listOf(child)
+    is TText, is TImage, is TDivider -> emptyList()
+}
+
 /** Whether anything in this subtree only exists while editing. */
-fun TNode.containsEditorOnly(): Boolean {
-    if (editorOnly) return true
-    return when (this) {
-        is TBox -> children.any { it.containsEditorOnly() }
-        is TCell -> children.any { it.containsEditorOnly() }
-        is TRow -> cells.any { it.containsEditorOnly() }
-        is TTable -> (header + footer).any { it.containsEditorOnly() } || when (val b = body) {
-            is TTableBody.Repeat -> b.row.containsEditorOnly()
-            is TTableBody.Rows -> b.rows.any { it.containsEditorOnly() }
-            null -> false
-        }
-        is TRepeat -> child.containsEditorOnly()
-        is TConditional -> child.containsEditorOnly()
-        is TText, is TImage, is TDivider -> false
-    }
+fun TNode.containsEditorOnly(): Boolean = editorOnly || childNodes().any { it.containsEditorOnly() }
+
+/** Whether a node anywhere below this one is tagged with a section other than [section]. */
+fun TNode.containsSectionOtherThan(section: String): Boolean = childNodes().any {
+    (it.section != null && it.section != section) || it.containsSectionOtherThan(section)
 }
 
 data class TBox(
@@ -322,7 +320,14 @@ data class TDivider(
     override val editorOnly: Boolean = false,
 ) : TNode
 
-data class TColumn(val widthPt: Float?) {
+data class TColumn(
+    val widthPt: Float?,
+    /**
+     * When it fails, the whole column goes: its cells are dropped from every row and spans over it
+     * shrink (BE-021). Decided against the invoice, never a line.
+     */
+    val visibleIf: Gate? = null,
+) {
     val isAuto: Boolean get() = widthPt == null
 }
 
@@ -348,6 +353,8 @@ data class TRow(
     override val section: String? = null,
     override val tokens: Map<String, String>? = null,
     override val editorOnly: Boolean = false,
+    /** A static row is left out while this fails, e.g. a zero discount line (BE-021). */
+    val visibleIf: Gate? = null,
 ) : TNode
 
 data class TCell(

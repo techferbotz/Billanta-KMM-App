@@ -1,0 +1,26 @@
+-- An invoice's lines (BE-021): each a values map over the line ids, in `position` order, with its
+-- computed `line_total` and `tax_amount` cached in `computedJson`. Always written together with
+-- the invoice row, in one transaction, replacing the invoice's lines wholesale.
+CREATE TABLE invoiceLineValues (
+    invoiceId TEXT NOT NULL,
+    id TEXT NOT NULL,
+    position INTEGER NOT NULL,
+    valuesJson TEXT NOT NULL,
+    computedJson TEXT NOT NULL,
+    PRIMARY KEY (invoiceId, id)
+);
+
+CREATE INDEX idx_invoice_line_values_order ON invoiceLineValues(invoiceId, position);
+
+forInvoice:
+SELECT * FROM invoiceLineValues WHERE invoiceId = ? ORDER BY position ASC;
+
+insert:
+INSERT OR REPLACE INTO invoiceLineValues(invoiceId, id, position, valuesJson, computedJson)
+VALUES (?, ?, ?, ?, ?);
+
+deleteForInvoice:
+DELETE FROM invoiceLineValues WHERE invoiceId = ?;
+
+clear:
+DELETE FROM invoiceLineValues;

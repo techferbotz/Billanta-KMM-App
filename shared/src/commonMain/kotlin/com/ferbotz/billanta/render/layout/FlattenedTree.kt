@@ -1,5 +1,6 @@
 package com.ferbotz.billanta.render.layout
 
+import com.ferbotz.billanta.fields.passes
 import com.ferbotz.billanta.render.BindingContext
 import com.ferbotz.billanta.render.InvoiceTheme
 import com.ferbotz.billanta.render.PageSpec
@@ -18,11 +19,14 @@ import com.ferbotz.billanta.render.TTableBody
 import com.ferbotz.billanta.render.TText
 import com.ferbotz.billanta.render.TValue
 import com.ferbotz.billanta.render.TemplateDoc
-import com.ferbotz.billanta.render.containsEditorOnly
+import com.ferbotz.billanta.render.containsSectionOtherThan
 import com.ferbotz.billanta.render.text.ParagraphStyle
 import com.ferbotz.billanta.render.text.RunStyle
 import com.ferbotz.billanta.render.text.StyledRun
 import com.ferbotz.billanta.render.text.TextAlignment
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonPrimitive
 
 /**
  * The tree after data has been applied: `repeat` expanded, `conditional` gates decided and every
@@ -112,8 +116,30 @@ object TemplateFlattener {
         theme: InvoiceTheme = InvoiceTheme.NONE,
         placeholders: PlaceholderMode = PlaceholderMode.None,
     ): LNode {
-        val nodes = flattenNode(doc.root, ctx, emptyMap(), doc.page, theme, placeholders)
+        val pass = Pass(placeholders, doc)
+        val nodes = flattenNode(doc.root, ctx, emptyMap(), doc.page, onlyHidable(doc, theme), pass)
         return nodes.singleOrNull() ?: LBox(doc.root.style, nodes)
+    }
+
+    /** What one [flatten] carries down the tree besides the node: its placeholder bookkeeping. */
+    private class Pass(val placeholders: PlaceholderMode, doc: TemplateDoc) {
+        /** Sections whose empty state the template draws itself (BE-009). */
+        val ownEmptyStates: Set<String> = if (placeholders.isEditing) doc.sectionsWithOwnEmptyState else emptySet()
+
+        /** Sections already given a placeholder: one each, however many nodes carry the tag. */
+        val placed = HashSet<String>()
+    }
+
+    /**
+     * Only a `hidable` section can be switched off (FIELDS_APP_GUIDE.md §3.5). An invoice can still
+     * name another one — it was hidden under a different template, say — and that must not take a
+     * required block such as the line items off the page.
+     */
+    private fun onlyHidable(doc: TemplateDoc, theme: InvoiceTheme): InvoiceTheme {
+        if (theme.hiddenSections.isEmpty()) return theme
+        val hidable = doc.sections.filter { it.hidable }.mapTo(HashSet()) { it.id }
+        return if (hidable.containsAll(theme.hiddenSections)) theme
+        else theme.copy(hiddenSections = theme.hiddenSections intersect hidable)
     }
 
     /**
@@ -142,29 +168,53 @@ object TemplateFlattener {
      * A tagged section that produced no content becomes a placeholder while editing, so the page
      * has somewhere to show "nothing here yet". Everywhere else it stays collapsed.
      */
-    private fun placeholderFor(
-        section: String?,
-        theme: InvoiceTheme,
-        placeholders: PlaceholderMode,
-    ): LNode? {
+    private fun placeholderFor(node: TNode, theme: InvoiceTheme, pass: Pass): LNode? {
+        val section = node.section
         // A section the user switched off stays off — never offer to fill in something they hid.
         if (section == null || section in theme.hiddenSections) return null
-        val reserve = placeholders as? PlaceholderMode.Reserve ?: return null
+        val reserve = pass.placeholders as? PlaceholderMode.Reserve ?: return null
         if (section !in reserve.sections) return null
-        return LPlaceholder(TStyle.EMPTY, section, reserve.heightPt)
+        // A template that ships its own empty state (BE-009) wins: replacing it with the app's
+        // generic box would throw away the design its author chose, and the app's idea of "empty"
+        // is a guess where the template's `data-unless` gate is exact. The prompt may sit beside
+        // the section's block rather than inside it, so this is asked of the whole template.
+        if (section in pass.ownEmptyStates) return null
+        // A block holding another section stays: Amethyst keeps the invoice number inside its
+        // business block, and a new user's empty profile must not take the number off the page.
+        if (node.containsSectionOtherThan(section)) return null
+        // One box per section, however many nodes the template tags with it (§3.5) — Cobalt tags
+        // both its company block and its logo `business`.
+        if (!pass.placed.add(section)) return null
+        return LPlaceholder(node.style.outerBox(), section, reserve.heightPt)
     }
 
     /**
-     * The section a gated subtree would have carried, seen through the gate.
+     * What decides where a replaced node's box sits and how wide it is, so its placeholder takes
+     * its place: Cobalt's company block is 58% of a flex row, and a placeholder with no width of
+     * its own shrinks to nothing there.
+     */
+    private fun TStyle.outerBox() = TStyle(
+        width = width,
+        minWidth = minWidth,
+        maxWidth = maxWidth,
+        flexGrow = flexGrow,
+        marginTop = marginTop,
+        marginRight = marginRight,
+        marginBottom = marginBottom,
+        marginLeft = marginLeft,
+    )
+
+    /**
+     * The node a gated subtree would have drawn, seen through the gate.
      *
      * Templates express "only show notes if there are notes" as a `conditional` wrapping the tagged
      * box, so the gate closes on exactly the data whose absence we want to offer to fill in. Without
      * looking through it, the notes and payment sections could never show a placeholder.
      */
-    private tailrec fun sectionBehind(node: TNode): String? = when (node) {
-        is TConditional -> sectionBehind(node.child)
-        is TRepeat -> sectionBehind(node.child)
-        else -> node.section
+    private tailrec fun nodeBehind(node: TNode): TNode = when (node) {
+        is TConditional -> nodeBehind(node.child)
+        is TRepeat -> nodeBehind(node.child)
+        else -> node
     }
 
     /**
@@ -194,10 +244,10 @@ object TemplateFlattener {
     private fun flattenNode(
         node: TNode,
         ctx: BindingContext,
-        aliases: Map<String, Any?>,
+        aliases: Map<String, JsonElement>,
         page: PageSpec,
         theme: InvoiceTheme,
-        placeholders: PlaceholderMode,
+        pass: Pass,
     ): List<LNode> {
         if (node.style.isHidden) return emptyList()
         // A section the user switched off disappears along with everything inside it.
@@ -206,7 +256,7 @@ object TemplateFlattener {
         // placeholders — never reaches an export. The same tree draws the preview and the PDF the
         // customer receives, so this check is the only thing stopping "Add an item" being printed
         // on a real invoice.
-        if (node.editorOnly && !placeholders.isEditing) return emptyList()
+        if (node.editorOnly && !pass.placeholders.isEditing) return emptyList()
         // A section the caller flagged as empty is replaced wholesale, heading and all — otherwise
         // the user sees a lone "BILL TO" label with nothing under it and no way to fill it in.
         //
@@ -214,36 +264,27 @@ object TemplateFlattener {
         // `table` itself, so a box-only check silently skipped the one section a new invoice most
         // needs to offer. Rows and cells reach layout through flattenRow/flattenCell instead, so a
         // placeholder can never appear where a table expects an LRow.
-        // A template that ships its own empty state (BE-009) wins: replacing it with the app's
-        // generic box would throw away the design its author chose, and the app's idea of "empty"
-        // is a guess where the template's `data-unless` gate is exact.
-        if (!node.containsEditorOnly()) {
-            placeholderFor(node.section, theme, placeholders)?.let { return listOf(it) }
-        }
+        placeholderFor(node, theme, pass)?.let { return listOf(it) }
         return when (node) {
             is TRepeat -> {
-                val items = ctx.resolveRaw(node.path, aliases) as? List<*> ?: emptyList<Any?>()
-                if (items.isEmpty()) listOfNotNull(placeholderFor(sectionBehind(node.child), theme, placeholders))
+                val items = ctx.resolve(node.path, aliases) as? JsonArray ?: JsonArray(emptyList())
+                if (items.isEmpty()) listOfNotNull(placeholderFor(nodeBehind(node.child), theme, pass))
                 else items.flatMap { item ->
-                    flattenNode(node.child, ctx, aliases + (node.alias to item), page, theme, placeholders)
+                    flattenNode(node.child, ctx, aliases + (node.alias to item), page, theme, pass)
                 }
             }
 
             // `negate` is BE-009's `data-unless`: the same gate, inverted.
             is TConditional ->
                 if (ctx.isTruthy(node.path, aliases) != node.negate) {
-                    flattenNode(node.child, ctx, aliases, page, theme, placeholders)
-                } else if (node.child.containsEditorOnly()) {
-                    // The template has its own empty state for this branch; it simply is not this
-                    // one, so nothing is missing and there is nothing to stand in for.
-                    emptyList()
+                    flattenNode(node.child, ctx, aliases, page, theme, pass)
                 } else {
                     // The gate closed on the very data the section is for, so offer to add it.
-                    listOfNotNull(placeholderFor(sectionBehind(node.child), theme, placeholders))
+                    listOfNotNull(placeholderFor(nodeBehind(node.child), theme, pass))
                 }
 
             is TBox -> {
-                val children = node.children.flatMap { flattenNode(it, ctx, aliases, page, theme, placeholders) }
+                val children = node.children.flatMap { flattenNode(it, ctx, aliases, page, theme, pass) }
                 listOf(LBox(themed(node.style, node.tokens, theme), children, node.section))
             }
 
@@ -259,75 +300,97 @@ object TemplateFlattener {
             is TImage -> {
                 val url = when (val source = node.source) {
                     is TValue.Literal -> source.text
-                    is TValue.Bind -> ctx.resolveRaw(source.path, aliases) as? String ?: source.fallback
+                    is TValue.Bind -> (ctx.resolve(source.path, aliases) as? JsonPrimitive)
+                        ?.takeIf { it.isString }?.content ?: source.fallback
                 }
                 if (url.isBlank()) emptyList() else listOf(LImage(node.style, url, node.fit == "cover"))
             }
 
             is TDivider -> listOf(LDivider(themed(node.style, node.tokens, theme)))
 
-            is TTable -> listOf(
-                LTable(
-                    style = themed(node.style, node.tokens, theme),
-                    columns = node.columns,
-                    header = node.header.mapNotNull { flattenRow(it, ctx, aliases, page, theme, placeholders) },
-                    body = flattenBody(node.body, ctx, aliases, page, theme, placeholders),
-                    footer = node.footer.mapNotNull { flattenRow(it, ctx, aliases, page, theme, placeholders) },
-                    section = node.section,
-                ),
-            )
-
-            is TRow -> listOfNotNull(flattenRow(node, ctx, aliases, page, theme, placeholders))
-            is TCell -> listOf(flattenCell(node, ctx, aliases, page, theme, placeholders))
-        }
-    }
-
-    private fun flattenBody(
-        body: TTableBody?,
-        ctx: BindingContext,
-        aliases: Map<String, Any?>,
-        page: PageSpec,
-        theme: InvoiceTheme,
-        placeholders: PlaceholderMode,
-    ): List<LRow> = when (body) {
-        null -> emptyList()
-        is TTableBody.Rows -> body.rows.mapNotNull { flattenRow(it, ctx, aliases, page, theme, placeholders) }
-        is TTableBody.Repeat -> {
-            val items = ctx.resolveRaw(body.path, aliases) as? List<*> ?: emptyList<Any?>()
-            items.mapNotNull { item ->
-                flattenRow(body.row, ctx, aliases + (body.alias to item), page, theme, placeholders)
+            is TTable -> {
+                // Columns are decided once, against the invoice rather than any line (BE-021).
+                // Layout then sees a narrower table and never learns a column existed.
+                val hidden = node.columns.indices.filterTo(HashSet()) { i ->
+                    node.columns[i].visibleIf?.passes { ctx.resolve(it, aliases) } == false
+                }
+                fun row(r: TRow, rowAliases: Map<String, JsonElement> = aliases) =
+                    flattenRow(r, ctx, rowAliases, page, theme, pass, hidden)
+                listOf(
+                    LTable(
+                        style = themed(node.style, node.tokens, theme),
+                        columns = node.columns.filterIndexed { i, _ -> i !in hidden },
+                        header = node.header.mapNotNull { row(it) },
+                        body = when (val body = node.body) {
+                            null -> emptyList()
+                            is TTableBody.Rows -> body.rows.mapNotNull { row(it) }
+                            is TTableBody.Repeat -> {
+                                val items = ctx.resolve(body.path, aliases) as? JsonArray ?: JsonArray(emptyList())
+                                items.mapNotNull { item -> row(body.row, aliases + (body.alias to item)) }
+                            }
+                        },
+                        footer = node.footer.mapNotNull { row(it) },
+                        section = node.section,
+                    ),
+                )
             }
+
+            is TRow -> listOfNotNull(flattenRow(node, ctx, aliases, page, theme, pass))
+            is TCell -> listOf(flattenCell(node, ctx, aliases, page, theme, pass))
         }
     }
 
     private fun flattenRow(
         row: TRow,
         ctx: BindingContext,
-        aliases: Map<String, Any?>,
+        aliases: Map<String, JsonElement>,
         page: PageSpec,
         theme: InvoiceTheme,
-        placeholders: PlaceholderMode,
+        pass: Pass,
+        hiddenColumns: Set<Int> = emptySet(),
     ): LRow? {
         if (row.style.isHidden) return null
         if (row.section != null && row.section in theme.hiddenSections) return null
+        // A static row's own gate, e.g. a discount line that only shows when there is a discount.
+        if (row.visibleIf?.passes { ctx.resolve(it, aliases) } == false) return null
         return LRow(
             themed(row.style, row.tokens, theme),
-            row.cells.map { flattenCell(it, ctx, aliases, page, theme, placeholders) },
+            visibleCells(row.cells, hiddenColumns).map { flattenCell(it, ctx, aliases, page, theme, pass) },
             section = row.section,
         )
+    }
+
+    /**
+     * The cells of one row once [hidden] columns are gone (FIELDS.md §6.3): a cell over a hidden
+     * column is dropped, and a cell spanning one shrinks by the hidden columns it covers, so a
+     * "Total" label spanning the item columns still lines up with the amounts.
+     */
+    private fun visibleCells(cells: List<TCell>, hidden: Set<Int>): List<TCell> {
+        if (hidden.isEmpty()) return cells
+        var column = 0
+        return cells.mapNotNull { cell ->
+            val span = cell.colSpan.coerceAtLeast(1)
+            val covered = (column until column + span).count { it in hidden }
+            column += span
+            when {
+                covered == 0 -> cell
+                covered >= span -> null
+                else -> cell.copy(colSpan = span - covered)
+            }
+        }
     }
 
     private fun flattenCell(
         cell: TCell,
         ctx: BindingContext,
-        aliases: Map<String, Any?>,
+        aliases: Map<String, JsonElement>,
         page: PageSpec,
         theme: InvoiceTheme,
-        placeholders: PlaceholderMode,
+        pass: Pass,
     ) = LCell(
         style = themed(cell.style, cell.tokens, theme),
         colSpan = cell.colSpan.coerceAtLeast(1),
-        children = cell.children.flatMap { flattenNode(it, ctx, aliases, page, theme, placeholders) },
+        children = cell.children.flatMap { flattenNode(it, ctx, aliases, page, theme, pass) },
         section = cell.section,
     )
 
@@ -339,7 +402,7 @@ object TemplateFlattener {
         node: TText,
         nodeStyle: TStyle,
         ctx: BindingContext,
-        aliases: Map<String, Any?>,
+        aliases: Map<String, JsonElement>,
         page: PageSpec,
         theme: InvoiceTheme,
     ): List<StyledRun> {

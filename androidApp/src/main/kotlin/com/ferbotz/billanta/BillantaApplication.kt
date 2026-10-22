@@ -16,7 +16,8 @@ class BillantaApplication : Application() {
         super.onCreate()
         container = createAppContainer(
             context = this,
-            baseUrl = BillantaConfig.BASE_URL,
+            // Debug builds may point at another host (local.properties `billanta.debugBaseUrl`).
+            baseUrl = BuildConfig.API_BASE_URL_OVERRIDE.ifEmpty { BillantaConfig.BASE_URL },
             enableHttpLogging = BuildConfig.DEBUG,
         )
         // Before any push can arrive: FCM's background notifications go to this channel by id.

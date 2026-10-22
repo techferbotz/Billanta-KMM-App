@@ -13,35 +13,25 @@ import com.ferbotz.billanta.config.launchGate
 import com.ferbotz.billanta.core.AppResult
 import com.ferbotz.billanta.core.DecimalString
 import com.ferbotz.billanta.core.InvoiceDateFormat
-import com.ferbotz.billanta.core.logWarn
-import com.ferbotz.billanta.core.randomUuid
-import com.ferbotz.billanta.core.systemEpochMillis
-import com.ferbotz.billanta.data.repo.InvoiceRepository
+import com.ferbotz.billanta.core.Iso8601
 import com.ferbotz.billanta.di.AppContainer
-import com.ferbotz.billanta.domain.model.CompanyProfile
-import com.ferbotz.billanta.domain.model.toProfile
-import com.ferbotz.billanta.domain.model.toSnapshot
-import com.ferbotz.billanta.domain.model.CustomerRecord
-import com.ferbotz.billanta.domain.model.InvoiceDocStatus
-import com.ferbotz.billanta.domain.model.InvoiceDraft
-import com.ferbotz.billanta.domain.model.InvoiceItemRecord
-import com.ferbotz.billanta.domain.model.InvoiceRecord
-import com.ferbotz.billanta.domain.model.ProductRecord
 import com.ferbotz.billanta.domain.model.TemplateInfo
 import com.ferbotz.billanta.domain.model.UserAccount
-import com.ferbotz.billanta.domain.model.UserSettings
-import com.ferbotz.billanta.domain.money.CalcLine
-import com.ferbotz.billanta.domain.money.DiscountSpec
-import com.ferbotz.billanta.domain.money.DiscountType
-import com.ferbotz.billanta.domain.money.GstSplit
-import com.ferbotz.billanta.domain.money.InvoiceCalculator
-import com.ferbotz.billanta.domain.money.InvoiceTotals
-import com.ferbotz.billanta.model.parseRupeesToPaise
+import com.ferbotz.billanta.fields.FieldDef
+import com.ferbotz.billanta.fields.FieldValues
+import com.ferbotz.billanta.fields.FormsDoc
+import com.ferbotz.billanta.fields.ImageValue
 import com.ferbotz.billanta.model.stateCodeFromGstin
-import com.ferbotz.billanta.render.SectionEdits
-import com.ferbotz.billanta.render.TemplateSection
+import com.ferbotz.billanta.records.BusinessProfile
+import com.ferbotz.billanta.records.Customer
+import com.ferbotz.billanta.records.Invoice
+import com.ferbotz.billanta.records.InvoiceSettings
+import com.ferbotz.billanta.records.Product
+import com.ferbotz.billanta.render.TemplateDoc
+import com.ferbotz.billanta.render.TemplateParser
 import com.ferbotz.billanta.session.AuthState
 import com.ferbotz.billanta.ui.components.BottomTab
+import com.ferbotz.billanta.ui.fields.FieldContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -49,6 +39,8 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonPrimitive
 
 /** A screen pushed on top of the current tab root. */
 sealed interface Route
@@ -60,35 +52,39 @@ data class PreviewRoute(val invoiceId: String) : Route
 /** The list of sections to fill in, in the order the template declares them. */
 data class EditInvoiceDataRoute(val invoiceId: String) : Route
 
-/** One section's editor. [edits] is what the template says this section is made of. */
-data class EditSectionRoute(
-    val invoiceId: String,
-    val sectionId: String,
-    val edits: SectionEdits,
-    val label: String,
-    /** Whether the template lets this block be left off the invoice at all. */
-    val hidable: Boolean,
-) : Route
+/** One section's editor, built from the fields the template lists in it (BE-021). */
+data class EditSectionRoute(val invoiceId: String, val sectionId: String) : Route
+
+/** One line of an invoice, edited column by column. */
+data class EditLineRoute(val invoiceId: String, val lineId: String) : Route
+
+/** The saved customers, to bill one of them. */
+data class PickCustomerRoute(val invoiceId: String) : Route
+
 data object BusinessProfileRoute : Route
 data object SettingsRoute : Route
+
+/** The settings form from `GET /forms`: numbering and the defaults a new invoice starts from. */
+data object InvoiceDefaultsRoute : Route
+
 /** Settings → Account → Delete account: the confirmation the public deletion page describes. */
 data object DeleteAccountRoute : Route
+
 /**
- * [attachToInvoiceId] is set when the editor was opened from an invoice's "Bill to" screen: saving
- * a new customer there means "use this one", so it is put on the invoice straight away.
+ * [attachToInvoiceId] is set when the editor was opened from an invoice's customer picker: saving
+ * a new customer there means "bill this one", so it is put on the invoice straight away.
  */
 data class EditCustomerRoute(val customerId: String?, val attachToInvoiceId: String? = null) : Route
 data class EditProductRoute(val productId: String?) : Route
 
 /** A modal bottom sheet layered above everything. */
 sealed interface SheetRoute
-data class AddItemSheet(val invoiceId: String) : SheetRoute
 data class PremiumSheet(val templateId: String) : SheetRoute
 
 /**
- * App-scope state holder: navigation + ephemeral UI state, with all data collected live from the
- * repositories. Mutations go through the repos (which mark rows dirty and nudge the SyncManager);
- * this class never owns data, it mirrors the DB.
+ * App-scope state holder: navigation and ephemeral UI state, with all data collected live from the
+ * repositories. Mutations go through the repositories, which mark rows dirty and nudge the sync;
+ * this class never owns data, it mirrors the database.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class BillantaState(
@@ -114,77 +110,15 @@ class BillantaState(
     fun pop() { if (stack.isNotEmpty()) stack.removeAt(stack.lastIndex) }
     fun popToRoot() { stack.clear() }
 
-    /**
-     * First time through, the user picks a template and it becomes their default; every invoice
-     * after that goes straight into the create flow.
-     */
-    fun openCreate() {
-        if (settings.defaultTemplateId == null && features.templateStore && visibleTemplates.isNotEmpty()) {
-            push(ChooseTemplateRoute)
-        }
-        else createAndOpenInvoice { push(it) }
-    }
-
-    /** Chosen from the first-run picker: remember it, then carry on into the invoice. */
-    fun chooseDefaultTemplate(template: TemplateInfo) {
-        if (template.isPremium && !isPremium) {
-            openSheet(PremiumSheet(template.id))
-            return
-        }
-        saveSettings(settings.copy(defaultTemplateId = template.id)) {
-            createAndOpenInvoice { replaceTop(it) }
-        }
-    }
-
-    var creatingInvoice by mutableStateOf(false)
-        private set
-
-    /**
-     * The invoice is created empty and opened straight away, so what the user edits already exists.
-     * Nothing can be lost by backing out mid-way, and the preview *is* the form: every unfilled
-     * section is a dashed box on the real template rather than a field in a sheet.
-     */
-    private fun createAndOpenInvoice(open: (Route) -> Unit) {
-        if (creatingInvoice) return
-        scope.launch {
-            creatingInvoice = true
-            val today = todayUtcMidnightMillis()
-            val template = selectedTemplateId?.let { templateById(it) }
-            val number = settings.formatNextInvoiceNumber()
-            val result = container.invoiceRepository.createEmpty(
-                invoiceNumber = number,
-                currency = settings.defaultCurrency,
-                templateId = template?.id,
-                templateVersion = template?.currentVersion,
-                invoiceDateMillis = today,
-                dueDateMillis = today + DEFAULT_DUE_DAYS * MILLIS_PER_DAY,
-                notes = settings.defaultNotes,
-            )
-            creatingInvoice = false
-            when (result) {
-                is AppResult.Success -> {
-                    container.settingsRepository.consumeInvoiceNumberIfMatches(number)
-                    open(PreviewRoute(result.value.id))
-                }
-                is AppResult.Failure -> uiMessage = result.error.userMessage()
-            }
-        }
-    }
-    fun openPreview(invoiceId: String) = push(PreviewRoute(invoiceId))
-
     fun openSheet(s: SheetRoute) { sheet = s }
     fun closeSheet() { sheet = null }
 
-    /** Global back handling. Returns true if it consumed the event. */
     /** Shown when back is pressed with nowhere left to go; see [back]. */
     var confirmingExit by mutableStateOf(false)
 
     /**
      * Where back goes, in order: close a sheet, pop a pushed screen, return to the Invoices tab,
      * and only then offer to leave.
-     *
-     * The tab step matters because the tabs are siblings, not a history — without it, back from
-     * Catalogue closed the app outright, which is a surprising way to lose your place.
      */
     fun back(): Boolean = when {
         sheet != null -> { sheet = null; true }
@@ -206,10 +140,7 @@ class BillantaState(
         private set
     var signInError by mutableStateOf<String?>(null)
 
-    /**
-     * How dates are written on every invoice. A device preference rather than invoice data: the
-     * server has no field for it, and it is a matter of taste, not of what the invoice says.
-     */
+    /** How dates are written on every invoice: a device preference, not invoice data. */
     var dateFormat by mutableStateOf(InvoiceDateFormat.fromId(container.prefs.getString(PREF_DATE_FORMAT)))
         private set
 
@@ -231,18 +162,22 @@ class BillantaState(
     var query by mutableStateOf("")
     var loading by mutableStateOf(true)
         private set
-    var invoices by mutableStateOf<List<InvoiceRecord>>(emptyList())
+    var invoices by mutableStateOf<List<Invoice>>(emptyList())
         private set
-    private var allInvoices by mutableStateOf<List<InvoiceRecord>>(emptyList())
-    var customers by mutableStateOf<List<CustomerRecord>>(emptyList())
+    private var allInvoices by mutableStateOf<List<Invoice>>(emptyList())
+    var customers by mutableStateOf<List<Customer>>(emptyList())
         private set
     var templates by mutableStateOf<List<TemplateInfo>>(emptyList())
         private set
-    var products by mutableStateOf<List<ProductRecord>>(emptyList())
+    var products by mutableStateOf<List<Product>>(emptyList())
         private set
-    var settings by mutableStateOf(UserSettings())
+    var profile by mutableStateOf<BusinessProfile?>(null)
         private set
-    var company by mutableStateOf<CompanyProfile?>(null)
+    var settings by mutableStateOf<InvoiceSettings?>(null)
+        private set
+
+    /** The business profile, customer, product and settings forms (`GET /forms`). Never absent. */
+    var forms by mutableStateOf(container.formsRepository.forms.value)
         private set
 
     /** Transient error/info surfaced by actions; a screen shows and clears it. */
@@ -250,29 +185,14 @@ class BillantaState(
 
     // ---- remote config (BE-014) ----------------------------------------------------------------
 
-    /** The `GET /config` document in force, as Compose state. Never absent — see RemoteConfigManager. */
     var remoteConfig by mutableStateOf(container.remoteConfig.current)
         private set
 
-    /**
-     * Which UI entry points to offer. Maintenance switches the cloud-backed ones off (see
-     * [RemoteConfig.effectiveFeatures]); none of these touch the data layer.
-     */
     val features: RemoteConfig.Features get() = remoteConfig.effectiveFeatures
-
-    /** The legal links — always from `/config`, never a hard-coded host (BE-015). */
     val links: RemoteConfig.Links get() = remoteConfig.links
-
-    /** Maintenance, a forced update or a recommended one — whichever applies first. */
     val launchGate: LaunchGate get() = launchGate(remoteConfig, container.identity)
-
-    /** A recommended update is a nudge: once waved away, not shown again until the next launch. */
     var recommendedUpdateDismissed by mutableStateOf(false)
 
-    /**
-     * The catalogue as the pickers show it. With premium templates switched off there is nothing
-     * to upsell, so they are not offered at all — an invoice already on one still renders it.
-     */
     val visibleTemplates: List<TemplateInfo>
         get() = if (features.premiumTemplates) templates else templates.filterNot { it.isPremium }
 
@@ -281,37 +201,70 @@ class BillantaState(
     fun openAccountDeletionInfo() = container.openInAppBrowser(links.deleteAccount)
     fun contactSupport() = container.openUrl("mailto:${links.supportEmail}")
 
+    // ---- templates -----------------------------------------------------------------------------
+
+    /**
+     * The template new invoices start on. The device remembers the last one chosen — BE-021 took
+     * the default template off the server's settings, as a device preference rather than data.
+     */
+    var defaultTemplateId by mutableStateOf(container.prefs.getString(PREF_DEFAULT_TEMPLATE))
+        private set
+
     val selectedTemplateId: String?
-        get() = settings.defaultTemplateId
+        get() = defaultTemplateId?.takeIf { id -> templates.isEmpty() || templates.any { it.id == id } }
             ?: templates.firstOrNull { !it.isPremium }?.id
             ?: templates.firstOrNull()?.id
 
+    private fun rememberTemplate(id: String) {
+        defaultTemplateId = id
+        container.prefs.putString(PREF_DEFAULT_TEMPLATE, id)
+    }
+
     fun templateById(id: String): TemplateInfo? = templates.firstOrNull { it.id == id }
-    fun customerById(id: String?): CustomerRecord? = id?.let { cid -> customers.firstOrNull { it.id == cid } }
-    fun invoiceFlow(id: String): Flow<InvoiceRecord?> = container.invoiceRepository.observeInvoice(id)
+
+    /**
+     * The compiled tree an invoice draws with. A Draft follows the template's current version; an
+     * issued invoice keeps the version it was made on, and falls back to the newest one cached
+     * when that one cannot be fetched offline (FIELDS_APP_GUIDE.md §10).
+     */
+    suspend fun templateDocFor(invoice: Invoice?): AppResult<TemplateDoc> {
+        val templateId = invoice?.templateId?.takeIf { it.isNotEmpty() } ?: selectedTemplateId
+            ?: return AppResult.Failure(com.ferbotz.billanta.core.AppError.Validation("No templates yet — connect once to download them."))
+        val current = templateById(templateId)?.currentVersion
+        val version = if (invoice == null || invoice.isDraft) current ?: invoice?.templateVersion else invoice.templateVersion ?: current
+        return when (val result = container.templateRepository.getCompiled(templateId, version)) {
+            is AppResult.Success -> TemplateParser.parse(result.value.json)?.let { AppResult.Success(it) }
+                ?: AppResult.Failure(com.ferbotz.billanta.core.AppError.Validation("This template can't be displayed — try updating the app."))
+            is AppResult.Failure -> if (version != null && version != current) {
+                container.templateRepository.getCompiled(templateId, null).let { fallback ->
+                    (fallback as? AppResult.Success)?.value?.json?.let(TemplateParser::parse)?.let { AppResult.Success(it) } ?: result
+                }
+            } else result
+        }
+    }
+
+    fun invoiceFlow(id: String): Flow<Invoice?> = container.invoiceRepository.observeInvoice(id)
+
+    fun customerById(id: String?): Customer? = id?.let { cid -> customers.firstOrNull { it.id == cid } }
+    fun productById(id: String?): Product? = id?.let { pid -> products.firstOrNull { it.id == pid } }
 
     /**
      * Invoices, amount billed and latest invoice date for every customer, computed in one pass and
-     * only when the invoices change — the catalogue shows these on every customer card, where
-     * scanning all invoices once per row would grow with customers times invoices.
+     * only when the invoices change.
      */
     val customerStats: Map<String, CustomerStats> by derivedStateOf {
         allInvoices.filter { it.customerId != null }.groupBy { it.customerId!! }.mapValues { (_, list) ->
             CustomerStats(
                 invoiceCount = list.size,
-                billedPaise = list.sumOf { it.grandTotalPaise },
-                lastInvoiceMillis = list.maxOf { it.invoiceDateMillis },
+                billedPaise = list.sumOf { it.computed.grandTotal },
+                lastInvoiceMillis = list.maxOf { it.invoiceDateMillis ?: 0L },
             )
         }
     }
 
     /** Where this business is registered, for telling a same-state sale from an inter-state one. */
     val sellerStateCode: String?
-        get() = company?.let { it.stateCode?.takeIf(String::isNotBlank) ?: it.gstin?.let(::stateCodeFromGstin) }
-
-    fun invoiceCountFor(customerId: String): Int = allInvoices.count { it.customerId == customerId }
-    fun billedTotalFor(customerId: String): Long =
-        allInvoices.filter { it.customerId == customerId }.sumOf { it.grandTotalPaise }
+        get() = profile?.values?.let { it.string(COMPANY_STATE) ?: it.string(COMPANY_GSTIN)?.let(::stateCodeFromGstin) }
 
     init {
         scope.launch { container.userManager.authState.collect { auth = it } }
@@ -327,10 +280,59 @@ class BillantaState(
         scope.launch { container.customerRepository.observeCustomers().collect { customers = it } }
         scope.launch { container.templateRepository.observeTemplates().collect { templates = it } }
         scope.launch { container.productRepository.observeProducts().collect { products = it } }
-        scope.launch { container.settingsRepository.observeSettings().collect { settings = it } }
-        scope.launch { container.companyRepository.observeCompany().collect { company = it } }
+        scope.launch { container.profileRepository.observeSettings().collect { settings = it } }
+        scope.launch { container.profileRepository.observeProfile().collect { profile = it } }
+        scope.launch { container.formsRepository.forms.collect { forms = it } }
         scope.launch { container.remoteConfig.document.collect { remoteConfig = it.config } }
     }
+
+    // ---- creating an invoice -------------------------------------------------------------------
+
+    /**
+     * First time through, the user picks a template and it becomes their default; every invoice
+     * after that goes straight into the create flow.
+     */
+    fun openCreate() {
+        if (defaultTemplateId == null && features.templateStore && visibleTemplates.isNotEmpty()) push(ChooseTemplateRoute)
+        else createAndOpenInvoice { push(it) }
+    }
+
+    /** Chosen from the first-run picker: remember it, then carry on into the invoice. */
+    fun chooseDefaultTemplate(template: TemplateInfo) {
+        if (template.isPremium && !isPremium) {
+            openSheet(PremiumSheet(template.id))
+            return
+        }
+        rememberTemplate(template.id)
+        createAndOpenInvoice { replaceTop(it) }
+    }
+
+    var creatingInvoice by mutableStateOf(false)
+        private set
+
+    /**
+     * The invoice is created with its starting values and opened straight away, so what the user
+     * edits already exists. Without a template to read (offline, never downloaded) it still
+     * starts with the profile copy and a number; the template's own fields fill in when it loads.
+     */
+    private fun createAndOpenInvoice(open: (Route) -> Unit) {
+        if (creatingInvoice) return
+        scope.launch {
+            creatingInvoice = true
+            val templateId = selectedTemplateId
+            val doc = (templateDocFor(null) as? AppResult.Success)?.value
+            val invoice = container.invoiceRepository.create(
+                templateId = templateId,
+                templateVersion = templateId?.let { templateById(it)?.currentVersion },
+                sections = doc?.sections?.map { it.asFieldSection() }.orEmpty(),
+                settingsForm = forms.settings,
+            )
+            creatingInvoice = false
+            open(PreviewRoute(invoice.id))
+        }
+    }
+
+    fun openPreview(invoiceId: String) = push(PreviewRoute(invoiceId))
 
     // ---- invoice actions -----------------------------------------------------------------------
 
@@ -338,79 +340,172 @@ class BillantaState(
         scope.launch { container.invoiceRepository.delete(id) }
     }
 
-    fun setInvoiceTemplate(id: String, template: TemplateInfo) = launchReporting {
-        container.invoiceRepository.setTemplate(id, template.id, template.currentVersion)
+    /** Opening a Draft brings its company and customer copy up to date (FIELDS.md §8.4). */
+    fun refreshDraft(invoiceId: String) {
+        scope.launch { container.invoiceRepository.refreshDraft(invoiceId) }
     }
 
-    fun setInvoiceCustomisation(
-        id: String,
-        themeOverrides: Map<String, Long>,
-        hiddenSections: Set<String>,
-    ) = launchReporting {
-        container.invoiceRepository.setCustomisation(id, themeOverrides, hiddenSections)
+    /** Moves an invoice to another template, keeping every value; the new template's fields start. */
+    fun setInvoiceTemplate(invoice: Invoice, template: TemplateInfo) = launchReporting {
+        val doc = when (val result = container.templateRepository.getCompiled(template.id, template.currentVersion)) {
+            is AppResult.Success -> TemplateParser.parse(result.value.json)
+            is AppResult.Failure -> return@launchReporting result
+        }
+        rememberTemplate(template.id)
+        container.invoiceRepository.setTemplate(
+            invoiceId = invoice.id,
+            templateId = template.id,
+            templateVersion = template.currentVersion,
+            sections = doc?.sections?.map { it.asFieldSection() }.orEmpty(),
+            settingsForm = forms.settings,
+        )
     }
 
-    fun gstSplitFor(invoice: InvoiceRecord): GstSplit = container.invoiceRepository.gstSplitFor(invoice)
+    fun setInvoiceCustomisation(invoice: Invoice, themeOverrides: Map<String, String>, hiddenSections: Set<String>) =
+        launchReporting { container.invoiceRepository.setCustomisation(invoice.id, hiddenSections, themeOverrides) }
 
-    // ---- customer actions ----------------------------------------------------------------------
+    /** Puts a section on the invoice, or takes it off. Only offered for a hidable section. */
+    fun setSectionVisible(invoice: Invoice, sectionId: String, visible: Boolean) {
+        val hidden = if (visible) invoice.hiddenSections - sectionId else invoice.hiddenSections + sectionId
+        setInvoiceCustomisation(invoice, invoice.themeOverrides, hidden)
+    }
 
-    fun upsertCustomer(record: CustomerRecord, onSaved: (CustomerRecord) -> Unit = {}) {
+    /**
+     * The first share issues the invoice: its company and customer copy stops following the
+     * records (FIELDS.md §8.4), and its new lines join the catalogue.
+     */
+    fun markIssued(invoiceId: String) {
+        scope.launch { container.invoiceRepository.markIssued(invoiceId) }
+    }
+
+    /** Gives an invoice the next free number, after the server said its number is already used. */
+    fun renumber(invoiceId: String) = launchReporting { container.invoiceRepository.renumber(invoiceId, forms.settings) }
+
+    // ---- section-by-section editing ------------------------------------------------------------
+
+    /** How far a section editor's writing has got, for the line above its Done button. */
+    enum class SaveState { Clean, Saving, Saved }
+
+    var sectionSaveState by mutableStateOf(SaveState.Clean)
+        private set
+
+    /** The last complaint from a section write. Cleared as soon as the next one is attempted. */
+    var draftError by mutableStateOf<String?>(null)
+
+    /** Section writes run one at a time, so an auto-save can never drop the newest keystrokes. */
+    private val sectionWriteLock = Mutex()
+
+    fun resetSectionSaveState() {
+        sectionSaveState = SaveState.Clean
+        draftError = null
+    }
+
+    fun openInvoiceData(invoiceId: String) = push(EditInvoiceDataRoute(invoiceId))
+
+    fun openSection(invoiceId: String, sectionId: String) = push(EditSectionRoute(invoiceId, sectionId))
+
+    /**
+     * Tapping a section on the invoice itself goes straight into its editor, with the section list
+     * underneath, so backing out lands on everything still to fill in.
+     */
+    fun openSectionViaList(invoiceId: String, sectionId: String) {
+        push(EditInvoiceDataRoute(invoiceId))
+        push(EditSectionRoute(invoiceId, sectionId))
+    }
+
+    /** Saves what a section editor changed; each field goes where its owner says (FIELDS_APP_GUIDE.md §4.5). */
+    fun saveInvoiceFields(invoiceId: String, changes: List<Pair<FieldDef, JsonElement?>>) {
+        if (changes.isEmpty()) return
+        writeSection { container.invoiceRepository.setFields(invoiceId, changes) }
+    }
+
+    fun saveLineFields(invoiceId: String, lineId: String, changes: List<Pair<FieldDef, JsonElement?>>) {
+        if (changes.isEmpty()) return
+        writeSection { container.invoiceRepository.setLineFields(invoiceId, lineId, changes) }
+    }
+
+    private fun writeSection(write: suspend () -> AppResult<*>) {
         scope.launch {
-            when (val result = container.customerRepository.upsert(record)) {
-                is AppResult.Success -> onSaved(result.value)
+            sectionWriteLock.withLock {
+                sectionSaveState = SaveState.Saving
+                draftError = null
+                when (val result = write()) {
+                    is AppResult.Success -> sectionSaveState = SaveState.Saved
+                    is AppResult.Failure -> {
+                        sectionSaveState = SaveState.Clean
+                        draftError = result.error.userMessage()
+                        // A write can land after its editor has gone; say so where the user still is.
+                        if (currentRoute !is EditSectionRoute && currentRoute !is EditLineRoute) uiMessage = draftError
+                    }
+                }
+            }
+        }
+    }
+
+    fun pickCustomer(invoiceId: String, customerId: String, onDone: () -> Unit = {}) {
+        scope.launch {
+            when (val result = container.invoiceRepository.pickCustomer(invoiceId, customerId)) {
+                is AppResult.Success -> onDone()
                 is AppResult.Failure -> uiMessage = result.error.userMessage()
             }
         }
+    }
+
+    /** A blank line, opened straight into its editor. */
+    fun addBlankLine(invoiceId: String, columns: List<FieldDef>) {
+        scope.launch {
+            when (val result = container.invoiceRepository.addLine(invoiceId, columns, null, forms.settings)) {
+                is AppResult.Success -> push(EditLineRoute(invoiceId, result.value))
+                is AppResult.Failure -> uiMessage = result.error.userMessage()
+            }
+        }
+    }
+
+    /** A line copied from a catalogue product. It is complete as it is, so no editor opens. */
+    fun addProductLine(invoiceId: String, columns: List<FieldDef>, product: Product) = launchReporting {
+        container.invoiceRepository.addLine(invoiceId, columns, product, forms.settings)
+    }
+
+    fun removeLine(invoiceId: String, lineId: String) = launchReporting {
+        container.invoiceRepository.removeLine(invoiceId, lineId)
+    }
+
+    fun moveLine(invoiceId: String, lineId: String, toIndex: Int) = launchReporting {
+        container.invoiceRepository.moveLine(invoiceId, lineId, toIndex)
+    }
+
+    /**
+     * Steps a line's quantity by whole units, keeping any fraction. Stepping the last one off
+     * removes the line, so "−" on a quantity of 1 does the obvious thing.
+     */
+    fun stepLineQuantity(invoice: Invoice, lineId: String, quantityColumn: FieldDef, delta: Int) {
+        val line = invoice.lines.firstOrNull { it.id == lineId } ?: return
+        val current = line.values.decimal(QUANTITY) ?: DecimalString(0, 0)
+        val stepped = current.plusWhole(delta)
+        if (stepped == null) removeLine(invoice.id, lineId)
+        else saveLineFields(invoice.id, lineId, listOf(quantityColumn to JsonPrimitive(stepped.toString())))
+    }
+
+    /** The line editor closed: a line with a new description joins the catalogue. */
+    fun lineEditorClosed(invoiceId: String, lineId: String) {
+        if (!features.productCatalogue) return
+        scope.launch { container.invoiceRepository.addLineToCatalogue(invoiceId, lineId) }
+    }
+
+    // ---- customers, products, profile, settings ------------------------------------------------
+
+    fun saveCustomer(customer: Customer, onSaved: (Customer) -> Unit = {}) {
+        scope.launch { onSaved(container.customerRepository.save(customer)) }
     }
 
     fun deleteCustomer(id: String) {
         scope.launch { container.customerRepository.delete(id) }
     }
 
-    // ---- product catalogue ---------------------------------------------------------------------
-
-    var savingProduct by mutableStateOf(false)
-        private set
-    var productError by mutableStateOf<String?>(null)
-
-    fun productById(id: String?): ProductRecord? = id?.let { pid -> products.firstOrNull { it.id == pid } }
-
-    /** [price] is what the user typed, in rupees; the catalogue stores paise. */
-    fun saveProduct(
-        id: String?,
-        name: String,
-        hsnSac: String,
-        price: String,
-        taxRatePercent: String,
-        unit: String,
-        imageUrl: String? = null,
-        imageThumbnailUrl: String? = null,
-        onSaved: () -> Unit = {},
-    ) {
-        if (savingProduct) return
-        val paise = price.trim().ifBlank { "0" }.let(::parseRupeesToPaise)
-        if (paise == null) {
-            productError = "Enter a valid rate"
-            return
-        }
+    fun saveProduct(product: Product, onSaved: () -> Unit = {}) {
         scope.launch {
-            savingProduct = true
-            productError = null
-            val result = container.productRepository.save(
-                id = id,
-                name = name,
-                hsnSac = hsnSac,
-                unitPricePaise = paise,
-                taxRatePercent = taxRatePercent.trim().ifBlank { "0" },
-                unit = unit,
-                imageUrl = imageUrl,
-                imageThumbnailUrl = imageThumbnailUrl,
-            )
-            savingProduct = false
-            when (result) {
-                is AppResult.Success -> onSaved()
-                is AppResult.Failure -> productError = result.error.userMessage()
-            }
+            container.productRepository.save(product)
+            onSaved()
         }
     }
 
@@ -418,82 +513,85 @@ class BillantaState(
         scope.launch { container.productRepository.delete(id) }
     }
 
-    // ---- product photos (APP-015) ----------------------------------------------------------------
+    fun saveProfile(values: FieldValues, onSaved: () -> Unit = {}) {
+        scope.launch {
+            container.profileRepository.saveProfile(values)
+            onSaved()
+        }
+    }
 
-    /** True from the moment a picked photo starts uploading until the URLs are back. */
-    var uploadingProductPhoto by mutableStateOf(false)
+    fun saveSettings(values: FieldValues, onSaved: () -> Unit = {}) {
+        scope.launch {
+            container.profileRepository.saveSettings(values)
+            onSaved()
+        }
+    }
+
+    // ---- images --------------------------------------------------------------------------------
+
+    val canPickImages: Boolean get() = container.imagePickerCoordinator.isAvailable
+
+    /** True from the moment a picked image starts uploading until its URLs are back. */
+    var uploadingImage by mutableStateOf(false)
         private set
 
     /**
-     * Why a photo cannot be added right now, or null when it can. Uploads go straight to
-     * `POST /media`, which needs an account and a connection — media has no offline queue — so a
-     * signed-out user is told what would make it possible rather than shown a button that fails.
+     * Why an image cannot be added right now, or null when it can. Uploads go straight to
+     * `POST /media`, which needs an account and a connection — media has no offline queue.
      */
-    val productPhotoBlocker: String?
+    val imageBlocker: String?
         get() = when {
-            !features.mediaUpload -> "Adding photos isn't available right now."
-            !canPickImages -> "Choosing a photo isn't available in this build."
-            !signedIn -> "Sign in from Profile to add photos."
+            !features.mediaUpload -> "Adding images isn't available right now."
+            !canPickImages -> "Choosing an image isn't available in this build."
+            !signedIn -> "Sign in from Profile to add images."
             else -> null
         }
 
-    /**
-     * Picks a photo and uploads it, handing back the full image and its thumbnail. Nothing is
-     * saved: the product editor has a Save button, and the photo is part of what it saves — so
-     * backing out of the editor leaves the product exactly as it was.
-     */
-    fun pickProductPhoto(onUploaded: (url: String, thumbnailUrl: String?) -> Unit) {
-        if (uploadingProductPhoto || productPhotoBlocker != null) return
+    /** Picks an image and uploads it, handing back what `POST /media` returned. */
+    fun pickAndUploadImage(onPicked: (ImageValue) -> Unit) {
+        if (uploadingImage || imageBlocker != null) return
         scope.launch {
-            productError = null
             val image = when (val picked = container.imagePickerCoordinator.pick()) {
                 is AppResult.Failure -> {
-                    productError = picked.error.userMessage()
+                    uiMessage = picked.error.userMessage()
                     return@launch
                 }
                 // Null means they backed out of the picker: a decision, so say nothing.
                 is AppResult.Success -> picked.value ?: return@launch
             }
-            uploadingProductPhoto = true
+            uploadingImage = true
             when (val upload = container.mediaRepository.uploadImage(image.bytes, image.fileName, image.contentType)) {
-                is AppResult.Success -> onUploaded(upload.value.url, upload.value.thumbnailUrl)
-                is AppResult.Failure -> productError = upload.error.userMessage()
+                is AppResult.Success -> onPicked(ImageValue(upload.value.url, upload.value.thumbnailUrl))
+                is AppResult.Failure -> uiMessage = upload.error.userMessage()
             }
-            uploadingProductPhoto = false
+            uploadingImage = false
         }
     }
 
-    // ---- template / settings / company actions -------------------------------------------------
+    /** What every field input needs from the app, over [valueOf] for the record being edited. */
+    fun fieldContext(valueOf: (String) -> JsonElement?, computedText: (FieldDef) -> String? = { null }) = FieldContext(
+        optionLists = forms.optionLists,
+        dateFormat = dateFormat,
+        valueOf = valueOf,
+        imageBlocker = imageBlocker,
+        pickImage = ::pickAndUploadImage,
+        uploadingImage = uploadingImage,
+        computedText = computedText,
+    )
 
-    /** Free templates select immediately (persisted as the default); premium ones gate. */
+    // ---- template choice -----------------------------------------------------------------------
+
+    /** Free templates select immediately; premium ones gate. */
     fun selectTemplate(template: TemplateInfo) {
         if (template.isPremium && !isPremium) {
             openSheet(PremiumSheet(template.id))
             return
         }
-        launchReporting { container.settingsRepository.save(settings.copy(defaultTemplateId = template.id)) }
+        rememberTemplate(template.id)
     }
 
     fun refreshTemplates() {
         scope.launch { container.templateRepository.refreshCatalogue() }
-    }
-
-    fun saveSettings(updated: UserSettings, onSaved: () -> Unit = {}) {
-        scope.launch {
-            when (val result = container.settingsRepository.save(updated)) {
-                is AppResult.Success -> onSaved()
-                is AppResult.Failure -> uiMessage = result.error.userMessage()
-            }
-        }
-    }
-
-    fun saveCompany(profile: CompanyProfile, onSaved: () -> Unit = {}) {
-        scope.launch {
-            when (val result = container.companyRepository.save(profile)) {
-                is AppResult.Success -> onSaved()
-                is AppResult.Failure -> uiMessage = result.error.userMessage()
-            }
-        }
     }
 
     // ---- session actions -----------------------------------------------------------------------
@@ -528,13 +626,7 @@ class BillantaState(
     /** Why the last deletion attempt failed, shown on the confirmation screen itself. */
     var deleteAccountError by mutableStateOf<String?>(null)
 
-    /**
-     * `DELETE /users/me`, then signed out locally (BE-015 / BE-017).
-     *
-     * The server cascades everything the account owns; the local copy goes with it, so a later
-     * sign-in with the same Google account cannot re-upload what was just deleted. Nothing changes
-     * locally if the server refuses — the account is still there.
-     */
+    /** `DELETE /users/me`, then signed out locally (BE-015 / BE-017). */
     fun deleteAccount(onDone: () -> Unit = {}) {
         if (deletingAccount) return
         scope.launch {
@@ -553,320 +645,6 @@ class BillantaState(
         }
     }
 
-    // ---- create-invoice draft ------------------------------------------------------------------
-
-    data class DraftLine(
-        val uiId: String,
-        val description: String,
-        val hsnSac: String?,
-        val quantity: String,
-        val unitPricePaise: Long,
-        val taxRatePercent: String,
-    )
-
-    /** The last complaint from a section write. Cleared as soon as the next one is attempted. */
-    var draftError by mutableStateOf<String?>(null)
-
-    // ---- section-by-section editing ------------------------------------------------------------
-
-    /** How far a section editor's writing has got, for the line above its Done button. */
-    enum class SaveState { Clean, Saving, Saved }
-
-    /**
-     * Section editors have no Save button: they write themselves a moment after the user stops
-     * changing anything. That makes "did that stick?" a question the screen has to answer without
-     * being asked, which is what this is for.
-     */
-    var sectionSaveState by mutableStateOf(SaveState.Clean)
-        private set
-
-    /** True while a section write is in flight — for buttons that must not fire twice. */
-    val savingSection: Boolean get() = sectionSaveState == SaveState.Saving
-
-    /**
-     * Section writes run one at a time.
-     *
-     * Auto-save can ask for a write while the previous one is still going. Dropping the newer one
-     * — which is what the Save button's `if (savingSection) return` did — would silently lose the
-     * most recent keystrokes, the one thing an auto-saving form must never do. So they queue.
-     */
-    private val sectionWriteLock = Mutex()
-
-    /** A section editor has just opened: its draft matches what is stored, and nothing has failed. */
-    fun resetSectionSaveState() {
-        sectionSaveState = SaveState.Clean
-        draftError = null
-    }
-
-    /**
-     * A failed section write, reported wherever the user can still see it.
-     *
-     * Auto-save means a write can land after its editor is gone — the last one fires as the screen
-     * is disposed — so a complaint that only ever reached that screen's own bar would be a silent
-     * loss. On screen, the bar says it; off screen, the app-wide message does.
-     */
-    private fun reportSectionFailure(message: String) {
-        sectionSaveState = SaveState.Clean
-        draftError = message
-        if (currentRoute !is EditSectionRoute) uiMessage = message
-    }
-
-    fun openInvoiceData(invoiceId: String) = push(EditInvoiceDataRoute(invoiceId))
-
-    fun openSection(invoiceId: String, section: TemplateSection) =
-        push(EditSectionRoute(invoiceId, section.id, section.edits, section.label, section.hidable))
-
-    /**
-     * Tapping a section on the invoice itself goes straight into its editor, but pushes the section
-     * list underneath first — so backing out lands on the list of everything still to fill in,
-     * rather than returning to the invoice after every single edit.
-     */
-    fun openSectionViaList(invoiceId: String, section: TemplateSection) {
-        push(EditInvoiceDataRoute(invoiceId))
-        push(EditSectionRoute(invoiceId, section.id, section.edits, section.label, section.hidable))
-    }
-
-    /** Puts a section on the invoice, or takes it off. Only meaningful for a hidable section. */
-    fun setSectionVisible(invoice: InvoiceRecord, sectionId: String, visible: Boolean) {
-        val hidden = invoice.hiddenSections.toMutableSet()
-        if (visible) hidden.remove(sectionId) else hidden.add(sectionId)
-        // Every layer of this tests green, yet it has been reported as not working twice. Log what
-        // was actually asked for, so the next report says whether the write happened at all.
-        logWarn("Sections", "$sectionId visible=$visible -> hidden=$hidden on ${invoice.id}")
-        setInvoiceCustomisation(invoice.id, invoice.themeOverrides, hidden)
-    }
-
-    fun setInvoiceCustomer(invoiceId: String, customerId: String, onSaved: () -> Unit = {}) =
-        saveSection(onSaved) { setCustomer(invoiceId, customerId) }
-
-    fun setInvoiceDetails(
-        invoiceId: String,
-        invoiceNumber: String,
-        invoiceDateMillis: Long,
-        dueDateMillis: Long?,
-        onSaved: () -> Unit = {},
-    ) = saveSection(onSaved) {
-        setDetails(invoiceId, invoiceNumber.trim(), invoiceDateMillis, dueDateMillis, settings.defaultCurrency)
-    }
-
-    fun setInvoiceDiscount(
-        invoiceId: String,
-        type: DiscountType?,
-        value: String,
-        beforeTax: Boolean,
-        onSaved: () -> Unit = {},
-    ) = saveSection(onSaved) { setDiscount(invoiceId, discountSpec(type, value), beforeTax) }
-
-    /** Percent goes through as typed; Flat is entered in rupees and sent as paise (the wire unit). */
-    private fun discountSpec(type: DiscountType?, value: String): DiscountSpec? {
-        if (type == null) return null
-        val raw = value.trim().takeIf { it.isNotEmpty() } ?: return null
-        return when (type) {
-            DiscountType.Percentage -> DiscountSpec(type, raw)
-            DiscountType.Flat -> parseRupeesToPaise(raw)?.let { DiscountSpec(type, it.toString()) }
-        }
-    }
-
-    /**
-     * Saves the business details shown on an invoice.
-     *
-     * [alsoUpdateProfile] is the difference between "fix my details" and "this one invoice is
-     * different": saving the profile restamps every invoice, so a one-off override has to stop at
-     * this record or the correction would leak backwards into invoices already issued.
-     */
-    fun setInvoiceCompany(
-        invoiceId: String,
-        alsoUpdateProfile: Boolean,
-        onSaved: () -> Unit = {},
-        mutate: (CompanyProfile) -> CompanyProfile,
-    ) {
-        scope.launch {
-            sectionWriteLock.withLock {
-                sectionSaveState = SaveState.Saving
-                draftError = null
-                // Read the stored profile and change only what the editor asked for. An editor that
-                // built a whole CompanyProfile from its own fields silently nulled every field it
-                // did not show — which is how editing bank details erased the signatory, and vice
-                // versa.
-                val stored = container.companyRepository.getCompany()
-                val invoice = container.invoiceRepository.getInvoice(invoiceId)
-                val current = stored
-                    ?: invoice?.companySnapshot?.toProfile()
-                    ?: CompanyProfile(name = "")
-                val company = mutate(current)
-                // Auto-save asks for a write whenever a field settles, and a field can settle back
-                // on the value it already held. Saving the profile restamps every invoice, so a
-                // write that would change nothing is worth not doing at all — it also stops a
-                // switch left on by default from wiping this invoice's override when the user
-                // opened the section and typed nothing.
-                val alreadyStored =
-                    if (alsoUpdateProfile) company == stored
-                    else company.toSnapshot() == invoice?.companySnapshot
-                if (alreadyStored) {
-                    sectionSaveState = SaveState.Saved
-                    onSaved()
-                    return@withLock
-                }
-                // Saving the profile restamps every invoice, this one included; the override does not.
-                val result: AppResult<*> = if (alsoUpdateProfile) {
-                    container.companyRepository.save(company)
-                } else {
-                    container.invoiceRepository.setCompanySnapshot(invoiceId, company.toSnapshot())
-                }
-                when (result) {
-                    is AppResult.Success -> {
-                        sectionSaveState = SaveState.Saved
-                        onSaved()
-                    }
-                    is AppResult.Failure -> reportSectionFailure(result.error.userMessage())
-                }
-            }
-        }
-    }
-
-    val canPickImages: Boolean get() = container.imagePickerCoordinator.isAvailable
-
-    /**
-     * Picks an image, uploads it, and puts the returned URL on the company profile.
-     *
-     * Upload needs the network — media has no offline queue — so this reports plainly rather than
-     * queueing something that would never send. [apply] places the URL on whichever company field
-     * the caller is editing (signature, logo, QR).
-     */
-    fun pickAndUploadCompanyImage(
-        invoiceId: String,
-        alsoUpdateProfile: Boolean,
-        apply: (CompanyProfile, String) -> CompanyProfile,
-        onDone: () -> Unit = {},
-    ) {
-        if (savingSection) return
-        scope.launch {
-            sectionSaveState = SaveState.Saving
-            draftError = null
-            val image = when (val picked = container.imagePickerCoordinator.pick()) {
-                is AppResult.Failure -> {
-                    reportSectionFailure(picked.error.userMessage())
-                    return@launch
-                }
-                // Null means they backed out: say nothing and leave everything as it was.
-                is AppResult.Success -> picked.value ?: run {
-                    sectionSaveState = SaveState.Clean
-                    return@launch
-                }
-            }
-            when (val upload = container.mediaRepository.uploadImage(image.bytes, image.fileName, image.contentType)) {
-                is AppResult.Failure -> reportSectionFailure(upload.error.userMessage())
-                is AppResult.Success -> setInvoiceCompany(invoiceId, alsoUpdateProfile, onDone) {
-                    apply(it, upload.value.url)
-                }
-            }
-        }
-    }
-
-    fun setInvoiceNotes(invoiceId: String, notes: String, onSaved: () -> Unit = {}) =
-        saveSection(onSaved) { setNotes(invoiceId, notes.trim()) }
-
-    /**
-     * Every section editor saves the same way: write, surface any complaint in place.
-     *
-     * [onSaved] is for the writes that are also a navigation decision — choosing a customer is one
-     * whole answer, so it steps back. An auto-save passes nothing and leaves the user where they are.
-     */
-    private fun saveSection(
-        onSaved: () -> Unit,
-        write: suspend InvoiceRepository.() -> AppResult<InvoiceRecord>,
-    ) {
-        scope.launch {
-            sectionWriteLock.withLock {
-                sectionSaveState = SaveState.Saving
-                draftError = null
-                when (val result = container.invoiceRepository.write()) {
-                    is AppResult.Success -> {
-                        sectionSaveState = SaveState.Saved
-                        onSaved()
-                    }
-                    is AppResult.Failure -> reportSectionFailure(result.error.userMessage())
-                }
-            }
-        }
-    }
-
-    /**
-     * Appends one line and saves immediately.
-     *
-     * Edits the stored invoice rather than a scratchpad: the items screen has no Save button, so
-     * there is no moment at which a pending list would be flushed — every change is the save.
-     */
-    fun addInvoiceItem(
-        invoiceId: String,
-        description: String,
-        hsnSac: String?,
-        quantity: String,
-        unitPricePaise: Long,
-        taxRatePercent: String,
-    ) {
-        scope.launch {
-            val record = container.invoiceRepository.getInvoice(invoiceId) ?: return@launch
-            val items = record.items.map { it.toDraftItem() } + InvoiceDraft.DraftItem(
-                description = description,
-                hsnSac = hsnSac,
-                quantity = quantity,
-                unitPricePaise = unitPricePaise,
-                taxRatePercent = taxRatePercent,
-            )
-            when (val result = container.invoiceRepository.setItems(invoiceId, items)) {
-                is AppResult.Success -> Unit
-                is AppResult.Failure -> uiMessage = result.error.userMessage()
-            }
-            // The catalogue builds itself from what actually gets invoiced.
-            container.productRepository.remember(description, hsnSac, unitPricePaise, taxRatePercent)
-        }
-    }
-
-    /**
-     * Steps one line's quantity. Stepping the last one off removes the line, so "−" on a quantity
-     * of 1 does the obvious thing rather than leaving a zero-quantity row on the invoice.
-     */
-    fun changeInvoiceItemQuantity(invoiceId: String, index: Int, delta: Int) {
-        scope.launch {
-            val record = container.invoiceRepository.getInvoice(invoiceId) ?: return@launch
-            val line = record.items.getOrNull(index) ?: return@launch
-            val stepped = DecimalString.parseOrNull(line.quantity)?.plusWhole(delta)
-            val items = if (stepped == null) {
-                record.items.filterIndexed { i, _ -> i != index }.map { it.toDraftItem() }
-            } else {
-                record.items.mapIndexed { i, item ->
-                    if (i == index) item.toDraftItem().copy(quantity = stepped.toString())
-                    else item.toDraftItem()
-                }
-            }
-            when (val result = container.invoiceRepository.setItems(invoiceId, items)) {
-                is AppResult.Success -> Unit
-                is AppResult.Failure -> uiMessage = result.error.userMessage()
-            }
-        }
-    }
-
-    fun removeInvoiceItem(invoiceId: String, index: Int) {
-        scope.launch {
-            val record = container.invoiceRepository.getInvoice(invoiceId) ?: return@launch
-            if (index !in record.items.indices) return@launch
-            val items = record.items.filterIndexed { i, _ -> i != index }.map { it.toDraftItem() }
-            when (val result = container.invoiceRepository.setItems(invoiceId, items)) {
-                is AppResult.Success -> Unit
-                is AppResult.Failure -> uiMessage = result.error.userMessage()
-            }
-        }
-    }
-
-    private fun InvoiceItemRecord.toDraftItem() = InvoiceDraft.DraftItem(
-        description = description,
-        hsnSac = hsnSac,
-        quantity = quantity,
-        unitPricePaise = unitPricePaise,
-        taxRatePercent = taxRatePercent,
-    )
-
     // ---- misc ----------------------------------------------------------------------------------
 
     private fun launchReporting(block: suspend () -> AppResult<*>) {
@@ -878,28 +656,16 @@ class BillantaState(
     internal companion object {
         const val PREF_DARK = "ui.darkMode"
         const val PREF_DATE_FORMAT = "invoice.dateFormat"
-        const val MILLIS_PER_DAY = 86_400_000L
-
-        /** Net-14 unless the user picks otherwise, as the retired create form defaulted to. */
-        const val DEFAULT_DUE_DAYS = 14L
+        const val PREF_DEFAULT_TEMPLATE = "invoice.defaultTemplateId"
+        const val QUANTITY = "quantity"
+        const val COMPANY_STATE = "company_state"
+        const val COMPANY_GSTIN = "company_gstin"
     }
 }
 
-fun todayUtcMidnightMillis(): Long = (systemEpochMillis() / 86_400_000L) * 86_400_000L
-
-/**
- * A stored discount back into the string its field shows — the inverse of what the wire wants.
- *
- * A percentage travels as typed; a flat discount is stored in paise but entered in rupees, so that
- * conversion has to be undone or "₹500 off" would come back as "50000".
- */
-internal fun discountValueInput(discount: DiscountSpec?): String {
-    val spec = discount ?: return ""
-    if (spec.type != DiscountType.Flat) return spec.value
-    val paise = spec.value.toLongOrNull() ?: 0L
-    return if (paise % 100 == 0L) (paise / 100).toString()
-    else "${paise / 100}.${(paise % 100).toString().padStart(2, '0')}"
-}
+/** An invoice's date as UTC-midnight millis, for sorting, grouping and the short date on cards. */
+val Invoice.invoiceDateMillis: Long?
+    get() = values.string(Invoice.INVOICE_DATE)?.let(Iso8601::parseOrNull)
 
 /** What a customer card summarises about the invoices made out to them. */
 data class CustomerStats(

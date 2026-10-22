@@ -46,12 +46,19 @@ class ComposeTextShaper(
         maxWidthPt: Float,
     ): ShapedParagraph {
         if (runs.isEmpty() || runs.all { it.text.isEmpty() }) return ShapedParagraph.EMPTY
+        // Constraints are integer pixels; flooring keeps text inside its box rather than
+        // letting a fractional column width cause an overflow.
+        val width = maxWidthPt.toInt().coerceAtLeast(0)
         val result = measurer.measure(
             text = annotate(runs),
             style = baseStyle(paragraphStyle),
-            // Constraints are integer pixels; flooring keeps text inside its box rather than
-            // letting a fractional column width cause an overflow.
-            constraints = Constraints(maxWidth = maxWidthPt.toInt().coerceAtLeast(0)),
+            // Left to itself, the platform lays a line that fits out at the line's own width, which
+            // leaves `right` and `center` no room to move it. Aligned text gets the whole width.
+            constraints = if (paragraphStyle.align == TextAlignment.Left || width == Constraints.Infinity) {
+                Constraints(maxWidth = width)
+            } else {
+                Constraints.fixedWidth(width)
+            },
         )
         return toShaped(result, runs)
     }

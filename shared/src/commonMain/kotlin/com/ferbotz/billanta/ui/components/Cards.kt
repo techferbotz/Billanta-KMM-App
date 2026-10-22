@@ -24,7 +24,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ferbotz.billanta.core.Iso8601
-import com.ferbotz.billanta.domain.model.InvoiceRecord
+import com.ferbotz.billanta.records.Invoice
+import com.ferbotz.billanta.state.invoiceDateMillis
 import com.ferbotz.billanta.model.Paise
 import com.ferbotz.billanta.model.format
 import com.ferbotz.billanta.model.formatPaise
@@ -86,7 +87,7 @@ fun SummaryCard(
  */
 @Composable
 fun InvoiceCard(
-    invoice: InvoiceRecord,
+    invoice: Invoice,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -118,7 +119,7 @@ fun InvoiceCard(
                         )
                         Spacer(Modifier.width(10.dp))
                         Text(
-                            invoice.grandTotalPaise.formatPaiseTrimmed(),
+                            invoice.computed.grandTotal.formatPaiseTrimmed(),
                             style = BillantaTheme.type.amount,
                             color = c.textPrimary,
                             maxLines = 1,
@@ -166,13 +167,13 @@ fun InvoiceCard(
                 } else {
                     BillantaIcon(AppIcon.Calendar, c.textMuted, size = 14.dp)
                     Text(
-                        "Issued ${Iso8601.formatDayMonth(invoice.invoiceDateMillis)}",
+                        invoice.invoiceDateMillis?.let { "Issued ${Iso8601.formatDayMonth(it)}" } ?: "No date",
                         style = BillantaTheme.type.caption,
                         color = c.textSecondary,
                         modifier = Modifier.weight(1f),
                     )
                     Text(
-                        invoice.dueDateMillis?.let { "Due ${Iso8601.formatDayMonth(it)}" } ?: "Due on receipt",
+                        invoice.values.string("due_date")?.let(Iso8601::parseOrNull)?.let { "Due ${Iso8601.formatDayMonth(it)}" } ?: "Due on receipt",
                         style = BillantaTheme.type.caption,
                         color = c.textSecondary,
                     )

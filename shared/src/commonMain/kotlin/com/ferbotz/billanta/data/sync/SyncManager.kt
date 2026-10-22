@@ -1,26 +1,30 @@
 package com.ferbotz.billanta.data.sync
 
+import com.ferbotz.billanta.config.RemoteConfig
 import com.ferbotz.billanta.core.AppError
 import com.ferbotz.billanta.core.AppResult
+import com.ferbotz.billanta.core.BillantaJson
 import com.ferbotz.billanta.core.ConnectivityObserver
 import com.ferbotz.billanta.core.EpochClock
 import com.ferbotz.billanta.core.Iso8601
 import com.ferbotz.billanta.core.logWarn
 import com.ferbotz.billanta.data.api.BillantaApi
-import com.ferbotz.billanta.data.api.SyncRequestDto
-import com.ferbotz.billanta.data.api.toDomain
+import com.ferbotz.billanta.data.api.InvoiceValuesDto
+import com.ferbotz.billanta.data.api.InvoiceValuesSyncRequestDto
+import com.ferbotz.billanta.data.api.patchBody
+import com.ferbotz.billanta.data.api.toCustomer
 import com.ferbotz.billanta.data.api.toDto
-import com.ferbotz.billanta.data.api.toPatchBody
-import com.ferbotz.billanta.data.local.CustomerLocalDataSource
-import com.ferbotz.billanta.data.local.InvoiceLocalDataSource
-import com.ferbotz.billanta.data.local.ProductLocalDataSource
-import com.ferbotz.billanta.data.local.ProfileLocalDataSource
+import com.ferbotz.billanta.data.api.toInvoice
+import com.ferbotz.billanta.data.api.toProduct
+import com.ferbotz.billanta.data.local.CustomerValuesLocal
+import com.ferbotz.billanta.data.local.InvoiceValuesLocal
+import com.ferbotz.billanta.data.local.ProductValuesLocal
+import com.ferbotz.billanta.data.local.SingletonValuesLocal
 import com.ferbotz.billanta.data.local.SyncMetaLocal
-import com.ferbotz.billanta.data.local.toDomain
-import com.ferbotz.billanta.domain.model.CompanyProfile
-import com.ferbotz.billanta.domain.model.CustomerRecord
-import com.ferbotz.billanta.domain.model.InvoiceRecord
-import com.ferbotz.billanta.domain.model.ProductRecord
+import com.ferbotz.billanta.data.local.toCustomer
+import com.ferbotz.billanta.data.local.toProduct
+import com.ferbotz.billanta.fields.FieldValues
+import com.ferbotz.billanta.records.Invoice
 import com.ferbotz.billanta.session.AuthState
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -43,40 +47,37 @@ data class SyncStatus(
 }
 
 /**
- * The offline-sync engine. Push-then-pull, in this order:
+ * The offline-sync engine for BE-021's values maps. Push-then-pull, in the same order as before:
  *
- *  1. company + settings (PUT when dirty)
- *  2. customers, then products: replay local ops (POST new / PATCH edited / DELETE removed), then
- *     pull the full list and reconcile deletions made on another device. Neither has a batch sync
- *     endpoint — they change one row at a time — so both replay per row
- *  3. invoices: DELETE local tombstones, then `/invoices/sync` — dirty rows pushed in batches
- *     (server applies last-write-wins by `updatedAt`), pulled pages applied LWW locally, cursor
- *     persisted, draining while `hasMore`
- *  4. company + settings pulled back when clean
+ *  1. the business profile and the settings: a `PATCH` of just the keys changed since the last
+ *     push, `null` for a cleared one, so two devices editing different fields both win
+ *  2. customers, then products: replay local ops (`POST` the whole map for a record the server has
+ *     never seen, `PATCH` the changed keys otherwise, `DELETE` a removal), then pull every page and
+ *     reconcile deletions made on another device
+ *  3. invoices: `DELETE` local tombstones, then `/invoices/sync`. Pushes go in batches under both
+ *     `limits.maxSyncBatchInvoices` and the 2 MB request cap; pulled pages apply last-write-wins
+ *  4. the profile and settings pulled back when clean
  *
- * Conflicts the server reports (e.g. duplicate invoice number) land on the row as `syncError`
- * and stop retrying; everything transient stays dirty for the next pass.
+ * A record over the size limits in `GET /config` is never sent: the server would only refuse it.
+ * An invoice says why on its own row; the others are logged. Remembered values are not synced and
+ * never reach this class.
  */
 class SyncManager(
     private val scope: CoroutineScope,
     private val api: BillantaApi,
     private val authState: StateFlow<AuthState>,
-    private val invoiceLocal: InvoiceLocalDataSource,
-    private val customerLocal: CustomerLocalDataSource,
-    private val productLocal: ProductLocalDataSource,
-    private val profileLocal: ProfileLocalDataSource,
+    private val singletons: SingletonValuesLocal,
+    private val customers: CustomerValuesLocal,
+    private val products: ProductValuesLocal,
+    private val invoices: InvoiceValuesLocal,
     private val syncMeta: SyncMetaLocal,
     private val connectivity: ConnectivityObserver,
     private val clock: EpochClock,
     /** Ends the session when the server says the account behind it is gone (BE-010). */
     private val onAccountVanished: suspend () -> Unit = {},
-    /**
-     * `features.cloudSync` from `GET /config` (BE-014). Off stops syncing app-wide: every pass
-     * becomes a no-op and local data is left exactly as it is, still dirty, for when it comes back.
-     */
+    /** `features.cloudSync`: off leaves everything local and dirty for when it comes back. */
     private val syncEnabled: () -> Boolean = { true },
-    /** `limits.maxSyncBatchInvoices` — the most invoices the server takes in one sync push. */
-    private val maxPushBatch: () -> Int = { Int.MAX_VALUE },
+    private val limits: () -> RemoteConfig.Limits = { RemoteConfig.Limits() },
 ) {
     private val _status = MutableStateFlow(SyncStatus())
     val status: StateFlow<SyncStatus> = _status.asStateFlow()
@@ -93,15 +94,11 @@ class SyncManager(
                 scope.launch { syncNow() }
             }
         }
-        // Sync when a session appears (sign-in or app start with a restored session).
         scope.launch {
             authState.collect { state -> if (state is AuthState.SignedIn) requestSync(immediate = true) }
         }
-        // Retry when connectivity returns and something is waiting.
         scope.launch {
-            connectivity.isOnline.collect { online ->
-                if (online && hasPendingWork()) requestSync(immediate = true)
-            }
+            connectivity.isOnline.collect { online -> if (online && hasPendingWork()) requestSync(immediate = true) }
         }
     }
 
@@ -110,7 +107,7 @@ class SyncManager(
         requests.tryEmit(if (immediate) 0L else DEBOUNCE_MILLIS)
     }
 
-    /** Runs a full sync immediately (serialized — concurrent calls queue up). */
+    /** Runs a full sync now (serialized: concurrent calls queue up). */
     suspend fun syncNow(): AppResult<Unit> = syncMutex.withLock {
         if (authState.value !is AuthState.SignedIn) return@withLock AppResult.Success(Unit)
         if (!syncEnabled()) return@withLock AppResult.Success(Unit)
@@ -132,18 +129,10 @@ class SyncManager(
         return@withLock error?.let { AppResult.Failure(it) } ?: AppResult.Success(Unit)
     }
 
-    /**
-     * Best-effort through all steps; returns the first error (null = clean pass).
-     *
-     * Each step is logged by name when it fails. Sync is invisible to the user by design, so
-     * without this a failure leaves no trace anywhere — and because the pass continues after an
-     * error, knowing *which* step broke is the whole diagnosis.
-     */
+    /** Best-effort through every step, each logged by name when it fails; returns the first error. */
     private suspend fun doFullSync(): AppError? {
         var firstError: AppError? = null
         suspend fun step(name: String, block: suspend () -> AppError?) {
-            // Once the account is gone every remaining step would fail the same way, so stop the
-            // pass rather than logging the same 401 ten times and hammering a dead session.
             if ((firstError as? AppError.Http)?.isAccountGone == true) return
             val error = block()
             if (error != null) {
@@ -152,23 +141,18 @@ class SyncManager(
             }
         }
 
-        step("pushCompany") { pushCompany() }
+        step("pushProfile") { pushProfile() }
         step("pushSettings") { pushSettings() }
         step("pushCustomers") { pushCustomers() }
         step("pullCustomers") { pullCustomers() }
-        // Ids pushed in this pass are shielded from the pull's "deleted elsewhere" reconcile: a
-        // server that has not yet made the write visible would otherwise look like a deletion.
         val justPushedProducts = mutableSetOf<String>()
         step("pushProducts") { pushProducts(justPushedProducts) }
         step("pullProducts") { pullProducts(justPushedProducts) }
         step("pushInvoiceTombstones") { pushInvoiceTombstones() }
-        step("syncInvoices") { syncInvoicesWithServer() }
-        step("pullCompany") { pullCompanyIfClean() }
+        step("syncInvoices") { syncInvoices() }
+        step("pullProfile") { pullProfileIfClean() }
         step("pullSettings") { pullSettingsIfClean() }
 
-        // A valid-looking token whose user no longer exists (BE-010). Only a full sign-in can fix
-        // it — a refresh dies too — so end the session now instead of retrying forever. Nothing
-        // local is deleted: the next sign-in re-owns it.
         (firstError as? AppError.Http)?.takeIf { it.isAccountGone }?.let {
             logWarn(LOG_TAG, "the signed-in account no longer exists on the server; signing out")
             onAccountVanished()
@@ -176,14 +160,14 @@ class SyncManager(
         return firstError
     }
 
-    // ---- company / settings --------------------------------------------------------------------
+    // ---- profile / settings --------------------------------------------------------------------
 
-    private suspend fun pushCompany(): AppError? {
-        if (!profileLocal.isCompanyDirty()) return null
-        val company = profileLocal.getCompany() ?: return null
-        return when (val result = api.putCompany(company.toDto())) {
+    private suspend fun pushProfile(): AppError? {
+        val profile = singletons.getProfile()?.takeIf { it.dirtyKeys.isNotEmpty() } ?: return null
+        if (!fits(profile.values, "profile")) return null
+        return when (val result = api.patchCompanyValues(profile.values.patchBody(profile.dirtyKeys))) {
             is AppResult.Success -> {
-                profileLocal.markCompanyClean()
+                singletons.markProfileClean(profile.updatedAtMillis)
                 null
             }
             is AppResult.Failure -> result.error
@@ -191,66 +175,44 @@ class SyncManager(
     }
 
     private suspend fun pushSettings(): AppError? {
-        if (!profileLocal.isSettingsDirty()) return null
-        val settings = profileLocal.getSettings() ?: return null
-        return when (val result = api.putSettings(settings.toDto())) {
+        val settings = singletons.getSettings()?.takeIf { it.dirtyKeys.isNotEmpty() } ?: return null
+        if (!fits(settings.values, "settings")) return null
+        return when (val result = api.patchSettingsValues(settings.values.patchBody(settings.dirtyKeys))) {
             is AppResult.Success -> {
-                profileLocal.markSettingsClean()
+                singletons.markSettingsClean(settings.updatedAtMillis)
                 null
             }
             is AppResult.Failure -> result.error
         }
     }
 
-    private suspend fun pullCompanyIfClean(): AppError? {
-        if (profileLocal.isCompanyDirty()) return null
-        return when (val result = api.getCompany()) {
+    private suspend fun pullProfileIfClean(): AppError? {
+        if (singletons.getProfile()?.dirtyKeys?.isNotEmpty() == true) return null
+        return when (val result = api.getCompanyValues()) {
             is AppResult.Success -> {
-                val dto = result.value
-                if (dto != null && !profileLocal.isCompanyDirty()) {
-                    val incoming = dto.toDomain()
-                    // The pull replaces the local profile wholesale, so a field the server does not
-                    // send is cleared here. That is correct when the server really did clear it —
-                    // and silent data loss if we simply failed to parse it (a key we spell
-                    // differently would look identical). Name what is being dropped; see APP-011.
-                    profileLocal.getCompany()?.let { local ->
-                        val cleared = companyFieldsClearedBy(local, incoming)
-                        if (cleared.isNotEmpty()) {
-                            logWarn(LOG_TAG, "pullCompany clears locally-set fields: ${cleared.joinToString()}")
-                        }
-                    }
-                    profileLocal.saveCompany(incoming, dirty = false, updatedAtMillis = clock.nowMillis())
+                result.value?.let { dto ->
+                    singletons.applyServerProfile(
+                        FieldValues.of(dto.values),
+                        dto.createdAt?.let(Iso8601::parseOrNull),
+                        dto.updatedAt?.let(Iso8601::parseOrNull) ?: clock.nowMillis(),
+                    )
                 }
                 null
             }
             is AppResult.Failure -> result.error
         }
     }
-
-    /** Fields the local profile has filled in that the incoming one does not. */
-    private fun companyFieldsClearedBy(local: CompanyProfile, incoming: CompanyProfile): List<String> =
-        listOf(
-            "bankName" to (local.bankName to incoming.bankName),
-            "accountNumber" to (local.accountNumber to incoming.accountNumber),
-            "ifsc" to (local.ifsc to incoming.ifsc),
-            "upiId" to (local.upiId to incoming.upiId),
-            "signature" to (local.signature to incoming.signature),
-            "signatoryName" to (local.signatoryName to incoming.signatoryName),
-            "signatoryDesignation" to (local.signatoryDesignation to incoming.signatoryDesignation),
-            "logo" to (local.logo to incoming.logo),
-            "gstin" to (local.gstin to incoming.gstin),
-        ).mapNotNull { (field, values) ->
-            val (before, after) = values
-            field.takeIf { !before.isNullOrBlank() && after.isNullOrBlank() }
-        }
 
     private suspend fun pullSettingsIfClean(): AppError? {
-        if (profileLocal.isSettingsDirty()) return null
-        return when (val result = api.getSettings()) {
+        if (singletons.getSettings()?.dirtyKeys?.isNotEmpty() == true) return null
+        return when (val result = api.getSettingsValues()) {
             is AppResult.Success -> {
-                if (!profileLocal.isSettingsDirty()) {
-                    profileLocal.saveSettings(result.value.toDomain(), dirty = false, updatedAtMillis = clock.nowMillis())
-                }
+                val dto = result.value
+                singletons.applyServerSettings(
+                    FieldValues.of(dto.values),
+                    dto.createdAt?.let(Iso8601::parseOrNull),
+                    dto.updatedAt?.let(Iso8601::parseOrNull) ?: clock.nowMillis(),
+                )
                 null
             }
             is AppResult.Failure -> result.error
@@ -261,240 +223,159 @@ class SyncManager(
 
     private suspend fun pushCustomers(): AppError? {
         var firstError: AppError? = null
-        for (row in customerLocal.dirtyRows()) {
-            val record = row.toDomain()
-            val error: AppError? = if (row.isDeleted != 0L) {
-                when (val result = api.deleteCustomer(row.id)) {
-                    is AppResult.Success -> {
-                        customerLocal.hardDelete(row.id)
-                        null
-                    }
-                    is AppResult.Failure -> {
-                        val err = result.error
-                        if (err is AppError.Http && err.status == 404) {
-                            customerLocal.hardDelete(row.id) // already gone server-side
+        for (row in customers.dirtyRows()) {
+            val customer = row.toCustomer()
+            val error: AppError? = when {
+                row.isDeleted != 0L -> deleteRemotely({ api.deleteCustomer(row.id) }) { customers.hardDelete(row.id) }
+                !fits(customer.values, "customer ${row.id}") -> null
+                row.isSynced != 0L && customer.dirtyKeys.isNotEmpty() ->
+                    when (val result = api.patchCustomerValues(row.id, customer.values.patchBody(customer.dirtyKeys))) {
+                        is AppResult.Success -> {
+                            customers.markSynced(row.id, row.updatedAtMillis)
                             null
-                        } else err
+                        }
+                        // The server lost it: put the whole record back.
+                        is AppResult.Failure -> if (result.error.isNotFound) createCustomer(row.id, row.updatedAtMillis) else result.error
                     }
-                }
-            } else if (row.isSynced != 0L) {
-                when (val result = api.patchCustomer(row.id, record.toPatchBody())) {
-                    is AppResult.Success -> {
-                        customerLocal.markSynced(row.id, row.updatedAtMillis)
-                        null
-                    }
-                    is AppResult.Failure -> {
-                        val err = result.error
-                        if (err is AppError.Http && err.status == 404) {
-                            createCustomerOnServer(record, row.updatedAtMillis) // server lost it — recreate
-                        } else err
-                    }
-                }
-            } else {
-                createCustomerOnServer(record, row.updatedAtMillis)
+                else -> createCustomer(row.id, row.updatedAtMillis)
             }
             if (firstError == null && error != null) firstError = error
         }
         return firstError
     }
 
-    private suspend fun createCustomerOnServer(
-        record: CustomerRecord,
-        rowUpdatedAtMillis: Long,
-    ): AppError? = when (val result = api.createCustomer(record.toDto())) {
-        is AppResult.Success -> {
-            customerLocal.markSynced(record.id, rowUpdatedAtMillis)
-            null
+    private suspend fun createCustomer(id: String, rowUpdatedAtMillis: Long): AppError? {
+        val customer = customers.getById(id) ?: return null
+        return when (val result = api.createCustomerValues(customer.toDto())) {
+            is AppResult.Success -> {
+                customers.markSynced(id, rowUpdatedAtMillis)
+                null
+            }
+            is AppResult.Failure -> result.error
         }
-        is AppResult.Failure -> result.error
     }
 
     private suspend fun pullCustomers(): AppError? {
         val serverIds = mutableSetOf<String>()
         var cursor: String? = null
         while (true) {
-            val page = when (val result = api.listCustomers(limit = 100, cursor = cursor)) {
+            val page = when (val result = api.listCustomerValues(limit = 100, cursor = cursor)) {
                 is AppResult.Success -> result.value
                 is AppResult.Failure -> return result.error
             }
-            for (dto in page.items) {
-                val record = try {
-                    dto.toDomain(fallbackUpdatedAtMillis = clock.nowMillis())
-                } catch (_: IllegalArgumentException) {
-                    continue
-                }
-                serverIds += record.id
-                customerLocal.applyServer(record)
+            page.items.forEach { dto ->
+                serverIds += dto.id
+                customers.applyServer(dto.toCustomer(fallbackUpdatedAtMillis = clock.nowMillis()))
             }
             cursor = page.nextCursor
             if (!page.hasMore || cursor == null) break
         }
-        // Full page-through succeeded → anything synced+clean that the server no longer has was
-        // deleted from another device.
-        (customerLocal.syncedCleanIds().toSet() - serverIds).forEach { customerLocal.hardDelete(it) }
+        // A full page-through succeeded, so anything synced and clean that the server no longer
+        // has was deleted from another device.
+        (customers.syncedCleanIds().toSet() - serverIds).forEach { customers.hardDelete(it) }
         return null
     }
 
     // ---- products ------------------------------------------------------------------------------
 
-    /**
-     * Replayed per row like customers — there is deliberately no `/products/sync`, since a
-     * catalogue changes rarely and one entry at a time.
-     */
     private suspend fun pushProducts(pushedIds: MutableSet<String>): AppError? {
         var firstError: AppError? = null
-        for (row in productLocal.dirtyRows()) {
-            val record = row.toDomain()
+        for (row in products.dirtyRows()) {
+            val product = row.toProduct()
             val error: AppError? = when {
-                row.isDeleted != 0L -> when (val result = api.deleteProduct(row.id)) {
-                    is AppResult.Success -> {
-                        productLocal.hardDelete(row.id)
-                        null
-                    }
-                    is AppResult.Failure -> {
-                        val err = result.error
-                        if (err is AppError.Http && err.status == 404) {
-                            productLocal.hardDelete(row.id) // already gone server-side
+                row.isDeleted != 0L -> deleteRemotely({ api.deleteProduct(row.id) }) { products.hardDelete(row.id) }
+                !fits(product.values, "product ${row.id}") -> null
+                row.isSynced != 0L && product.dirtyKeys.isNotEmpty() ->
+                    when (val result = api.patchProductValues(row.id, product.values.patchBody(product.dirtyKeys))) {
+                        is AppResult.Success -> {
+                            products.markSynced(row.id, row.updatedAtMillis)
+                            pushedIds += row.id
                             null
-                        } else err
+                        }
+                        is AppResult.Failure ->
+                            if (result.error.isNotFound) createProduct(row.id, row.updatedAtMillis, pushedIds) else result.error
                     }
-                }
-
-                row.isSynced != 0L -> when (val result = api.patchProduct(row.id, record.toPatchBody())) {
-                    is AppResult.Success -> {
-                        productLocal.markSynced(row.id, row.updatedAtMillis)
-                        pushedIds += row.id
-                        null
-                    }
-                    is AppResult.Failure -> {
-                        val err = result.error
-                        if (err is AppError.Http && err.status == 404) {
-                            createProductOnServer(record, row.updatedAtMillis, pushedIds)
-                        } else err
-                    }
-                }
-
-                else -> createProductOnServer(record, row.updatedAtMillis, pushedIds)
+                else -> createProduct(row.id, row.updatedAtMillis, pushedIds)
             }
             if (firstError == null && error != null) firstError = error
         }
         return firstError
     }
 
-    private suspend fun createProductOnServer(
-        record: ProductRecord,
-        rowUpdatedAtMillis: Long,
-        pushedIds: MutableSet<String>,
-    ): AppError? = when (val result = api.createProduct(record.toDto())) {
-        is AppResult.Success -> {
-            productLocal.markSynced(record.id, rowUpdatedAtMillis)
-            pushedIds += record.id
-            null
+    private suspend fun createProduct(id: String, rowUpdatedAtMillis: Long, pushedIds: MutableSet<String>): AppError? {
+        val product = products.getById(id) ?: return null
+        return when (val result = api.createProductValues(product.toDto())) {
+            is AppResult.Success -> {
+                products.markSynced(id, rowUpdatedAtMillis)
+                pushedIds += id
+                null
+            }
+            is AppResult.Failure -> result.error
         }
-        is AppResult.Failure -> result.error
     }
 
     private suspend fun pullProducts(justPushed: Set<String>): AppError? {
         val serverIds = mutableSetOf<String>()
-        // BE-020's handover: the first pull that carries photo keys cannot tell "removed on another
-        // device" from "pushed before the server stored photos", and the second is the only way
-        // this build could have met it. So until one pull has seen the keys, a server null never
-        // clears a photo on this phone; it sends it again instead.
-        val reconciling = syncMeta.get(SyncMetaLocal.KEY_PRODUCT_PHOTOS_RECONCILED) == null
-        var sawPhotoKeys = false
-        var rescued = 0
         var cursor: String? = null
         while (true) {
-            val page = when (val result = api.listProducts(limit = 100, cursor = cursor)) {
+            val page = when (val result = api.listProductValues(limit = 100, cursor = cursor)) {
                 is AppResult.Success -> result.value
                 is AppResult.Failure -> return result.error
             }
-            for (dto in page.items) {
-                val record = try {
-                    dto.toDomain(fallbackUpdatedAtMillis = clock.nowMillis())
-                } catch (_: IllegalArgumentException) {
-                    continue
-                }
-                serverIds += record.id
-                if (dto.carriesImages) sawPhotoKeys = true
-                val kept = productLocal.applyServer(
-                    record,
-                    serverKnowsImages = dto.carriesImages,
-                    rescueUnsentPhoto = reconciling,
-                )
-                if (kept) rescued++
+            page.items.forEach { dto ->
+                serverIds += dto.id
+                products.applyServer(dto.toProduct(fallbackUpdatedAtMillis = clock.nowMillis()))
             }
             cursor = page.nextCursor
             if (!page.hasMore || cursor == null) break
         }
-        // A full page-through succeeded, so anything synced+clean the server no longer has was
-        // deleted from another device.
-        (productLocal.syncedCleanIds().toSet() - serverIds - justPushed)
-            .forEach { productLocal.hardDelete(it) }
-        if (reconciling && sawPhotoKeys) syncMeta.put(SyncMetaLocal.KEY_PRODUCT_PHOTOS_RECONCILED, "1")
-        if (rescued > 0) {
-            logWarn(LOG_TAG, "re-sending $rescued product photo(s) the server never stored")
-            requestSync()
-        }
+        // Ids pushed in this pass are shielded: a server that has not yet made the write visible
+        // would otherwise look like a deletion.
+        (products.syncedCleanIds().toSet() - serverIds - justPushed).forEach { products.hardDelete(it) }
         return null
     }
 
     // ---- invoices ------------------------------------------------------------------------------
 
-    /** Local soft-deletes replay as DELETE /invoices/:id (idempotent; 404 counts as done). */
+    /** Local soft-deletes replay as `DELETE /invoices/:id` with the time the user deleted it. */
     private suspend fun pushInvoiceTombstones(): AppError? {
         var firstError: AppError? = null
-        val tombstones = invoiceLocal.dirtyRecords().filter { it.deletedAtMillis != null }
-        for (record in tombstones) {
-            // Send the moment the user actually deleted it, not the moment we got around to
-            // pushing — a queued delete can be hours old, and the sync cursor orders by this.
-            when (val result = api.deleteInvoice(record.id, record.deletedAtMillis)) {
-                is AppResult.Success -> invoiceLocal.hardDelete(record.id)
-                is AppResult.Failure -> {
-                    val err = result.error
-                    if (err is AppError.Http && err.status == 404) {
-                        invoiceLocal.hardDelete(record.id)
-                    } else if (firstError == null) {
-                        firstError = err
-                    }
-                }
+        for (invoice in invoices.dirtyInvoices().filter { it.deletedAtMillis != null }) {
+            val error = deleteRemotely({ api.deleteInvoice(invoice.id, invoice.deletedAtMillis) }) {
+                invoices.hardDelete(invoice.id)
             }
+            if (firstError == null && error != null) firstError = error
         }
         return firstError
     }
 
     /** The `/invoices/sync` conversation: push dirty batches, then drain the pull cursor. */
-    private suspend fun syncInvoicesWithServer(): AppError? {
-        val dirty = invoiceLocal.dirtyRecords().filter { it.deletedAtMillis == null }
-        val batches = dirty.chunked(PUSH_BATCH_SIZE.coerceAtMost(maxPushBatch()).coerceAtLeast(1))
+    private suspend fun syncInvoices(): AppError? {
+        val batches = pushBatches(invoices.dirtyInvoices().filter { it.deletedAtMillis == null && it.syncError == null })
         var since: String? = syncMeta.get(SyncMetaLocal.KEY_INVOICE_CURSOR)
         var batchIndex = 0
 
         while (true) {
-            val push = batches.getOrNull(batchIndex)?.map { it.toDto() } ?: emptyList()
-            val response = when (val result = api.syncInvoices(SyncRequestDto(invoices = push, since = since))) {
+            val push = batches.getOrNull(batchIndex).orEmpty()
+            val response = when (val result = api.syncInvoiceValues(InvoiceValuesSyncRequestDto(push, since))) {
                 is AppResult.Success -> result.value
                 is AppResult.Failure -> return result.error
             }
 
-            // Terminal conflicts (duplicate number, malformed, cross-user id): record and stop
-            // retrying — the row keeps its data plus a visible syncError.
-            val conflictIds = response.conflicts.map { it.id }.toSet()
+            // Terminal conflicts (a duplicate number, a malformed money input, a foreign id): the
+            // row keeps its data with a visible syncError and stops retrying until edited.
+            val conflictIds = response.conflicts.mapTo(HashSet()) { it.id }
             response.conflicts.forEach { conflict ->
                 logWarn(LOG_TAG, "invoice ${conflict.id} rejected: ${conflict.reason ?: "no reason given"}")
-                invoiceLocal.setSyncError(conflict.id, conflict.reason ?: "Sync conflict")
+                invoices.setSyncError(conflict.id, conflict.reason ?: "Sync conflict")
+            }
+            // Everything else was applied, or skipped as older, in which case the server's newer
+            // copy arrives in `changed`. Guarded by updatedAt so an edit made meanwhile stays dirty.
+            push.filter { it.id !in conflictIds }.forEach { dto ->
+                dto.updatedAt?.let(Iso8601::parseOrNull)?.let { invoices.markClean(dto.id, it) }
             }
 
-            // Everything else in the batch was applied (or LWW-skipped, in which case the server's
-            // newer copy arrives via `changed` below). Guarded by updatedAt so a mid-flight edit
-            // stays dirty.
-            for (dto in push) {
-                if (dto.id in conflictIds) continue
-                val pushedAt = dto.updatedAt?.let { Iso8601.parseOrNull(it) } ?: continue
-                invoiceLocal.markClean(dto.id, pushedAt)
-            }
-
-            response.changed.forEach { applyServerInvoice(it.toDomain()) }
+            response.changed.forEach { applyServerInvoice(it.toInvoice(fallbackUpdatedAtMillis = clock.nowMillis())) }
 
             response.nextCursor?.let {
                 since = it
@@ -502,31 +383,104 @@ class SyncManager(
             }
 
             batchIndex++
-            val morePushes = batchIndex < batches.size
-            if (!response.hasMore && !morePushes) break
+            if (!response.hasMore && batchIndex >= batches.size) break
         }
         return null
     }
 
-    /** Last-write-wins apply: local unpushed edits that are newer survive; everything else takes the server copy. */
-    private suspend fun applyServerInvoice(server: InvoiceRecord) {
-        val local = invoiceLocal.getById(server.id)
+    /**
+     * Splits the push under both caps: the server's batch size, and the request body limit, which
+     * a few hundred invoices can now reach on their own. An invoice over the size limits is held
+     * back with a syncError naming the limit, since the server would only refuse it.
+     */
+    private suspend fun pushBatches(dirty: List<Invoice>): List<List<InvoiceValuesDto>> {
+        val limits = limits()
+        val maxCount = PUSH_BATCH_SIZE.coerceAtMost(limits.maxSyncBatchInvoices).coerceAtLeast(1)
+        val batches = mutableListOf<List<InvoiceValuesDto>>()
+        var current = mutableListOf<InvoiceValuesDto>()
+        var currentBytes = 0
+        for (invoice in dirty) {
+            val oversize = tooLarge(invoice, limits)
+            if (oversize != null) {
+                logWarn(LOG_TAG, "invoice ${invoice.id} not sent: $oversize")
+                invoices.setSyncError(invoice.id, oversize)
+                continue
+            }
+            val dto = invoice.toDto()
+            val bytes = BillantaJson.encodeToString(InvoiceValuesDto.serializer(), dto).utf8Size()
+            if (current.isNotEmpty() && (current.size >= maxCount || currentBytes + bytes > MAX_PUSH_BYTES)) {
+                batches += current
+                current = mutableListOf()
+                currentBytes = 0
+            }
+            current += dto
+            currentBytes += bytes
+        }
+        if (current.isNotEmpty()) batches += current
+        return batches
+    }
+
+    private fun tooLarge(invoice: Invoice, limits: RemoteConfig.Limits): String? = when {
+        invoice.lines.size > limits.maxLineItems -> "More than ${limits.maxLineItems} lines"
+        invoice.values.toJsonString().utf8Size() > limits.maxValuesBytes -> "Too much text on this invoice"
+        invoice.lines.any { it.values.toJsonString().utf8Size() > limits.maxLineValuesBytes } -> "A line has too much text"
+        else -> null
+    }
+
+    /** The limits are in bytes, and ₹ or any Indic script takes several per character. */
+    private fun String.utf8Size(): Int = encodeToByteArray().size
+
+    /** Last-write-wins: a newer unpushed local edit survives; anything else takes the server copy. */
+    private suspend fun applyServerInvoice(server: Invoice) {
+        val local = invoices.getByIdIncludingDeleted(server.id)
         if (local != null && local.pendingSync && local.updatedAtMillis > server.updatedAtMillis) return
-        invoiceLocal.upsert(server, dirty = false)
+        if (server.deletedAtMillis != null) {
+            invoices.hardDelete(server.id)
+            return
+        }
+        invoices.upsert(server, dirty = false)
     }
 
     // ---- misc ----------------------------------------------------------------------------------
 
+    /** A DELETE that counts `404` as done: the record is already gone, which is what we wanted. */
+    private suspend fun deleteRemotely(call: suspend () -> AppResult<Unit>, onGone: suspend () -> Unit): AppError? =
+        when (val result = call()) {
+            is AppResult.Success -> {
+                onGone()
+                null
+            }
+            is AppResult.Failure -> if (result.error.isNotFound) {
+                onGone()
+                null
+            } else {
+                result.error
+            }
+        }
+
+    /** Whether a values map fits `limits.maxValuesBytes`; one that does not is logged, never sent. */
+    private fun fits(values: FieldValues, what: String): Boolean {
+        val max = limits().maxValuesBytes
+        val ok = values.toJsonString().utf8Size() <= max
+        if (!ok) logWarn(LOG_TAG, "$what not sent: its values are over $max bytes")
+        return ok
+    }
+
     private suspend fun hasPendingWork(): Boolean =
-        invoiceLocal.dirtyRecords().isNotEmpty() ||
-            customerLocal.dirtyRows().isNotEmpty() ||
-            productLocal.dirtyRows().isNotEmpty() ||
-            profileLocal.isCompanyDirty() ||
-            profileLocal.isSettingsDirty()
+        invoices.dirtyInvoices().isNotEmpty() ||
+            customers.dirtyRows().isNotEmpty() ||
+            products.dirtyRows().isNotEmpty() ||
+            singletons.getProfile()?.dirtyKeys?.isNotEmpty() == true ||
+            singletons.getSettings()?.dirtyKeys?.isNotEmpty() == true
+
+    private val AppError.isNotFound: Boolean get() = this is AppError.Http && status == 404
 
     private companion object {
         const val DEBOUNCE_MILLIS = 1_500L
         const val PUSH_BATCH_SIZE = 100
+
+        /** Under the server's 2 MB body cap, with room for the envelope and multi-byte text. */
+        const val MAX_PUSH_BYTES = 1_500_000
         const val LOG_TAG = "Sync"
     }
 }

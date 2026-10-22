@@ -71,6 +71,11 @@ data class IntrinsicWidths(val minPt: Float, val maxPt: Float)
  */
 interface TextShaper {
 
+    /**
+     * Breaks [runs] into lines no wider than [maxWidthPt]. Each line is placed within that whole
+     * width according to [ParagraphStyle.align], because the layout engine draws the paragraph at
+     * its box's left edge and trusts the run offsets for everything else.
+     */
     fun shape(
         runs: List<StyledRun>,
         paragraphStyle: ParagraphStyle,

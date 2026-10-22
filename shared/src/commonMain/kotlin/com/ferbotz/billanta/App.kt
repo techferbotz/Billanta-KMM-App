@@ -42,6 +42,9 @@ import com.ferbotz.billanta.state.EditCustomerRoute
 import com.ferbotz.billanta.state.EditProductRoute
 import com.ferbotz.billanta.state.EditInvoiceDataRoute
 import com.ferbotz.billanta.state.EditSectionRoute
+import com.ferbotz.billanta.state.EditLineRoute
+import com.ferbotz.billanta.state.InvoiceDefaultsRoute
+import com.ferbotz.billanta.state.PickCustomerRoute
 import com.ferbotz.billanta.state.PreviewRoute
 import com.ferbotz.billanta.state.Route
 import com.ferbotz.billanta.state.SettingsRoute
@@ -59,6 +62,9 @@ import com.ferbotz.billanta.ui.screens.ChooseTemplateScreen
 import com.ferbotz.billanta.ui.screens.DeleteAccountScreen
 import com.ferbotz.billanta.ui.screens.EditInvoiceDataScreen
 import com.ferbotz.billanta.ui.screens.EditSectionScreen
+import com.ferbotz.billanta.ui.screens.EditLineScreen
+import com.ferbotz.billanta.ui.screens.InvoiceDefaultsScreen
+import com.ferbotz.billanta.ui.screens.PickCustomerScreen
 import com.ferbotz.billanta.ui.screens.CatalogueScreen
 import com.ferbotz.billanta.ui.screens.EditCustomerScreen
 import com.ferbotz.billanta.ui.screens.EditProductScreen
@@ -243,8 +249,10 @@ private fun RouteHost(state: BillantaState, route: Route) {
         ChooseTemplateRoute -> ChooseTemplateScreen(state)
         is PreviewRoute -> PreviewScreen(state, route.invoiceId)
         is EditInvoiceDataRoute -> EditInvoiceDataScreen(state, route.invoiceId)
-        is EditSectionRoute ->
-            EditSectionScreen(state, route.invoiceId, route.sectionId, route.edits, route.label, route.hidable)
+        is EditSectionRoute -> EditSectionScreen(state, route.invoiceId, route.sectionId)
+        is EditLineRoute -> EditLineScreen(state, route.invoiceId, route.lineId)
+        is PickCustomerRoute -> PickCustomerScreen(state, route.invoiceId)
+        InvoiceDefaultsRoute -> InvoiceDefaultsScreen(state)
         BusinessProfileRoute -> BusinessProfileScreen(state)
         SettingsRoute -> SettingsScreen(state)
         DeleteAccountRoute -> DeleteAccountScreen(state)

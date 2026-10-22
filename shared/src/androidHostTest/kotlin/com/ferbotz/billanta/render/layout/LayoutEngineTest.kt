@@ -1,25 +1,18 @@
 package com.ferbotz.billanta.render.layout
 
-import com.ferbotz.billanta.core.Iso8601
-import com.ferbotz.billanta.domain.model.CompanySnapshot
-import com.ferbotz.billanta.domain.model.CustomerSnapshot
-import com.ferbotz.billanta.domain.model.InvoiceItemRecord
-import com.ferbotz.billanta.domain.model.InvoiceRecord
-import com.ferbotz.billanta.render.BindingContext
+import com.ferbotz.billanta.records.Invoice
 import com.ferbotz.billanta.render.PageSpec
 import com.ferbotz.billanta.render.TemplateDoc
-import com.ferbotz.billanta.render.TemplateParser
-import com.ferbotz.billanta.render.bindingDataFor
+import com.ferbotz.billanta.render.TestInvoices
 import com.ferbotz.billanta.render.text.FakeTextShaper
-import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 /**
- * Golden geometry tests over the real compiled templates served by the backend
- * (`GET /templates/{classic,minimal}/compiled`, stored under `androidHostTest/resources`).
+ * Golden geometry tests over the backend's own compiled Classic (BE-021's `examples/`, stored under
+ * `androidHostTest/resources/be021`).
  *
  * A [FakeTextShaper] supplies deterministic metrics, so these assert exact numbers without
  * depending on a font, a device, or the host's text stack.
@@ -29,66 +22,13 @@ class LayoutEngineTest {
     private val shaper = FakeTextShaper()
     private val engine = LayoutEngine(shaper)
 
-    private fun loadTemplate(name: String): TemplateDoc {
-        val candidates = listOf(
-            File("src/androidHostTest/resources/templates/$name.json"),
-            File("shared/src/androidHostTest/resources/templates/$name.json"),
-        )
-        val file = candidates.firstOrNull { it.exists() }
-        assertNotNull(file, "fixture $name.json not found")
-        return assertNotNull(TemplateParser.parse(file.readText()), "failed to parse $name.json")
-    }
+    private fun invoice(itemCount: Int) = TestInvoices.invoice(itemCount)
 
-    private fun invoice(itemCount: Int) = InvoiceRecord(
-        id = "inv-1",
-        invoiceNumber = "INV-2026-0042",
-        invoiceDateMillis = Iso8601.epochMillisFor(2026, 8, 5),
-        dueDateMillis = Iso8601.epochMillisFor(2026, 8, 19),
-        currency = "INR",
-        companySnapshot = CompanySnapshot(
-            name = "Studio Nine",
-            gstin = "27ABCDE1234F1Z5",
-            addressLine1 = "A-901, Oberoi Springs",
-            city = "Mumbai",
-            pincode = "400053",
-            stateCode = "27",
-            email = "hello@studionine.in",
-            upiId = "studionine@okhdfcbank",
-            bankName = "HDFC Bank",
-            accountNumber = "50100234567821",
-            ifsc = "HDFC0000123",
-        ),
-        customerSnapshot = CustomerSnapshot(
-            name = "Kavya Iyer",
-            gstin = "27AAJCB1111C1Z2",
-            addressLine1 = "12 Carter Road, Bandra West",
-            city = "Mumbai",
-            pincode = "400050",
-            stateCode = "27",
-        ),
-        items = (1..itemCount).map { i ->
-            InvoiceItemRecord(
-                description = "Brand identity design work, phase $i",
-                hsnSac = "998311",
-                quantity = "1",
-                unitPricePaise = 6800000,
-                taxRatePercent = "18",
-                lineTotalPaise = 6800000,
-                taxAmountPaise = 1224000,
-            )
-        },
-        subtotalPaise = 6800000L * itemCount,
-        taxTotalPaise = 1224000L * itemCount,
-        grandTotalPaise = 8024000L * itemCount,
-        notes = "Payable within 14 days via UPI or bank transfer.",
-        updatedAtMillis = 1L,
-    )
+    private fun layout(itemCount: Int): Pair<TemplateDoc, LayoutBox> = layoutOf(invoice(itemCount))
 
-    private fun layout(templateName: String, itemCount: Int): Pair<TemplateDoc, LayoutBox> {
-        val doc = loadTemplate(templateName)
-        val record = invoice(itemCount)
-        val ctx = BindingContext(bindingDataFor(record), record.currency)
-        val tree = TemplateFlattener.flatten(doc, ctx)
+    private fun layoutOf(invoice: Invoice): Pair<TemplateDoc, LayoutBox> {
+        val doc = TestInvoices.classic
+        val tree = TemplateFlattener.flatten(doc, TestInvoices.bindings(doc, invoice))
         return doc to engine.layout(tree, LayoutEngine.pageContentWidth(doc.page))
     }
 
@@ -115,7 +55,7 @@ class LayoutEngineTest {
      */
     @Test
     fun auto_columns_are_sized_to_their_content_not_evenly() {
-        val (_, root) = layout("classic", itemCount = 3)
+        val (_, root) = layout(itemCount = 3)
         val table = collect(root).tables().firstOrNull()
         assertNotNull(table, "classic should contain a table")
 
@@ -139,7 +79,7 @@ class LayoutEngineTest {
      */
     @Test
     fun cell_padding_is_applied_once() {
-        val (_, root) = layout("classic", itemCount = 3)
+        val (_, root) = layout(itemCount = 3)
         val table = assertNotNull(collect(root).tables().firstOrNull())
         val placements = collect(table.box, table.x, table.y)
 
@@ -170,12 +110,50 @@ class LayoutEngineTest {
     }
 
     /**
+     * Classic right-aligns Qty, Rate and Amount. The device shaper used to lay a line that fits out
+     * at its own width, which left `textAlign: right` no room to act: every number sat on the left.
+     */
+    @Test
+    fun right_aligned_cells_end_at_their_right_padding() {
+        val (_, root) = layout(itemCount = 3)
+        val table = assertNotNull(collect(root).tables().firstOrNull())
+        val rows = collect(table.box, table.x, table.y).rows().filter { it.box.children.size == 4 }
+        assertTrue(rows.size >= 4, "expected the header and three item rows, got ${rows.size}")
+
+        var movedAny = false
+        rows.forEach { row ->
+            row.box.children.forEachIndexed { column, cell ->
+                val cellX = row.x + cell.dx
+                val text = assertNotNull(
+                    collect(cell.box, cellX, row.y + cell.dy).firstOrNull { it.box.node is LText },
+                )
+                val tm = text.box.metrics
+                val drawX = text.x + tm.margin.left + tm.border.left + tm.padding.left
+                val line = assertNotNull(text.box.paragraph).lines.single()
+                val start = drawX + line.runs.first().xPt
+                val end = drawX + line.runs.last().let { it.xPt + it.widthPt }
+
+                val cm = cell.box.metrics
+                if (column == 0) {
+                    val inset = cm.margin.left + cm.border.left + cm.padding.left
+                    assertEquals(inset, start - cellX, 0.01f, "the description column stays left-aligned")
+                } else {
+                    val inset = cm.margin.right + cm.border.right + cm.padding.right
+                    assertEquals(inset, cellX + cell.box.size.width - end, 0.01f, "column $column ends at its right padding")
+                    if (start - cellX > cm.padding.left + 0.5f) movedAny = true
+                }
+            }
+        }
+        assertTrue(movedAny, "no numeric cell was narrower than its column, so alignment went untested")
+    }
+
+    /**
      * The header cells of `classic` are painted; their text children carry a copy of that same
      * background. Painting both stacks a second, un-themed rectangle over the first.
      */
     @Test
     fun a_cells_background_is_painted_once() {
-        val (doc, root) = layout("classic", itemCount = 3)
+        val (doc, root) = layout(itemCount = 3)
         val commands = ArrayList<DrawCommand>()
         LayoutEngine(shaper).paint(root, doc.page.marginLeftPt, doc.page.marginTopPt, commands)
 
@@ -189,8 +167,8 @@ class LayoutEngineTest {
 
     @Test
     fun nothing_overflows_the_page_width() {
-        listOf("classic", "minimal").forEach { name ->
-            val (doc, root) = layout(name, itemCount = 6)
+        listOf("classic").forEach { name ->
+            val (doc, root) = layout(itemCount = 6)
             val contentWidth = LayoutEngine.pageContentWidth(doc.page)
             assertTrue(
                 root.size.width <= contentWidth + 0.5f,
@@ -209,8 +187,8 @@ class LayoutEngineTest {
     /** More items must produce a taller flow — the input pagination will later slice. */
     @Test
     fun content_height_grows_with_item_count_and_overflows_one_page() {
-        val (doc, small) = layout("classic", itemCount = 3)
-        val (_, large) = layout("classic", itemCount = 40)
+        val (doc, small) = layout(itemCount = 3)
+        val (_, large) = layout(itemCount = 40)
         val pageContentHeight = LayoutEngine.pageContentHeight(doc.page)
 
         assertTrue(large.size.height > small.size.height, "40 items should be taller than 3")
@@ -227,7 +205,7 @@ class LayoutEngineTest {
     @Test
     fun repeat_expands_one_row_per_item() {
         listOf(1, 5, 12).forEach { count ->
-            val (_, root) = layout("classic", itemCount = count)
+            val (_, root) = layout(itemCount = count)
             val table = assertNotNull(collect(root).tables().firstOrNull())
             val node = table.box.node as LTable
             assertEquals(count, node.body.size, "expected one body row per item")
@@ -237,21 +215,12 @@ class LayoutEngineTest {
     /** An empty optional binding must not leave a blank line behind. */
     @Test
     fun empty_bindings_leave_no_gap() {
-        val doc = loadTemplate("classic")
         val withAddress = invoice(2)
-        val withoutAddress = withAddress.copy(
-            customerSnapshot = withAddress.customerSnapshot?.copy(
-                addressLine1 = null,
-                city = null,
-                pincode = null,
-                gstin = null,
-            ),
+        val withoutAddress = TestInvoices.invoice(
+            2,
+            customer = TestInvoices.customer.without("customer_address_line1").without("customer_gstin"),
         )
-        fun heightOf(record: InvoiceRecord): Float {
-            val ctx = BindingContext(bindingDataFor(record), record.currency)
-            val tree = TemplateFlattener.flatten(doc, ctx)
-            return engine.layout(tree, LayoutEngine.pageContentWidth(doc.page)).size.height
-        }
+        fun heightOf(invoice: Invoice): Float = layoutOf(invoice).second.size.height
         assertTrue(
             heightOf(withoutAddress) < heightOf(withAddress),
             "dropping address lines should shorten the document, not leave empty line boxes",
@@ -260,10 +229,8 @@ class LayoutEngineTest {
 
     @Test
     fun renders_a_display_list_with_text_and_fills() {
-        val doc = loadTemplate("classic")
-        val record = invoice(3)
-        val ctx = BindingContext(bindingDataFor(record), record.currency)
-        val tree = TemplateFlattener.flatten(doc, ctx)
+        val doc = TestInvoices.classic
+        val tree = TemplateFlattener.flatten(doc, TestInvoices.bindings(doc, invoice(3)))
         val document = engine.render(tree, doc.page)
 
         assertEquals(1, document.pageCount)
@@ -290,10 +257,8 @@ class LayoutEngineTest {
 
     @Test
     fun invoice_number_and_totals_reach_the_page() {
-        val doc = loadTemplate("classic")
-        val record = invoice(2)
-        val ctx = BindingContext(bindingDataFor(record), record.currency)
-        val tree = TemplateFlattener.flatten(doc, ctx)
+        val doc = TestInvoices.classic
+        val tree = TemplateFlattener.flatten(doc, TestInvoices.bindings(doc, invoice(2)))
         val commands = engine.render(tree, doc.page).pages.single().commands.flattenCommands()
 
         val allText = commands.filterIsInstance<DrawCommand.Text>()

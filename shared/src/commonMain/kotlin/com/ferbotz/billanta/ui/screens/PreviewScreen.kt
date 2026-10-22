@@ -44,8 +44,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.ferbotz.billanta.core.AppError
 import com.ferbotz.billanta.core.AppResult
-import com.ferbotz.billanta.core.logWarn
-import com.ferbotz.billanta.domain.model.InvoiceRecord
+import com.ferbotz.billanta.records.Invoice
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.width
 import com.ferbotz.billanta.render.CustomisationControl
@@ -141,20 +140,22 @@ fun PreviewScreen(state: BillantaState, invoiceId: String) {
             return@Column
         }
 
-        val templateId = record.templateId ?: state.selectedTemplateId
+        val templateId = record.templateId?.takeIf { it.isNotEmpty() } ?: state.selectedTemplateId
         // Make sure "current" is actually current before resolving a version below.
         LaunchedEffect(Unit) { state.refreshTemplates() }
-        // Render the template's CURRENT version, not the one pinned when the invoice was created.
-        // A compiled tree is cached forever per (id, version), so a pinned version meant an invoice
-        // made before a template gained sections or colour tokens could never gain them — the edit
-        // sheet would offer nothing to hide, or offer controls the old tree has no tags for.
-        val templateVersion = templateId?.let { id -> state.templateById(id)?.currentVersion }
+        // A Draft follows its business profile and customer; opening it is when that shows.
+        LaunchedEffect(invoiceId) { state.refreshDraft(invoiceId) }
+        // A Draft draws the template's current version; an issued invoice keeps the one it was made
+        // on, so it re-renders exactly as it was sent (see BillantaState.templateDocFor).
+        val currentVersion = templateId?.let { id -> state.templateById(id)?.currentVersion }
         var reloadKey by remember { mutableIntStateOf(0) }
 
         val template by produceState<TemplateState>(
             TemplateState.Loading,
             templateId,
-            templateVersion,
+            currentVersion,
+            record.templateVersion,
+            record.isDraft,
             reloadKey,
         ) {
             value = TemplateState.Loading
@@ -162,10 +163,8 @@ fun PreviewScreen(state: BillantaState, invoiceId: String) {
                 value = TemplateState.Failed("No templates yet — connect once to download them.", premium = false)
                 return@produceState
             }
-            value = when (val result = state.container.templateRepository.getCompiled(templateId, templateVersion)) {
-                is AppResult.Success -> TemplateParser.parse(result.value.json)
-                    ?.let { TemplateState.Ready(it) }
-                    ?: TemplateState.Failed("This template can't be displayed — try updating the app.", premium = false)
+            value = when (val result = state.templateDocFor(record)) {
+                is AppResult.Success -> TemplateState.Ready(result.value)
                 is AppResult.Failure -> {
                     val error = result.error
                     val premium = error is AppError.Http && error.isPremiumRequired
@@ -183,12 +182,17 @@ fun PreviewScreen(state: BillantaState, invoiceId: String) {
                 doc.controls.filterIsInstance<CustomisationControl.Color>()
                     .firstOrNull { control -> doc.themeTokens.any { it.name == control.token } }
                     ?.let { control ->
-                        record.themeOverrides[control.token]
+                        record.themeOverrides[control.token]?.let(TemplateParser::parseHexColor)
                             ?: doc.themeTokens.first { it.name == control.token }.defaultArgb
                     }
             }
         }
         val prepared = ready?.let { RememberPreparedInvoice(state, it.doc, record) }
+        // Made offline before any template was downloaded: once one is here, the invoice takes it
+        // and its fields get their starting values.
+        LaunchedEffect(record.templateId, templateId) {
+            if (record.templateId.isNullOrEmpty()) templateId?.let(state::templateById)?.let { state.setInvoiceTemplate(record, it) }
+        }
         var exporting by remember { mutableStateOf<ExportFormat?>(null) }
         val scope = rememberCoroutineScope()
 
@@ -197,6 +201,7 @@ fun PreviewScreen(state: BillantaState, invoiceId: String) {
                 .padding(horizontal = 18.dp, vertical = 4.dp),
             verticalArrangement = Arrangement.spacedBy(18.dp),
         ) {
+            record.syncError?.let { error -> SyncProblem(error, onRenumber = { state.renumber(record.id) }) }
             when {
                 template is TemplateState.Failed -> {
                     val failure = template as TemplateState.Failed
@@ -245,7 +250,7 @@ fun PreviewScreen(state: BillantaState, invoiceId: String) {
                                                 // the list, where everything still missing is
                                                 // visible at once. Margins do the same.
                                                 if (hit != null && !hit.isEmpty && section?.isEditable == true) {
-                                                    state.openSectionViaList(record.id, section)
+                                                    state.openSectionViaList(record.id, section.id)
                                                 } else {
                                                     state.openInvoiceData(record.id)
                                                 }
@@ -316,6 +321,8 @@ fun PreviewScreen(state: BillantaState, invoiceId: String) {
                     state.container.invoiceExporter
                         .export(ready.document, format, record.invoiceNumber, ready.images)
                         .onFailure { state.uiMessage = it.userMessage() }
+                        // The first share issues the invoice: from now on it reads as it was sent.
+                        .onSuccess { if (record.isDraft) state.markIssued(record.id) }
                     exporting = null
                 }
             }
@@ -349,32 +356,31 @@ fun PreviewScreen(state: BillantaState, invoiceId: String) {
 private fun RememberPreparedInvoice(
     state: BillantaState,
     doc: TemplateDoc,
-    record: InvoiceRecord,
+    record: Invoice,
 ): PreparedInvoice? {
     val measuringRenderer = rememberInvoiceRenderer()
-    val urls = remember(doc, record) { measuringRenderer.imageUrlsFor(doc, record) }
+    val context = remember(record) { record.renderContext() }
+    val urls = remember(doc, context) { measuringRenderer.imageUrlsFor(doc, context) }
     val images by produceState(initialValue = emptyMap<String, ImageBitmap>(), urls) {
         value = if (urls.isEmpty()) emptyMap() else state.container.invoiceImageLoader.load(urls)
     }
     val renderer = rememberInvoiceRenderer(images.intrinsicSizes())
-    val theme = InvoiceTheme(record.themeOverrides, record.hiddenSections)
+    val theme = InvoiceTheme(
+        colorOverrides = record.themeOverrides.mapNotNull { (token, hex) -> TemplateParser.parseHexColor(hex)?.let { token to it } }.toMap(),
+        hiddenSections = record.hiddenSections,
+    )
     val dateFormat = state.dateFormat
-    return remember(doc, record, images, renderer, theme, dateFormat) {
-        // The other half of the section-hiding trail: what the renderer was actually handed.
-        logWarn(
-            "Sections",
-            "render ${record.id} hidden=${record.hiddenSections} " +
-                "declared=${doc.sections.filter { it.hidable }.map { it.id }}",
-        )
-        val document = renderer.render(doc, record, theme, dateFormat = dateFormat)
+    val optionLists = state.forms.optionLists
+    return remember(doc, context, images, renderer, theme, dateFormat, optionLists) {
+        val document = renderer.render(doc, context, optionLists, theme, dateFormat = dateFormat)
         // A section with nothing in it collapses to nothing, which leaves the user no way to fill
         // it. Only the on-screen copy holds the space open; the shared file must never show a gap.
-        val empty = emptySectionsFor(doc, record) - record.hiddenSections
+        val empty = emptySectionsFor(doc, context) - record.hiddenSections
         // A template may also carry its own editing-only content (BE-009), which the export render
         // above has correctly dropped — so a second pass is needed for that too, not just for gaps.
         val editing =
             if (empty.isEmpty() && !doc.hasEditorOnly) document
-            else renderer.render(doc, record, theme, PlaceholderMode.Reserve(empty), dateFormat)
+            else renderer.render(doc, context, optionLists, theme, PlaceholderMode.Reserve(empty), dateFormat)
         PreparedInvoice(document, editing, images)
     }
 }
@@ -526,5 +532,25 @@ private fun androidx.compose.foundation.layout.RowScope.TemplateSwatch(
             style = BillantaTheme.type.caption.copy(fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal),
             color = if (selected) c.textPrimary else c.textSecondary,
         )
+    }
+}
+
+/**
+ * The server refused this invoice — most often because another invoice already has its number,
+ * which happens when two devices number invoices offline (FIELDS.md §11). Nothing is lost: the
+ * invoice stays here until it is changed, and taking the next free number is one tap.
+ */
+@Composable
+private fun SyncProblem(message: String, onRenumber: () -> Unit) {
+    val c = BillantaTheme.colors
+    Column(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(c.warningBg).padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            BillantaIcon(AppIcon.CloudOff, c.warning, size = 20.dp)
+            Text("Not synced: $message", style = BillantaTheme.type.caption, color = c.textPrimary, modifier = Modifier.weight(1f))
+        }
+        TextButtonLink("Use the next invoice number", onClick = onRenumber)
     }
 }

@@ -1,0 +1,3052 @@
+{
+  "page": {
+    "size": "A4",
+    "margin": {
+      "top": 0,
+      "left": 0,
+      "right": 0,
+      "bottom": 0
+    },
+    "fontFamily": "Montserrat",
+    "baseFontSize": 9
+  },
+  "root": {
+    "type": "box",
+    "style": {
+      "color": "#23262e",
+      "fontSize": 9,
+      "fontFamily": "Montserrat",
+      "lineHeight": 1.5
+    },
+    "children": [
+      {
+        "type": "box",
+        "style": {
+          "gap": 10,
+          "color": "#23262e",
+          "display": "flex",
+          "fontSize": 9,
+          "alignItems": "center",
+          "fontFamily": "Montserrat",
+          "lineHeight": 1.5,
+          "paddingTop": 40,
+          "paddingLeft": 34,
+          "paddingRight": 34,
+          "paddingBottom": 18
+        },
+        "section": "business",
+        "children": [
+          {
+            "path": "company_logo",
+            "type": "conditional",
+            "child": {
+              "fit": "contain",
+              "type": "image",
+              "style": {
+                "color": "#23262e",
+                "width": 34,
+                "height": 34,
+                "fontSize": 9,
+                "fontFamily": "Montserrat",
+                "lineHeight": 1.5
+              },
+              "source": {
+                "kind": "bind",
+                "path": "company_logo.url",
+                "format": "text",
+                "fallback": ""
+              }
+            }
+          },
+          {
+            "type": "box",
+            "style": {
+              "color": "#23262e",
+              "fontSize": 9,
+              "fontFamily": "Montserrat",
+              "lineHeight": 1.5
+            },
+            "children": [
+              {
+                "type": "box",
+                "style": {
+                  "color": "#23262e",
+                  "fontSize": 17,
+                  "fontFamily": "Montserrat",
+                  "fontWeight": 700,
+                  "lineHeight": 1.5
+                },
+                "children": [
+                  {
+                    "type": "text",
+                    "spans": [
+                      {
+                        "value": {
+                          "kind": "bind",
+                          "path": "company_name",
+                          "format": "text",
+                          "fallback": ""
+                        }
+                      }
+                    ],
+                    "style": {
+                      "color": "#23262e",
+                      "fontSize": 17,
+                      "fontFamily": "Montserrat",
+                      "fontWeight": 700,
+                      "lineHeight": 1.5
+                    }
+                  }
+                ]
+              },
+              {
+                "path": "company_gstin",
+                "type": "conditional",
+                "child": {
+                  "type": "box",
+                  "style": {
+                    "color": "#7c7f89",
+                    "fontSize": 6.5,
+                    "fontFamily": "Montserrat",
+                    "fontWeight": 600,
+                    "lineHeight": 1.5,
+                    "letterSpacing": 1.6,
+                    "textTransform": "uppercase"
+                  },
+                  "children": [
+                    {
+                      "type": "text",
+                      "spans": [
+                        {
+                          "value": {
+                            "kind": "literal",
+                            "text": "GSTIN "
+                          }
+                        },
+                        {
+                          "value": {
+                            "kind": "bind",
+                            "path": "company_gstin",
+                            "format": "text",
+                            "fallback": ""
+                          }
+                        }
+                      ],
+                      "style": {
+                        "color": "#7c7f89",
+                        "fontSize": 6.5,
+                        "fontFamily": "Montserrat",
+                        "fontWeight": 600,
+                        "lineHeight": 1.5,
+                        "letterSpacing": 1.6,
+                        "textTransform": "uppercase"
+                      }
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "box",
+        "style": {
+          "color": "#23262e",
+          "display": "flex",
+          "fontSize": 9,
+          "alignItems": "center",
+          "fontFamily": "Montserrat",
+          "lineHeight": 1.5
+        },
+        "children": [
+          {
+            "type": "box",
+            "style": {
+              "flex": "1",
+              "color": "#23262e",
+              "fontSize": 9,
+              "fontFamily": "Montserrat",
+              "lineHeight": 1.5,
+              "backgroundColor": "#fec90b"
+            },
+            "tokens": {
+              "backgroundColor": "accent"
+            },
+            "children": [
+              {
+                "type": "box",
+                "style": {
+                  "color": "#23262e",
+                  "height": 32,
+                  "fontSize": 9,
+                  "fontFamily": "Montserrat",
+                  "lineHeight": 1.5
+                },
+                "children": []
+              }
+            ]
+          },
+          {
+            "type": "box",
+            "style": {
+              "color": "#23262e",
+              "fontSize": 30,
+              "fontFamily": "Montserrat",
+              "fontWeight": 500,
+              "lineHeight": 1.5,
+              "paddingTop": 0,
+              "paddingLeft": 16,
+              "paddingRight": 16,
+              "letterSpacing": 2.5,
+              "paddingBottom": 0
+            },
+            "children": [
+              {
+                "type": "text",
+                "spans": [
+                  {
+                    "value": {
+                      "kind": "literal",
+                      "text": "INVOICE"
+                    }
+                  }
+                ],
+                "style": {
+                  "color": "#23262e",
+                  "fontSize": 30,
+                  "fontFamily": "Montserrat",
+                  "fontWeight": 500,
+                  "lineHeight": 1.5,
+                  "paddingTop": 0,
+                  "paddingLeft": 16,
+                  "paddingRight": 16,
+                  "letterSpacing": 2.5,
+                  "paddingBottom": 0
+                }
+              }
+            ]
+          },
+          {
+            "type": "box",
+            "style": {
+              "color": "#23262e",
+              "width": 46,
+              "fontSize": 9,
+              "fontFamily": "Montserrat",
+              "lineHeight": 1.5,
+              "backgroundColor": "#fec90b"
+            },
+            "tokens": {
+              "backgroundColor": "accent"
+            },
+            "children": [
+              {
+                "type": "box",
+                "style": {
+                  "color": "#23262e",
+                  "height": 32,
+                  "fontSize": 9,
+                  "fontFamily": "Montserrat",
+                  "lineHeight": 1.5
+                },
+                "children": []
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "box",
+        "style": {
+          "color": "#23262e",
+          "display": "flex",
+          "fontSize": 9,
+          "fontFamily": "Montserrat",
+          "lineHeight": 1.5,
+          "paddingTop": 32,
+          "paddingLeft": 34,
+          "paddingRight": 34,
+          "paddingBottom": 0,
+          "justifyContent": "space-between"
+        },
+        "children": [
+          {
+            "type": "box",
+            "style": {
+              "color": "#23262e",
+              "width": "52%",
+              "fontSize": 9,
+              "fontFamily": "Montserrat",
+              "lineHeight": 1.5
+            },
+            "section": "parties",
+            "children": [
+              {
+                "type": "box",
+                "style": {
+                  "color": "#23262e",
+                  "fontSize": 12,
+                  "fontFamily": "Montserrat",
+                  "fontWeight": 600,
+                  "lineHeight": 1.5,
+                  "marginBottom": 4
+                },
+                "children": [
+                  {
+                    "type": "text",
+                    "spans": [
+                      {
+                        "value": {
+                          "kind": "literal",
+                          "text": "Invoice to:"
+                        }
+                      }
+                    ],
+                    "style": {
+                      "color": "#23262e",
+                      "fontSize": 12,
+                      "fontFamily": "Montserrat",
+                      "fontWeight": 600,
+                      "lineHeight": 1.5,
+                      "marginBottom": 4
+                    }
+                  }
+                ]
+              },
+              {
+                "path": "customer_name",
+                "type": "conditional",
+                "child": {
+                  "type": "box",
+                  "style": {
+                    "color": "#23262e",
+                    "fontSize": 11,
+                    "fontFamily": "Montserrat",
+                    "fontWeight": 700,
+                    "lineHeight": 1.5
+                  },
+                  "children": [
+                    {
+                      "type": "text",
+                      "spans": [
+                        {
+                          "value": {
+                            "kind": "bind",
+                            "path": "customer_name",
+                            "format": "text",
+                            "fallback": ""
+                          }
+                        }
+                      ],
+                      "style": {
+                        "color": "#23262e",
+                        "fontSize": 11,
+                        "fontFamily": "Montserrat",
+                        "fontWeight": 700,
+                        "lineHeight": 1.5
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "path": "customer_address_line1",
+                "type": "conditional",
+                "child": {
+                  "type": "box",
+                  "style": {
+                    "color": "#7c7f89",
+                    "fontSize": 8,
+                    "fontFamily": "Montserrat",
+                    "lineHeight": 1.5,
+                    "letterSpacing": 0.2
+                  },
+                  "children": [
+                    {
+                      "type": "text",
+                      "spans": [
+                        {
+                          "value": {
+                            "kind": "bind",
+                            "path": "customer_address_line1",
+                            "format": "text",
+                            "fallback": ""
+                          }
+                        }
+                      ],
+                      "style": {
+                        "color": "#7c7f89",
+                        "fontSize": 8,
+                        "fontFamily": "Montserrat",
+                        "lineHeight": 1.5,
+                        "letterSpacing": 0.2
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "path": "customer_address_line2",
+                "type": "conditional",
+                "child": {
+                  "type": "box",
+                  "style": {
+                    "color": "#7c7f89",
+                    "fontSize": 8,
+                    "fontFamily": "Montserrat",
+                    "lineHeight": 1.5,
+                    "letterSpacing": 0.2
+                  },
+                  "children": [
+                    {
+                      "type": "text",
+                      "spans": [
+                        {
+                          "value": {
+                            "kind": "bind",
+                            "path": "customer_address_line2",
+                            "format": "text",
+                            "fallback": ""
+                          }
+                        }
+                      ],
+                      "style": {
+                        "color": "#7c7f89",
+                        "fontSize": 8,
+                        "fontFamily": "Montserrat",
+                        "lineHeight": 1.5,
+                        "letterSpacing": 0.2
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "path": "customer_city",
+                "type": "conditional",
+                "child": {
+                  "type": "box",
+                  "style": {
+                    "color": "#7c7f89",
+                    "fontSize": 8,
+                    "fontFamily": "Montserrat",
+                    "lineHeight": 1.5,
+                    "letterSpacing": 0.2
+                  },
+                  "children": [
+                    {
+                      "type": "text",
+                      "spans": [
+                        {
+                          "value": {
+                            "kind": "bind",
+                            "path": "customer_city",
+                            "format": "text",
+                            "fallback": ""
+                          }
+                        },
+                        {
+                          "value": {
+                            "kind": "literal",
+                            "text": " "
+                          }
+                        },
+                        {
+                          "value": {
+                            "kind": "bind",
+                            "path": "customer_state",
+                            "format": "text",
+                            "fallback": ""
+                          }
+                        },
+                        {
+                          "value": {
+                            "kind": "literal",
+                            "text": " "
+                          }
+                        },
+                        {
+                          "value": {
+                            "kind": "bind",
+                            "path": "customer_pincode",
+                            "format": "text",
+                            "fallback": ""
+                          }
+                        }
+                      ],
+                      "style": {
+                        "color": "#7c7f89",
+                        "fontSize": 8,
+                        "fontFamily": "Montserrat",
+                        "lineHeight": 1.5,
+                        "letterSpacing": 0.2
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "path": "customer_gstin",
+                "type": "conditional",
+                "child": {
+                  "type": "box",
+                  "style": {
+                    "color": "#7c7f89",
+                    "fontSize": 8,
+                    "fontFamily": "Montserrat",
+                    "lineHeight": 1.5,
+                    "letterSpacing": 0.2
+                  },
+                  "children": [
+                    {
+                      "type": "text",
+                      "spans": [
+                        {
+                          "value": {
+                            "kind": "literal",
+                            "text": "GSTIN "
+                          }
+                        },
+                        {
+                          "value": {
+                            "kind": "bind",
+                            "path": "customer_gstin",
+                            "format": "text",
+                            "fallback": ""
+                          }
+                        }
+                      ],
+                      "style": {
+                        "color": "#7c7f89",
+                        "fontSize": 8,
+                        "fontFamily": "Montserrat",
+                        "lineHeight": 1.5,
+                        "letterSpacing": 0.2
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "path": "customer_name",
+                "type": "conditional",
+                "child": {
+                  "type": "box",
+                  "style": {
+                    "color": "#23262e",
+                    "fontSize": 9,
+                    "marginTop": 12,
+                    "textAlign": "center",
+                    "fontFamily": "Montserrat",
+                    "lineHeight": 1.5,
+                    "paddingTop": 18,
+                    "paddingLeft": 18,
+                    "borderRadius": 6,
+                    "paddingRight": 18,
+                    "paddingBottom": 18,
+                    "borderTopColor": "#b9bcc4",
+                    "borderTopStyle": "dashed",
+                    "borderTopWidth": 1.5,
+                    "borderLeftColor": "#b9bcc4",
+                    "borderLeftStyle": "dashed",
+                    "borderLeftWidth": 1.5,
+                    "borderRightColor": "#b9bcc4",
+                    "borderRightStyle": "dashed",
+                    "borderRightWidth": 1.5,
+                    "borderBottomColor": "#b9bcc4",
+                    "borderBottomStyle": "dashed",
+                    "borderBottomWidth": 1.5
+                  },
+                  "children": [
+                    {
+                      "type": "box",
+                      "style": {
+                        "color": "#b9bcc4",
+                        "fontSize": 9,
+                        "textAlign": "center",
+                        "fontFamily": "Montserrat",
+                        "lineHeight": 1.5
+                      },
+                      "children": [
+                        {
+                          "type": "text",
+                          "spans": [
+                            {
+                              "value": {
+                                "kind": "literal",
+                                "text": "+ Add customer"
+                              }
+                            }
+                          ],
+                          "style": {
+                            "color": "#b9bcc4",
+                            "fontSize": 9,
+                            "textAlign": "center",
+                            "fontFamily": "Montserrat",
+                            "lineHeight": 1.5
+                          }
+                        }
+                      ]
+                    }
+                  ],
+                  "editorOnly": true
+                },
+                "negate": true
+              }
+            ]
+          },
+          {
+            "type": "box",
+            "style": {
+              "color": "#23262e",
+              "width": "40%",
+              "fontSize": 9,
+              "fontFamily": "Montserrat",
+              "lineHeight": 1.5
+            },
+            "section": "header",
+            "children": [
+              {
+                "type": "box",
+                "style": {
+                  "color": "#23262e",
+                  "display": "flex",
+                  "fontSize": 9,
+                  "fontFamily": "Montserrat",
+                  "lineHeight": 1.5,
+                  "marginBottom": 3,
+                  "justifyContent": "space-between"
+                },
+                "children": [
+                  {
+                    "type": "box",
+                    "style": {
+                      "color": "#23262e",
+                      "fontSize": 10,
+                      "fontFamily": "Montserrat",
+                      "fontWeight": 700,
+                      "lineHeight": 1.5
+                    },
+                    "children": [
+                      {
+                        "type": "text",
+                        "spans": [
+                          {
+                            "value": {
+                              "kind": "literal",
+                              "text": "Invoice#"
+                            }
+                          }
+                        ],
+                        "style": {
+                          "color": "#23262e",
+                          "fontSize": 10,
+                          "fontFamily": "Montserrat",
+                          "fontWeight": 700,
+                          "lineHeight": 1.5
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "type": "box",
+                    "style": {
+                      "color": "#7c7f89",
+                      "fontSize": 9,
+                      "fontFamily": "Montserrat",
+                      "lineHeight": 1.5
+                    },
+                    "children": [
+                      {
+                        "type": "text",
+                        "spans": [
+                          {
+                            "value": {
+                              "kind": "bind",
+                              "path": "invoice_number",
+                              "format": "text",
+                              "fallback": ""
+                            }
+                          }
+                        ],
+                        "style": {
+                          "color": "#7c7f89",
+                          "fontSize": 9,
+                          "fontFamily": "Montserrat",
+                          "lineHeight": 1.5
+                        }
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "type": "box",
+                "style": {
+                  "color": "#23262e",
+                  "display": "flex",
+                  "fontSize": 9,
+                  "fontFamily": "Montserrat",
+                  "lineHeight": 1.5,
+                  "marginBottom": 3,
+                  "justifyContent": "space-between"
+                },
+                "children": [
+                  {
+                    "type": "box",
+                    "style": {
+                      "color": "#23262e",
+                      "fontSize": 10,
+                      "fontFamily": "Montserrat",
+                      "fontWeight": 700,
+                      "lineHeight": 1.5
+                    },
+                    "children": [
+                      {
+                        "type": "text",
+                        "spans": [
+                          {
+                            "value": {
+                              "kind": "literal",
+                              "text": "Date"
+                            }
+                          }
+                        ],
+                        "style": {
+                          "color": "#23262e",
+                          "fontSize": 10,
+                          "fontFamily": "Montserrat",
+                          "fontWeight": 700,
+                          "lineHeight": 1.5
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "type": "box",
+                    "style": {
+                      "color": "#7c7f89",
+                      "fontSize": 9,
+                      "fontFamily": "Montserrat",
+                      "lineHeight": 1.5
+                    },
+                    "children": [
+                      {
+                        "type": "text",
+                        "spans": [
+                          {
+                            "value": {
+                              "kind": "bind",
+                              "path": "invoice_date",
+                              "format": "date",
+                              "fallback": ""
+                            }
+                          }
+                        ],
+                        "style": {
+                          "color": "#7c7f89",
+                          "fontSize": 9,
+                          "fontFamily": "Montserrat",
+                          "lineHeight": 1.5
+                        }
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "path": "due_date",
+                "type": "conditional",
+                "child": {
+                  "type": "box",
+                  "style": {
+                    "color": "#23262e",
+                    "display": "flex",
+                    "fontSize": 9,
+                    "fontFamily": "Montserrat",
+                    "lineHeight": 1.5,
+                    "marginBottom": 3,
+                    "justifyContent": "space-between"
+                  },
+                  "children": [
+                    {
+                      "type": "box",
+                      "style": {
+                        "color": "#23262e",
+                        "fontSize": 10,
+                        "fontFamily": "Montserrat",
+                        "fontWeight": 700,
+                        "lineHeight": 1.5
+                      },
+                      "children": [
+                        {
+                          "type": "text",
+                          "spans": [
+                            {
+                              "value": {
+                                "kind": "literal",
+                                "text": "Due Date"
+                              }
+                            }
+                          ],
+                          "style": {
+                            "color": "#23262e",
+                            "fontSize": 10,
+                            "fontFamily": "Montserrat",
+                            "fontWeight": 700,
+                            "lineHeight": 1.5
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "type": "box",
+                      "style": {
+                        "color": "#7c7f89",
+                        "fontSize": 9,
+                        "fontFamily": "Montserrat",
+                        "lineHeight": 1.5
+                      },
+                      "children": [
+                        {
+                          "type": "text",
+                          "spans": [
+                            {
+                              "value": {
+                                "kind": "bind",
+                                "path": "due_date",
+                                "format": "date",
+                                "fallback": ""
+                              }
+                            }
+                          ],
+                          "style": {
+                            "color": "#7c7f89",
+                            "fontSize": 9,
+                            "fontFamily": "Montserrat",
+                            "lineHeight": 1.5
+                          }
+                        }
+                      ]
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "box",
+        "style": {
+          "color": "#23262e",
+          "fontSize": 9,
+          "fontFamily": "Montserrat",
+          "lineHeight": 1.5,
+          "paddingTop": 28,
+          "paddingLeft": 34,
+          "paddingRight": 34,
+          "paddingBottom": 0
+        },
+        "section": "items",
+        "children": [
+          {
+            "path": "line_items",
+            "type": "conditional",
+            "child": {
+              "type": "box",
+              "style": {
+                "color": "#23262e",
+                "fontSize": 9,
+                "minHeight": 250,
+                "fontFamily": "Montserrat",
+                "lineHeight": 1.5,
+                "borderTopColor": "#e4e4e6",
+                "borderTopStyle": "solid",
+                "borderTopWidth": 1,
+                "borderLeftColor": "#e4e4e6",
+                "borderLeftStyle": "solid",
+                "borderLeftWidth": 1,
+                "borderRightColor": "#e4e4e6",
+                "borderRightStyle": "solid",
+                "borderRightWidth": 1,
+                "borderBottomColor": "#e4e4e6",
+                "borderBottomStyle": "solid",
+                "borderBottomWidth": 1
+              },
+              "children": [
+                {
+                  "body": {
+                    "row": {
+                      "type": "row",
+                      "cells": [
+                        {
+                          "type": "cell",
+                          "style": {
+                            "color": "#23262e",
+                            "fontSize": 9,
+                            "fontFamily": "Montserrat",
+                            "fontWeight": 600,
+                            "lineHeight": 1.5,
+                            "paddingTop": 12,
+                            "paddingLeft": 10,
+                            "paddingRight": 10,
+                            "paddingBottom": 12,
+                            "borderBottomColor": "#efefef",
+                            "borderBottomStyle": "solid",
+                            "borderBottomWidth": 1
+                          },
+                          "colSpan": 1,
+                          "children": [
+                            {
+                              "type": "text",
+                              "spans": [
+                                {
+                                  "value": {
+                                    "kind": "bind",
+                                    "path": "item.description",
+                                    "format": "text",
+                                    "fallback": ""
+                                  }
+                                }
+                              ],
+                              "style": {
+                                "color": "#23262e",
+                                "fontSize": 9,
+                                "fontFamily": "Montserrat",
+                                "fontWeight": 600,
+                                "lineHeight": 1.5,
+                                "paddingTop": 12,
+                                "paddingLeft": 10,
+                                "paddingRight": 10,
+                                "paddingBottom": 12,
+                                "borderBottomColor": "#efefef",
+                                "borderBottomStyle": "solid",
+                                "borderBottomWidth": 1
+                              }
+                            }
+                          ]
+                        },
+                        {
+                          "type": "cell",
+                          "style": {
+                            "color": "#23262e",
+                            "fontSize": 9,
+                            "textAlign": "right",
+                            "fontFamily": "Montserrat",
+                            "fontWeight": 600,
+                            "lineHeight": 1.5,
+                            "paddingTop": 12,
+                            "paddingLeft": 10,
+                            "paddingRight": 10,
+                            "paddingBottom": 12,
+                            "borderBottomColor": "#efefef",
+                            "borderBottomStyle": "solid",
+                            "borderBottomWidth": 1
+                          },
+                          "colSpan": 1,
+                          "children": [
+                            {
+                              "type": "text",
+                              "spans": [
+                                {
+                                  "value": {
+                                    "kind": "bind",
+                                    "path": "item.unit_price",
+                                    "format": "currency",
+                                    "fallback": ""
+                                  }
+                                }
+                              ],
+                              "style": {
+                                "color": "#23262e",
+                                "fontSize": 9,
+                                "textAlign": "right",
+                                "fontFamily": "Montserrat",
+                                "fontWeight": 600,
+                                "lineHeight": 1.5,
+                                "paddingTop": 12,
+                                "paddingLeft": 10,
+                                "paddingRight": 10,
+                                "paddingBottom": 12,
+                                "borderBottomColor": "#efefef",
+                                "borderBottomStyle": "solid",
+                                "borderBottomWidth": 1
+                              }
+                            }
+                          ]
+                        },
+                        {
+                          "type": "cell",
+                          "style": {
+                            "color": "#23262e",
+                            "fontSize": 9,
+                            "textAlign": "center",
+                            "fontFamily": "Montserrat",
+                            "fontWeight": 600,
+                            "lineHeight": 1.5,
+                            "paddingTop": 12,
+                            "paddingLeft": 10,
+                            "paddingRight": 10,
+                            "paddingBottom": 12,
+                            "borderBottomColor": "#efefef",
+                            "borderBottomStyle": "solid",
+                            "borderBottomWidth": 1
+                          },
+                          "colSpan": 1,
+                          "children": [
+                            {
+                              "type": "text",
+                              "spans": [
+                                {
+                                  "value": {
+                                    "kind": "bind",
+                                    "path": "item.quantity",
+                                    "format": "number",
+                                    "fallback": ""
+                                  }
+                                }
+                              ],
+                              "style": {
+                                "color": "#23262e",
+                                "fontSize": 9,
+                                "textAlign": "center",
+                                "fontFamily": "Montserrat",
+                                "fontWeight": 600,
+                                "lineHeight": 1.5,
+                                "paddingTop": 12,
+                                "paddingLeft": 10,
+                                "paddingRight": 10,
+                                "paddingBottom": 12,
+                                "borderBottomColor": "#efefef",
+                                "borderBottomStyle": "solid",
+                                "borderBottomWidth": 1
+                              }
+                            }
+                          ]
+                        },
+                        {
+                          "type": "cell",
+                          "style": {
+                            "color": "#23262e",
+                            "fontSize": 9,
+                            "textAlign": "right",
+                            "fontFamily": "Montserrat",
+                            "fontWeight": 600,
+                            "lineHeight": 1.5,
+                            "paddingTop": 12,
+                            "paddingLeft": 10,
+                            "paddingRight": 10,
+                            "paddingBottom": 12,
+                            "borderBottomColor": "#efefef",
+                            "borderBottomStyle": "solid",
+                            "borderBottomWidth": 1
+                          },
+                          "colSpan": 1,
+                          "children": [
+                            {
+                              "type": "text",
+                              "spans": [
+                                {
+                                  "value": {
+                                    "kind": "bind",
+                                    "path": "item.line_total",
+                                    "format": "currency",
+                                    "fallback": ""
+                                  }
+                                }
+                              ],
+                              "style": {
+                                "color": "#23262e",
+                                "fontSize": 9,
+                                "textAlign": "right",
+                                "fontFamily": "Montserrat",
+                                "fontWeight": 600,
+                                "lineHeight": 1.5,
+                                "paddingTop": 12,
+                                "paddingLeft": 10,
+                                "paddingRight": 10,
+                                "paddingBottom": 12,
+                                "borderBottomColor": "#efefef",
+                                "borderBottomStyle": "solid",
+                                "borderBottomWidth": 1
+                              }
+                            }
+                          ]
+                        }
+                      ],
+                      "style": {
+                        "color": "#23262e",
+                        "fontSize": 9,
+                        "fontFamily": "Montserrat",
+                        "lineHeight": 1.5
+                      }
+                    },
+                    "repeat": {
+                      "as": "item",
+                      "path": "line_items"
+                    }
+                  },
+                  "type": "table",
+                  "style": {
+                    "color": "#23262e",
+                    "width": "100%",
+                    "fontSize": 9,
+                    "fontFamily": "Montserrat",
+                    "lineHeight": 1.5
+                  },
+                  "footer": [],
+                  "header": [
+                    {
+                      "type": "row",
+                      "cells": [
+                        {
+                          "type": "cell",
+                          "style": {
+                            "color": "#ffffff",
+                            "width": "52%",
+                            "fontSize": 8.5,
+                            "textAlign": "left",
+                            "fontFamily": "Montserrat",
+                            "fontWeight": 700,
+                            "lineHeight": 1.5,
+                            "paddingTop": 9,
+                            "paddingLeft": 10,
+                            "paddingRight": 10,
+                            "paddingBottom": 9,
+                            "backgroundColor": "#383a46"
+                          },
+                          "tokens": {
+                            "backgroundColor": "secondary"
+                          },
+                          "colSpan": 1,
+                          "children": [
+                            {
+                              "type": "text",
+                              "spans": [
+                                {
+                                  "value": {
+                                    "kind": "literal",
+                                    "text": "Item Description"
+                                  }
+                                }
+                              ],
+                              "style": {
+                                "color": "#ffffff",
+                                "width": "52%",
+                                "fontSize": 8.5,
+                                "textAlign": "left",
+                                "fontFamily": "Montserrat",
+                                "fontWeight": 700,
+                                "lineHeight": 1.5,
+                                "paddingTop": 9,
+                                "paddingLeft": 10,
+                                "paddingRight": 10,
+                                "paddingBottom": 9,
+                                "backgroundColor": "#383a46"
+                              }
+                            }
+                          ]
+                        },
+                        {
+                          "type": "cell",
+                          "style": {
+                            "color": "#ffffff",
+                            "width": "18%",
+                            "fontSize": 8.5,
+                            "textAlign": "right",
+                            "fontFamily": "Montserrat",
+                            "fontWeight": 700,
+                            "lineHeight": 1.5,
+                            "paddingTop": 9,
+                            "paddingLeft": 10,
+                            "paddingRight": 10,
+                            "paddingBottom": 9,
+                            "backgroundColor": "#383a46"
+                          },
+                          "tokens": {
+                            "backgroundColor": "secondary"
+                          },
+                          "colSpan": 1,
+                          "children": [
+                            {
+                              "type": "text",
+                              "spans": [
+                                {
+                                  "value": {
+                                    "kind": "literal",
+                                    "text": "Price"
+                                  }
+                                }
+                              ],
+                              "style": {
+                                "color": "#ffffff",
+                                "width": "18%",
+                                "fontSize": 8.5,
+                                "textAlign": "right",
+                                "fontFamily": "Montserrat",
+                                "fontWeight": 700,
+                                "lineHeight": 1.5,
+                                "paddingTop": 9,
+                                "paddingLeft": 10,
+                                "paddingRight": 10,
+                                "paddingBottom": 9,
+                                "backgroundColor": "#383a46"
+                              }
+                            }
+                          ]
+                        },
+                        {
+                          "type": "cell",
+                          "style": {
+                            "color": "#ffffff",
+                            "width": "12%",
+                            "fontSize": 8.5,
+                            "textAlign": "center",
+                            "fontFamily": "Montserrat",
+                            "fontWeight": 700,
+                            "lineHeight": 1.5,
+                            "paddingTop": 9,
+                            "paddingLeft": 10,
+                            "paddingRight": 10,
+                            "paddingBottom": 9,
+                            "backgroundColor": "#383a46"
+                          },
+                          "tokens": {
+                            "backgroundColor": "secondary"
+                          },
+                          "colSpan": 1,
+                          "children": [
+                            {
+                              "type": "text",
+                              "spans": [
+                                {
+                                  "value": {
+                                    "kind": "literal",
+                                    "text": "Qty."
+                                  }
+                                }
+                              ],
+                              "style": {
+                                "color": "#ffffff",
+                                "width": "12%",
+                                "fontSize": 8.5,
+                                "textAlign": "center",
+                                "fontFamily": "Montserrat",
+                                "fontWeight": 700,
+                                "lineHeight": 1.5,
+                                "paddingTop": 9,
+                                "paddingLeft": 10,
+                                "paddingRight": 10,
+                                "paddingBottom": 9,
+                                "backgroundColor": "#383a46"
+                              }
+                            }
+                          ]
+                        },
+                        {
+                          "type": "cell",
+                          "style": {
+                            "color": "#ffffff",
+                            "width": "18%",
+                            "fontSize": 8.5,
+                            "textAlign": "right",
+                            "fontFamily": "Montserrat",
+                            "fontWeight": 700,
+                            "lineHeight": 1.5,
+                            "paddingTop": 9,
+                            "paddingLeft": 10,
+                            "paddingRight": 10,
+                            "paddingBottom": 9,
+                            "backgroundColor": "#383a46"
+                          },
+                          "tokens": {
+                            "backgroundColor": "secondary"
+                          },
+                          "colSpan": 1,
+                          "children": [
+                            {
+                              "type": "text",
+                              "spans": [
+                                {
+                                  "value": {
+                                    "kind": "literal",
+                                    "text": "Total"
+                                  }
+                                }
+                              ],
+                              "style": {
+                                "color": "#ffffff",
+                                "width": "18%",
+                                "fontSize": 8.5,
+                                "textAlign": "right",
+                                "fontFamily": "Montserrat",
+                                "fontWeight": 700,
+                                "lineHeight": 1.5,
+                                "paddingTop": 9,
+                                "paddingLeft": 10,
+                                "paddingRight": 10,
+                                "paddingBottom": 9,
+                                "backgroundColor": "#383a46"
+                              }
+                            }
+                          ]
+                        }
+                      ],
+                      "style": {
+                        "color": "#23262e",
+                        "fontSize": 9,
+                        "fontFamily": "Montserrat",
+                        "lineHeight": 1.5
+                      }
+                    }
+                  ],
+                  "columns": [
+                    {
+                      "width": "auto"
+                    },
+                    {
+                      "width": "auto"
+                    },
+                    {
+                      "width": "auto"
+                    },
+                    {
+                      "width": "auto"
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          {
+            "path": "line_items",
+            "type": "conditional",
+            "child": {
+              "type": "box",
+              "style": {
+                "color": "#23262e",
+                "fontSize": 9,
+                "marginTop": 12,
+                "textAlign": "center",
+                "fontFamily": "Montserrat",
+                "lineHeight": 1.5,
+                "paddingTop": 18,
+                "paddingLeft": 18,
+                "borderRadius": 6,
+                "paddingRight": 18,
+                "paddingBottom": 18,
+                "borderTopColor": "#b9bcc4",
+                "borderTopStyle": "dashed",
+                "borderTopWidth": 1.5,
+                "borderLeftColor": "#b9bcc4",
+                "borderLeftStyle": "dashed",
+                "borderLeftWidth": 1.5,
+                "borderRightColor": "#b9bcc4",
+                "borderRightStyle": "dashed",
+                "borderRightWidth": 1.5,
+                "borderBottomColor": "#b9bcc4",
+                "borderBottomStyle": "dashed",
+                "borderBottomWidth": 1.5
+              },
+              "children": [
+                {
+                  "type": "box",
+                  "style": {
+                    "color": "#b9bcc4",
+                    "fontSize": 9,
+                    "textAlign": "center",
+                    "fontFamily": "Montserrat",
+                    "lineHeight": 1.5
+                  },
+                  "children": [
+                    {
+                      "type": "text",
+                      "spans": [
+                        {
+                          "value": {
+                            "kind": "literal",
+                            "text": "+ Add an item"
+                          }
+                        }
+                      ],
+                      "style": {
+                        "color": "#b9bcc4",
+                        "fontSize": 9,
+                        "textAlign": "center",
+                        "fontFamily": "Montserrat",
+                        "lineHeight": 1.5
+                      }
+                    }
+                  ]
+                }
+              ],
+              "editorOnly": true
+            },
+            "negate": true
+          }
+        ]
+      },
+      {
+        "type": "box",
+        "style": {
+          "gap": 20,
+          "color": "#23262e",
+          "display": "flex",
+          "fontSize": 9,
+          "fontFamily": "Montserrat",
+          "lineHeight": 1.5,
+          "paddingTop": 28,
+          "paddingLeft": 34,
+          "paddingRight": 34,
+          "paddingBottom": 0,
+          "justifyContent": "space-between"
+        },
+        "children": [
+          {
+            "type": "box",
+            "style": {
+              "color": "#23262e",
+              "width": "56%",
+              "fontSize": 9,
+              "fontFamily": "Montserrat",
+              "lineHeight": 1.5
+            },
+            "children": [
+              {
+                "type": "box",
+                "style": {
+                  "color": "#23262e",
+                  "fontSize": 10,
+                  "fontFamily": "Montserrat",
+                  "fontWeight": 600,
+                  "lineHeight": 1.5,
+                  "marginBottom": 14
+                },
+                "section": "notes",
+                "children": [
+                  {
+                    "type": "text",
+                    "spans": [
+                      {
+                        "value": {
+                          "kind": "bind",
+                          "path": "notes",
+                          "format": "text",
+                          "fallback": "Thank you for your business"
+                        }
+                      }
+                    ],
+                    "style": {
+                      "color": "#23262e",
+                      "fontSize": 10,
+                      "fontFamily": "Montserrat",
+                      "fontWeight": 600,
+                      "lineHeight": 1.5,
+                      "marginBottom": 14
+                    }
+                  }
+                ]
+              },
+              {
+                "type": "box",
+                "style": {
+                  "color": "#23262e",
+                  "fontSize": 9,
+                  "fontFamily": "Montserrat",
+                  "lineHeight": 1.5,
+                  "marginBottom": 14
+                },
+                "section": "terms",
+                "children": [
+                  {
+                    "type": "box",
+                    "style": {
+                      "color": "#23262e",
+                      "fontSize": 9.5,
+                      "fontFamily": "Montserrat",
+                      "fontWeight": 700,
+                      "lineHeight": 1.5,
+                      "marginBottom": 4
+                    },
+                    "children": [
+                      {
+                        "type": "text",
+                        "spans": [
+                          {
+                            "value": {
+                              "kind": "literal",
+                              "text": "Terms & Conditions"
+                            }
+                          }
+                        ],
+                        "style": {
+                          "color": "#23262e",
+                          "fontSize": 9.5,
+                          "fontFamily": "Montserrat",
+                          "fontWeight": 700,
+                          "lineHeight": 1.5,
+                          "marginBottom": 4
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "type": "box",
+                    "style": {
+                      "color": "#7c7f89",
+                      "fontSize": 7,
+                      "fontFamily": "Montserrat",
+                      "lineHeight": 1.6
+                    },
+                    "children": [
+                      {
+                        "type": "text",
+                        "spans": [
+                          {
+                            "value": {
+                              "kind": "bind",
+                              "path": "terms",
+                              "format": "text",
+                              "fallback": "Payment is due within the agreed credit period. Goods once sold are not returnable or exchangeable. Interest at 18% per annum is chargeable on overdue amounts."
+                            }
+                          }
+                        ],
+                        "style": {
+                          "color": "#7c7f89",
+                          "fontSize": 7,
+                          "fontFamily": "Montserrat",
+                          "lineHeight": 1.6
+                        }
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "type": "box",
+                "style": {
+                  "color": "#23262e",
+                  "fontSize": 9,
+                  "fontFamily": "Montserrat",
+                  "lineHeight": 1.5
+                },
+                "section": "payment",
+                "children": [
+                  {
+                    "type": "box",
+                    "style": {
+                      "color": "#23262e",
+                      "fontSize": 9.5,
+                      "fontFamily": "Montserrat",
+                      "fontWeight": 700,
+                      "lineHeight": 1.5,
+                      "marginBottom": 4
+                    },
+                    "children": [
+                      {
+                        "type": "text",
+                        "spans": [
+                          {
+                            "value": {
+                              "kind": "literal",
+                              "text": "Payment Info:"
+                            }
+                          }
+                        ],
+                        "style": {
+                          "color": "#23262e",
+                          "fontSize": 9.5,
+                          "fontFamily": "Montserrat",
+                          "fontWeight": 700,
+                          "lineHeight": 1.5,
+                          "marginBottom": 4
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "type": "box",
+                    "style": {
+                      "color": "#23262e",
+                      "fontSize": 9,
+                      "fontFamily": "Montserrat",
+                      "lineHeight": 1.5
+                    },
+                    "children": [
+                      {
+                        "path": "company_bank_account_number",
+                        "type": "conditional",
+                        "child": {
+                          "type": "box",
+                          "style": {
+                            "color": "#23262e",
+                            "fontSize": 9,
+                            "fontFamily": "Montserrat",
+                            "lineHeight": 1.5
+                          },
+                          "children": [
+                            {
+                              "type": "box",
+                              "style": {
+                                "color": "#23262e",
+                                "display": "flex",
+                                "fontSize": 9,
+                                "fontFamily": "Montserrat",
+                                "lineHeight": 1.5,
+                                "marginBottom": 1.5
+                              },
+                              "children": [
+                                {
+                                  "type": "box",
+                                  "style": {
+                                    "color": "#23262e",
+                                    "width": 66,
+                                    "fontSize": 7,
+                                    "fontFamily": "Montserrat",
+                                    "fontWeight": 700,
+                                    "lineHeight": 1.5
+                                  },
+                                  "children": [
+                                    {
+                                      "type": "text",
+                                      "spans": [
+                                        {
+                                          "value": {
+                                            "kind": "literal",
+                                            "text": "Account #:"
+                                          }
+                                        }
+                                      ],
+                                      "style": {
+                                        "color": "#23262e",
+                                        "width": 66,
+                                        "fontSize": 7,
+                                        "fontFamily": "Montserrat",
+                                        "fontWeight": 700,
+                                        "lineHeight": 1.5
+                                      }
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "box",
+                                  "style": {
+                                    "color": "#7c7f89",
+                                    "fontSize": 7,
+                                    "fontFamily": "Montserrat",
+                                    "lineHeight": 1.5
+                                  },
+                                  "children": [
+                                    {
+                                      "type": "text",
+                                      "spans": [
+                                        {
+                                          "value": {
+                                            "kind": "bind",
+                                            "path": "company_bank_account_number",
+                                            "format": "text",
+                                            "fallback": ""
+                                          }
+                                        }
+                                      ],
+                                      "style": {
+                                        "color": "#7c7f89",
+                                        "fontSize": 7,
+                                        "fontFamily": "Montserrat",
+                                        "lineHeight": 1.5
+                                      }
+                                    }
+                                  ]
+                                }
+                              ]
+                            },
+                            {
+                              "type": "box",
+                              "style": {
+                                "color": "#23262e",
+                                "display": "flex",
+                                "fontSize": 9,
+                                "fontFamily": "Montserrat",
+                                "lineHeight": 1.5,
+                                "marginBottom": 1.5
+                              },
+                              "children": [
+                                {
+                                  "type": "box",
+                                  "style": {
+                                    "color": "#23262e",
+                                    "width": 66,
+                                    "fontSize": 7,
+                                    "fontFamily": "Montserrat",
+                                    "fontWeight": 700,
+                                    "lineHeight": 1.5
+                                  },
+                                  "children": [
+                                    {
+                                      "type": "text",
+                                      "spans": [
+                                        {
+                                          "value": {
+                                            "kind": "literal",
+                                            "text": "A/C Name:"
+                                          }
+                                        }
+                                      ],
+                                      "style": {
+                                        "color": "#23262e",
+                                        "width": 66,
+                                        "fontSize": 7,
+                                        "fontFamily": "Montserrat",
+                                        "fontWeight": 700,
+                                        "lineHeight": 1.5
+                                      }
+                                    }
+                                  ]
+                                },
+                                {
+                                  "path": "company_bank_account_name",
+                                  "type": "conditional",
+                                  "child": {
+                                    "type": "box",
+                                    "style": {
+                                      "color": "#7c7f89",
+                                      "fontSize": 7,
+                                      "fontFamily": "Montserrat",
+                                      "lineHeight": 1.5
+                                    },
+                                    "children": [
+                                      {
+                                        "type": "text",
+                                        "spans": [
+                                          {
+                                            "value": {
+                                              "kind": "bind",
+                                              "path": "company_bank_account_name",
+                                              "format": "text",
+                                              "fallback": ""
+                                            }
+                                          }
+                                        ],
+                                        "style": {
+                                          "color": "#7c7f89",
+                                          "fontSize": 7,
+                                          "fontFamily": "Montserrat",
+                                          "lineHeight": 1.5
+                                        }
+                                      }
+                                    ]
+                                  }
+                                },
+                                {
+                                  "path": "company_bank_account_name",
+                                  "type": "conditional",
+                                  "child": {
+                                    "type": "box",
+                                    "style": {
+                                      "color": "#7c7f89",
+                                      "fontSize": 7,
+                                      "fontFamily": "Montserrat",
+                                      "lineHeight": 1.5
+                                    },
+                                    "children": [
+                                      {
+                                        "type": "text",
+                                        "spans": [
+                                          {
+                                            "value": {
+                                              "kind": "bind",
+                                              "path": "company_name",
+                                              "format": "text",
+                                              "fallback": ""
+                                            }
+                                          }
+                                        ],
+                                        "style": {
+                                          "color": "#7c7f89",
+                                          "fontSize": 7,
+                                          "fontFamily": "Montserrat",
+                                          "lineHeight": 1.5
+                                        }
+                                      }
+                                    ]
+                                  },
+                                  "negate": true
+                                }
+                              ]
+                            },
+                            {
+                              "path": "company_bank_name",
+                              "type": "conditional",
+                              "child": {
+                                "type": "box",
+                                "style": {
+                                  "color": "#23262e",
+                                  "display": "flex",
+                                  "fontSize": 9,
+                                  "fontFamily": "Montserrat",
+                                  "lineHeight": 1.5,
+                                  "marginBottom": 1.5
+                                },
+                                "children": [
+                                  {
+                                    "type": "box",
+                                    "style": {
+                                      "color": "#23262e",
+                                      "width": 66,
+                                      "fontSize": 7,
+                                      "fontFamily": "Montserrat",
+                                      "fontWeight": 700,
+                                      "lineHeight": 1.5
+                                    },
+                                    "children": [
+                                      {
+                                        "type": "text",
+                                        "spans": [
+                                          {
+                                            "value": {
+                                              "kind": "literal",
+                                              "text": "Bank Details:"
+                                            }
+                                          }
+                                        ],
+                                        "style": {
+                                          "color": "#23262e",
+                                          "width": 66,
+                                          "fontSize": 7,
+                                          "fontFamily": "Montserrat",
+                                          "fontWeight": 700,
+                                          "lineHeight": 1.5
+                                        }
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "type": "box",
+                                    "style": {
+                                      "color": "#7c7f89",
+                                      "fontSize": 7,
+                                      "fontFamily": "Montserrat",
+                                      "lineHeight": 1.5
+                                    },
+                                    "children": [
+                                      {
+                                        "type": "text",
+                                        "spans": [
+                                          {
+                                            "value": {
+                                              "kind": "bind",
+                                              "path": "company_bank_name",
+                                              "format": "text",
+                                              "fallback": ""
+                                            }
+                                          },
+                                          {
+                                            "value": {
+                                              "kind": "literal",
+                                              "text": " · IFSC "
+                                            }
+                                          },
+                                          {
+                                            "value": {
+                                              "kind": "bind",
+                                              "path": "company_bank_ifsc",
+                                              "format": "text",
+                                              "fallback": ""
+                                            }
+                                          }
+                                        ],
+                                        "style": {
+                                          "color": "#7c7f89",
+                                          "fontSize": 7,
+                                          "fontFamily": "Montserrat",
+                                          "lineHeight": 1.5
+                                        }
+                                      }
+                                    ]
+                                  }
+                                ]
+                              }
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "path": "company_upi_id",
+                        "type": "conditional",
+                        "child": {
+                          "type": "box",
+                          "style": {
+                            "color": "#23262e",
+                            "display": "flex",
+                            "fontSize": 9,
+                            "fontFamily": "Montserrat",
+                            "lineHeight": 1.5,
+                            "marginBottom": 1.5
+                          },
+                          "children": [
+                            {
+                              "type": "box",
+                              "style": {
+                                "color": "#23262e",
+                                "width": 66,
+                                "fontSize": 7,
+                                "fontFamily": "Montserrat",
+                                "fontWeight": 700,
+                                "lineHeight": 1.5
+                              },
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "spans": [
+                                    {
+                                      "value": {
+                                        "kind": "literal",
+                                        "text": "UPI:"
+                                      }
+                                    }
+                                  ],
+                                  "style": {
+                                    "color": "#23262e",
+                                    "width": 66,
+                                    "fontSize": 7,
+                                    "fontFamily": "Montserrat",
+                                    "fontWeight": 700,
+                                    "lineHeight": 1.5
+                                  }
+                                }
+                              ]
+                            },
+                            {
+                              "type": "box",
+                              "style": {
+                                "color": "#7c7f89",
+                                "fontSize": 7,
+                                "fontFamily": "Montserrat",
+                                "lineHeight": 1.5
+                              },
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "spans": [
+                                    {
+                                      "value": {
+                                        "kind": "bind",
+                                        "path": "company_upi_id",
+                                        "format": "text",
+                                        "fallback": ""
+                                      }
+                                    }
+                                  ],
+                                  "style": {
+                                    "color": "#7c7f89",
+                                    "fontSize": 7,
+                                    "fontFamily": "Montserrat",
+                                    "lineHeight": 1.5
+                                  }
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "path": "company_bank_account_number",
+                    "type": "conditional",
+                    "child": {
+                      "type": "box",
+                      "style": {
+                        "color": "#23262e",
+                        "fontSize": 9,
+                        "marginTop": 12,
+                        "textAlign": "center",
+                        "fontFamily": "Montserrat",
+                        "lineHeight": 1.5,
+                        "paddingTop": 18,
+                        "paddingLeft": 18,
+                        "borderRadius": 6,
+                        "paddingRight": 18,
+                        "paddingBottom": 18,
+                        "borderTopColor": "#b9bcc4",
+                        "borderTopStyle": "dashed",
+                        "borderTopWidth": 1.5,
+                        "borderLeftColor": "#b9bcc4",
+                        "borderLeftStyle": "dashed",
+                        "borderLeftWidth": 1.5,
+                        "borderRightColor": "#b9bcc4",
+                        "borderRightStyle": "dashed",
+                        "borderRightWidth": 1.5,
+                        "borderBottomColor": "#b9bcc4",
+                        "borderBottomStyle": "dashed",
+                        "borderBottomWidth": 1.5
+                      },
+                      "children": [
+                        {
+                          "type": "box",
+                          "style": {
+                            "color": "#b9bcc4",
+                            "fontSize": 9,
+                            "textAlign": "center",
+                            "fontFamily": "Montserrat",
+                            "lineHeight": 1.5
+                          },
+                          "children": [
+                            {
+                              "type": "text",
+                              "spans": [
+                                {
+                                  "value": {
+                                    "kind": "literal",
+                                    "text": "+ Add payment details"
+                                  }
+                                }
+                              ],
+                              "style": {
+                                "color": "#b9bcc4",
+                                "fontSize": 9,
+                                "textAlign": "center",
+                                "fontFamily": "Montserrat",
+                                "lineHeight": 1.5
+                              }
+                            }
+                          ]
+                        }
+                      ],
+                      "editorOnly": true
+                    },
+                    "negate": true
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "box",
+            "style": {
+              "color": "#23262e",
+              "width": "38%",
+              "fontSize": 9,
+              "fontFamily": "Montserrat",
+              "lineHeight": 1.5
+            },
+            "section": "totals",
+            "children": [
+              {
+                "type": "box",
+                "style": {
+                  "color": "#23262e",
+                  "display": "flex",
+                  "fontSize": 9,
+                  "fontFamily": "Montserrat",
+                  "lineHeight": 1.5,
+                  "marginBottom": 5,
+                  "justifyContent": "space-between"
+                },
+                "children": [
+                  {
+                    "type": "box",
+                    "style": {
+                      "color": "#23262e",
+                      "fontSize": 9,
+                      "fontFamily": "Montserrat",
+                      "fontWeight": 700,
+                      "lineHeight": 1.5
+                    },
+                    "children": [
+                      {
+                        "type": "text",
+                        "spans": [
+                          {
+                            "value": {
+                              "kind": "literal",
+                              "text": "Sub Total:"
+                            }
+                          }
+                        ],
+                        "style": {
+                          "color": "#23262e",
+                          "fontSize": 9,
+                          "fontFamily": "Montserrat",
+                          "fontWeight": 700,
+                          "lineHeight": 1.5
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "type": "box",
+                    "style": {
+                      "color": "#23262e",
+                      "fontSize": 9,
+                      "fontFamily": "Montserrat",
+                      "lineHeight": 1.5
+                    },
+                    "children": [
+                      {
+                        "type": "text",
+                        "spans": [
+                          {
+                            "value": {
+                              "kind": "bind",
+                              "path": "subtotal",
+                              "format": "currency",
+                              "fallback": ""
+                            }
+                          }
+                        ],
+                        "style": {
+                          "color": "#23262e",
+                          "fontSize": 9,
+                          "fontFamily": "Montserrat",
+                          "lineHeight": 1.5
+                        }
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "path": "discount_total",
+                "type": "conditional",
+                "child": {
+                  "type": "box",
+                  "style": {
+                    "color": "#23262e",
+                    "display": "flex",
+                    "fontSize": 9,
+                    "fontFamily": "Montserrat",
+                    "lineHeight": 1.5,
+                    "marginBottom": 5,
+                    "justifyContent": "space-between"
+                  },
+                  "children": [
+                    {
+                      "type": "box",
+                      "style": {
+                        "color": "#23262e",
+                        "fontSize": 9,
+                        "fontFamily": "Montserrat",
+                        "fontWeight": 700,
+                        "lineHeight": 1.5
+                      },
+                      "children": [
+                        {
+                          "type": "text",
+                          "spans": [
+                            {
+                              "value": {
+                                "kind": "literal",
+                                "text": "Discount:"
+                              }
+                            }
+                          ],
+                          "style": {
+                            "color": "#23262e",
+                            "fontSize": 9,
+                            "fontFamily": "Montserrat",
+                            "fontWeight": 700,
+                            "lineHeight": 1.5
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "type": "box",
+                      "style": {
+                        "color": "#23262e",
+                        "fontSize": 9,
+                        "fontFamily": "Montserrat",
+                        "lineHeight": 1.5
+                      },
+                      "children": [
+                        {
+                          "type": "text",
+                          "spans": [
+                            {
+                              "value": {
+                                "kind": "bind",
+                                "path": "discount_total",
+                                "format": "currency",
+                                "fallback": ""
+                              }
+                            }
+                          ],
+                          "style": {
+                            "color": "#23262e",
+                            "fontSize": 9,
+                            "fontFamily": "Montserrat",
+                            "lineHeight": 1.5
+                          }
+                        }
+                      ]
+                    }
+                  ]
+                }
+              },
+              {
+                "type": "box",
+                "style": {
+                  "color": "#23262e",
+                  "display": "flex",
+                  "fontSize": 9,
+                  "fontFamily": "Montserrat",
+                  "lineHeight": 1.5,
+                  "marginBottom": 5,
+                  "justifyContent": "space-between"
+                },
+                "children": [
+                  {
+                    "type": "box",
+                    "style": {
+                      "color": "#23262e",
+                      "fontSize": 9,
+                      "fontFamily": "Montserrat",
+                      "fontWeight": 700,
+                      "lineHeight": 1.5
+                    },
+                    "children": [
+                      {
+                        "type": "text",
+                        "spans": [
+                          {
+                            "value": {
+                              "kind": "literal",
+                              "text": "Tax:"
+                            }
+                          }
+                        ],
+                        "style": {
+                          "color": "#23262e",
+                          "fontSize": 9,
+                          "fontFamily": "Montserrat",
+                          "fontWeight": 700,
+                          "lineHeight": 1.5
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "type": "box",
+                    "style": {
+                      "color": "#23262e",
+                      "fontSize": 9,
+                      "fontFamily": "Montserrat",
+                      "lineHeight": 1.5
+                    },
+                    "children": [
+                      {
+                        "type": "text",
+                        "spans": [
+                          {
+                            "value": {
+                              "kind": "bind",
+                              "path": "tax_total",
+                              "format": "currency",
+                              "fallback": ""
+                            }
+                          }
+                        ],
+                        "style": {
+                          "color": "#23262e",
+                          "fontSize": 9,
+                          "fontFamily": "Montserrat",
+                          "lineHeight": 1.5
+                        }
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "type": "box",
+                "style": {
+                  "color": "#23262e",
+                  "display": "flex",
+                  "fontSize": 9,
+                  "marginTop": 8,
+                  "fontFamily": "Montserrat",
+                  "lineHeight": 1.5,
+                  "paddingTop": 9,
+                  "paddingLeft": 12,
+                  "paddingRight": 12,
+                  "paddingBottom": 9,
+                  "justifyContent": "space-between",
+                  "backgroundColor": "#fec90b"
+                },
+                "tokens": {
+                  "backgroundColor": "accent"
+                },
+                "children": [
+                  {
+                    "type": "box",
+                    "style": {
+                      "color": "#23262e",
+                      "fontSize": 11,
+                      "fontFamily": "Montserrat",
+                      "fontWeight": 700,
+                      "lineHeight": 1.5
+                    },
+                    "children": [
+                      {
+                        "type": "text",
+                        "spans": [
+                          {
+                            "value": {
+                              "kind": "literal",
+                              "text": "Total:"
+                            }
+                          }
+                        ],
+                        "style": {
+                          "color": "#23262e",
+                          "fontSize": 11,
+                          "fontFamily": "Montserrat",
+                          "fontWeight": 700,
+                          "lineHeight": 1.5
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "type": "box",
+                    "style": {
+                      "color": "#23262e",
+                      "fontSize": 11,
+                      "fontFamily": "Montserrat",
+                      "fontWeight": 700,
+                      "lineHeight": 1.5
+                    },
+                    "children": [
+                      {
+                        "type": "text",
+                        "spans": [
+                          {
+                            "value": {
+                              "kind": "bind",
+                              "path": "grand_total",
+                              "format": "currency",
+                              "fallback": ""
+                            }
+                          }
+                        ],
+                        "style": {
+                          "color": "#23262e",
+                          "fontSize": 11,
+                          "fontFamily": "Montserrat",
+                          "fontWeight": 700,
+                          "lineHeight": 1.5
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "box",
+        "style": {
+          "color": "#23262e",
+          "display": "flex",
+          "fontSize": 9,
+          "marginTop": 30,
+          "alignItems": "flex-end",
+          "fontFamily": "Montserrat",
+          "lineHeight": 1.5
+        },
+        "children": [
+          {
+            "type": "box",
+            "style": {
+              "flex": "1",
+              "color": "#23262e",
+              "fontSize": 9,
+              "fontFamily": "Montserrat",
+              "lineHeight": 1.5,
+              "backgroundColor": "#fec90b"
+            },
+            "tokens": {
+              "backgroundColor": "accent"
+            },
+            "children": [
+              {
+                "type": "box",
+                "style": {
+                  "color": "#23262e",
+                  "height": 3.5,
+                  "fontSize": 9,
+                  "fontFamily": "Montserrat",
+                  "lineHeight": 1.5
+                },
+                "children": []
+              }
+            ]
+          },
+          {
+            "type": "box",
+            "style": {
+              "color": "#23262e",
+              "width": 140,
+              "fontSize": 9,
+              "textAlign": "center",
+              "fontFamily": "Montserrat",
+              "lineHeight": 1.5,
+              "paddingTop": 0,
+              "paddingLeft": 10,
+              "paddingRight": 10,
+              "paddingBottom": 0
+            },
+            "section": "signature",
+            "children": [
+              {
+                "path": "company_signature",
+                "type": "conditional",
+                "child": {
+                  "fit": "contain",
+                  "type": "image",
+                  "style": {
+                    "color": "#23262e",
+                    "width": 62,
+                    "height": 24,
+                    "fontSize": 9,
+                    "textAlign": "center",
+                    "fontFamily": "Montserrat",
+                    "lineHeight": 1.5
+                  },
+                  "source": {
+                    "kind": "bind",
+                    "path": "company_signature.url",
+                    "format": "text",
+                    "fallback": ""
+                  }
+                }
+              },
+              {
+                "type": "box",
+                "style": {
+                  "color": "#23262e",
+                  "fontSize": 8.5,
+                  "textAlign": "center",
+                  "fontFamily": "Montserrat",
+                  "fontWeight": 700,
+                  "lineHeight": 1.5,
+                  "paddingTop": 4,
+                  "borderTopColor": "#b9bcc4",
+                  "borderTopStyle": "solid",
+                  "borderTopWidth": 1
+                },
+                "children": [
+                  {
+                    "type": "text",
+                    "spans": [
+                      {
+                        "value": {
+                          "kind": "bind",
+                          "path": "company_signatory_name",
+                          "format": "text",
+                          "fallback": "Authorised Sign"
+                        }
+                      }
+                    ],
+                    "style": {
+                      "color": "#23262e",
+                      "fontSize": 8.5,
+                      "textAlign": "center",
+                      "fontFamily": "Montserrat",
+                      "fontWeight": 700,
+                      "lineHeight": 1.5,
+                      "paddingTop": 4,
+                      "borderTopColor": "#b9bcc4",
+                      "borderTopStyle": "solid",
+                      "borderTopWidth": 1
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "box",
+            "style": {
+              "color": "#23262e",
+              "width": 46,
+              "fontSize": 9,
+              "fontFamily": "Montserrat",
+              "lineHeight": 1.5,
+              "backgroundColor": "#fec90b"
+            },
+            "tokens": {
+              "backgroundColor": "accent"
+            },
+            "children": [
+              {
+                "type": "box",
+                "style": {
+                  "color": "#23262e",
+                  "height": 3.5,
+                  "fontSize": 9,
+                  "fontFamily": "Montserrat",
+                  "lineHeight": 1.5
+                },
+                "children": []
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "box",
+        "style": {
+          "gap": 10,
+          "color": "#23262e",
+          "display": "flex",
+          "fontSize": 9,
+          "fontFamily": "Montserrat",
+          "lineHeight": 1.5,
+          "paddingTop": 13,
+          "paddingLeft": 34,
+          "paddingRight": 34,
+          "paddingBottom": 34
+        },
+        "children": [
+          {
+            "path": "company_phone",
+            "type": "conditional",
+            "child": {
+              "type": "box",
+              "style": {
+                "color": "#23262e",
+                "fontSize": 8.5,
+                "fontFamily": "Montserrat",
+                "fontWeight": 700,
+                "lineHeight": 1.5
+              },
+              "children": [
+                {
+                  "type": "text",
+                  "spans": [
+                    {
+                      "value": {
+                        "kind": "bind",
+                        "path": "company_phone",
+                        "format": "text",
+                        "fallback": ""
+                      }
+                    }
+                  ],
+                  "style": {
+                    "color": "#23262e",
+                    "fontSize": 8.5,
+                    "fontFamily": "Montserrat",
+                    "fontWeight": 700,
+                    "lineHeight": 1.5
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "path": "company_phone",
+            "type": "conditional",
+            "child": {
+              "type": "box",
+              "style": {
+                "color": "#b9bcc4",
+                "fontSize": 8.5,
+                "fontFamily": "Montserrat",
+                "lineHeight": 1.5
+              },
+              "children": [
+                {
+                  "type": "text",
+                  "spans": [
+                    {
+                      "value": {
+                        "kind": "literal",
+                        "text": "|"
+                      }
+                    }
+                  ],
+                  "style": {
+                    "color": "#b9bcc4",
+                    "fontSize": 8.5,
+                    "fontFamily": "Montserrat",
+                    "lineHeight": 1.5
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "path": "company_city",
+            "type": "conditional",
+            "child": {
+              "type": "box",
+              "style": {
+                "color": "#23262e",
+                "fontSize": 8.5,
+                "fontFamily": "Montserrat",
+                "fontWeight": 700,
+                "lineHeight": 1.5
+              },
+              "children": [
+                {
+                  "type": "text",
+                  "spans": [
+                    {
+                      "value": {
+                        "kind": "bind",
+                        "path": "company_city",
+                        "format": "text",
+                        "fallback": ""
+                      }
+                    }
+                  ],
+                  "style": {
+                    "color": "#23262e",
+                    "fontSize": 8.5,
+                    "fontFamily": "Montserrat",
+                    "fontWeight": 700,
+                    "lineHeight": 1.5
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "path": "company_email",
+            "type": "conditional",
+            "child": {
+              "type": "box",
+              "style": {
+                "color": "#b9bcc4",
+                "fontSize": 8.5,
+                "fontFamily": "Montserrat",
+                "lineHeight": 1.5
+              },
+              "children": [
+                {
+                  "type": "text",
+                  "spans": [
+                    {
+                      "value": {
+                        "kind": "literal",
+                        "text": "|"
+                      }
+                    }
+                  ],
+                  "style": {
+                    "color": "#b9bcc4",
+                    "fontSize": 8.5,
+                    "fontFamily": "Montserrat",
+                    "lineHeight": 1.5
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "path": "company_email",
+            "type": "conditional",
+            "child": {
+              "type": "box",
+              "style": {
+                "color": "#23262e",
+                "fontSize": 8.5,
+                "fontFamily": "Montserrat",
+                "fontWeight": 700,
+                "lineHeight": 1.5
+              },
+              "children": [
+                {
+                  "type": "text",
+                  "spans": [
+                    {
+                      "value": {
+                        "kind": "bind",
+                        "path": "company_email",
+                        "format": "text",
+                        "fallback": ""
+                      }
+                    }
+                  ],
+                  "style": {
+                    "color": "#23262e",
+                    "fontSize": 8.5,
+                    "fontFamily": "Montserrat",
+                    "fontWeight": 700,
+                    "lineHeight": 1.5
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "theme": {
+    "tokens": {
+      "accent": {
+        "label": "Accent",
+        "default": "#fec90b"
+      },
+      "secondary": {
+        "label": "Secondary",
+        "default": "#383a46"
+      }
+    }
+  },
+  "sections": [
+    {
+      "id": "header",
+      "label": "Invoice details",
+      "fields": [
+        {
+          "id": "invoice_number",
+          "type": "invoice_number",
+          "label": "Invoice number",
+          "owner": "invoice"
+        },
+        {
+          "id": "invoice_date",
+          "type": "date",
+          "label": "Date",
+          "owner": "invoice",
+          "default": {
+            "kind": "today"
+          }
+        },
+        {
+          "id": "due_date",
+          "type": "due_date",
+          "label": "Due date",
+          "owner": "invoice",
+          "default": {
+            "id": "settings_default_due_days",
+            "kind": "setting"
+          },
+          "presets": [
+            0,
+            7,
+            15,
+            30,
+            45
+          ],
+          "remember": true,
+          "relativeTo": "invoice_date"
+        }
+      ],
+      "hidable": false
+    },
+    {
+      "id": "business",
+      "label": "Your business",
+      "fields": [
+        {
+          "id": "company_logo",
+          "type": "image",
+          "label": "Logo",
+          "owner": "company"
+        },
+        {
+          "id": "company_name",
+          "type": "text",
+          "label": "Business name",
+          "owner": "company"
+        },
+        {
+          "id": "company_gstin",
+          "type": "gstin",
+          "label": "GSTIN",
+          "owner": "company"
+        },
+        {
+          "id": "company_phone",
+          "type": "phone",
+          "label": "Phone",
+          "owner": "company"
+        },
+        {
+          "id": "company_email",
+          "type": "email",
+          "label": "Email",
+          "owner": "company"
+        },
+        {
+          "id": "company_city",
+          "type": "text",
+          "label": "City",
+          "owner": "company"
+        }
+      ],
+      "hidable": false
+    },
+    {
+      "id": "parties",
+      "label": "Invoice to",
+      "fields": [
+        {
+          "id": "customer",
+          "type": "customer",
+          "label": "Customer",
+          "owner": "invoice"
+        },
+        {
+          "id": "customer_name",
+          "type": "text",
+          "label": "Customer name",
+          "owner": "customer"
+        },
+        {
+          "id": "customer_address_line1",
+          "type": "text",
+          "label": "Address line 1",
+          "owner": "customer"
+        },
+        {
+          "id": "customer_address_line2",
+          "type": "text",
+          "label": "Address line 2",
+          "owner": "customer"
+        },
+        {
+          "id": "customer_city",
+          "type": "text",
+          "label": "City",
+          "owner": "customer"
+        },
+        {
+          "id": "customer_state",
+          "type": "select",
+          "label": "State",
+          "owner": "customer",
+          "options": "indian_states"
+        },
+        {
+          "id": "customer_pincode",
+          "type": "pincode",
+          "label": "PIN code",
+          "owner": "customer"
+        },
+        {
+          "id": "customer_gstin",
+          "type": "gstin",
+          "label": "GSTIN",
+          "owner": "customer"
+        }
+      ],
+      "hidable": false
+    },
+    {
+      "id": "items",
+      "label": "Items",
+      "fields": [
+        {
+          "id": "line_items",
+          "type": "line_items",
+          "label": "Items",
+          "owner": "invoice",
+          "columns": [
+            {
+              "id": "description",
+              "type": "text",
+              "label": "Item description",
+              "owner": "line"
+            },
+            {
+              "id": "unit_price",
+              "type": "money",
+              "label": "Price",
+              "owner": "line"
+            },
+            {
+              "id": "quantity",
+              "min": 0,
+              "type": "number",
+              "label": "Qty",
+              "owner": "line",
+              "default": {
+                "kind": "value",
+                "value": "1"
+              }
+            },
+            {
+              "id": "tax_rate",
+              "type": "number",
+              "label": "GST %",
+              "owner": "line",
+              "default": {
+                "id": "settings_default_tax_rate",
+                "kind": "setting"
+              }
+            },
+            {
+              "id": "line_total",
+              "type": "computed",
+              "label": "Total",
+              "owner": "line_computed",
+              "format": "currency"
+            }
+          ]
+        }
+      ],
+      "hidable": false
+    },
+    {
+      "id": "totals",
+      "label": "Total",
+      "fields": [
+        {
+          "id": "discount",
+          "type": "discount",
+          "label": "Discount",
+          "owner": "invoice"
+        },
+        {
+          "id": "grand_total",
+          "type": "computed",
+          "label": "Total",
+          "owner": "computed",
+          "format": "currency"
+        }
+      ],
+      "hidable": false
+    },
+    {
+      "id": "notes",
+      "label": "Notes",
+      "fields": [
+        {
+          "id": "notes",
+          "type": "multiline",
+          "label": "Notes",
+          "owner": "invoice",
+          "default": {
+            "id": "settings_default_notes",
+            "kind": "setting"
+          },
+          "placeholder": "Thank you for your business"
+        }
+      ],
+      "hidable": true
+    },
+    {
+      "id": "payment",
+      "label": "Payment details",
+      "fields": [
+        {
+          "id": "company_bank_account_number",
+          "type": "text",
+          "label": "Account number",
+          "owner": "company"
+        },
+        {
+          "id": "company_bank_account_name",
+          "type": "text",
+          "label": "Account name",
+          "owner": "company"
+        },
+        {
+          "id": "company_bank_name",
+          "type": "text",
+          "label": "Bank name",
+          "owner": "company"
+        },
+        {
+          "id": "company_bank_ifsc",
+          "type": "ifsc",
+          "label": "IFSC",
+          "owner": "company"
+        },
+        {
+          "id": "company_upi_id",
+          "type": "upi_id",
+          "label": "UPI ID",
+          "owner": "company"
+        }
+      ],
+      "hidable": true
+    },
+    {
+      "id": "terms",
+      "label": "Terms & conditions",
+      "fields": [
+        {
+          "id": "terms",
+          "type": "multiline",
+          "label": "Terms & conditions",
+          "owner": "invoice",
+          "default": {
+            "id": "settings_default_terms",
+            "kind": "setting"
+          },
+          "remember": true
+        }
+      ],
+      "hidable": true
+    },
+    {
+      "id": "signature",
+      "label": "Signature",
+      "fields": [
+        {
+          "id": "company_signature",
+          "type": "signature",
+          "label": "Signature",
+          "owner": "company"
+        },
+        {
+          "id": "company_signatory_name",
+          "type": "text",
+          "label": "Signatory name",
+          "owner": "company"
+        }
+      ],
+      "hidable": true
+    }
+  ],
+  "customisation": [
+    {
+      "type": "template",
+      "title": "Template"
+    },
+    {
+      "type": "color",
+      "title": "Accent colour",
+      "token": "accent"
+    },
+    {
+      "type": "color",
+      "title": "Table header",
+      "token": "secondary"
+    },
+    {
+      "type": "section",
+      "title": "Payment info",
+      "section": "payment"
+    },
+    {
+      "type": "section",
+      "title": "Notes",
+      "section": "notes"
+    },
+    {
+      "type": "section",
+      "title": "Terms",
+      "section": "terms"
+    },
+    {
+      "type": "section",
+      "title": "Signature",
+      "section": "signature"
+    }
+  ],
+  "schemaVersion": 2,
+  "compilerVersion": 2
+}

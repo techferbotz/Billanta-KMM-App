@@ -1,0 +1,22 @@
+-- Remembered values (FIELDS.md §8.3): the last value the user entered for a `remember: true`
+-- field, keyed by field id, prefilling the next invoice. Device-only by contract: nothing here is
+-- ever sent to the server. Cleared with the rest of the user's data on an account change.
+CREATE TABLE rememberedValue (
+    fieldId TEXT NOT NULL PRIMARY KEY,
+    valueJson TEXT NOT NULL
+);
+
+get:
+SELECT valueJson FROM rememberedValue WHERE fieldId = ?;
+
+all:
+SELECT * FROM rememberedValue;
+
+put:
+INSERT OR REPLACE INTO rememberedValue(fieldId, valueJson) VALUES (?, ?);
+
+delete:
+DELETE FROM rememberedValue WHERE fieldId = ?;
+
+clear:
+DELETE FROM rememberedValue;

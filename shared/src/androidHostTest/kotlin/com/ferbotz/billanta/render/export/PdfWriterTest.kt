@@ -1,12 +1,10 @@
 package com.ferbotz.billanta.render.export
 
-import com.ferbotz.billanta.core.Iso8601
-import com.ferbotz.billanta.domain.model.CompanySnapshot
-import com.ferbotz.billanta.domain.model.CustomerSnapshot
-import com.ferbotz.billanta.domain.model.InvoiceItemRecord
-import com.ferbotz.billanta.domain.model.InvoiceRecord
+import com.ferbotz.billanta.fields.FieldValues
+import com.ferbotz.billanta.records.Invoice
 import com.ferbotz.billanta.render.InvoiceRenderer
 import com.ferbotz.billanta.render.TemplateParser
+import com.ferbotz.billanta.render.TestInvoices
 import com.ferbotz.billanta.render.layout.DrawCommand
 import com.ferbotz.billanta.render.layout.RenderedDocument
 import com.ferbotz.billanta.render.layout.flattenCommands
@@ -43,35 +41,16 @@ class PdfWriterTest {
     }
 
     private fun document(itemCount: Int): RenderedDocument {
-        val file = listOf(
-            File("src/androidHostTest/resources/templates/classic.json"),
-            File("shared/src/androidHostTest/resources/templates/classic.json"),
-        ).firstOrNull { it.exists() }
-        val doc = assertNotNull(TemplateParser.parse(assertNotNull(file).readText()))
-        val record = InvoiceRecord(
-            id = "inv-1",
-            invoiceNumber = "INV-2026-0042",
-            invoiceDateMillis = Iso8601.epochMillisFor(2026, 8, 5),
-            currency = "INR",
-            companySnapshot = CompanySnapshot(name = "Studio Nine", stateCode = "27", upiId = "studio@ok"),
-            customerSnapshot = CustomerSnapshot(name = "Kavya Iyer", stateCode = "27"),
-            items = (1..itemCount).map {
-                InvoiceItemRecord(
-                    description = "Design work $it",
-                    quantity = "1",
-                    unitPricePaise = 500000,
-                    taxRatePercent = "18",
-                    lineTotalPaise = 500000,
-                    taxAmountPaise = 90000,
-                )
-            },
-            subtotalPaise = 500000L * itemCount,
-            taxTotalPaise = 90000L * itemCount,
-            grandTotalPaise = 590000L * itemCount,
-            updatedAtMillis = 1L,
-        )
-        return InvoiceRenderer(FakeTextShaper()).render(doc, record)
+        val invoice = TestInvoices.invoice(itemCount, notes = null) { "Design work $it" }
+        return InvoiceRenderer(FakeTextShaper()).render(TestInvoices.classic, invoice.renderContext(), TestInvoices.optionLists)
     }
+
+    /** An invoice with nothing in it but a number and a date, as a new one starts. */
+    private fun blank(): Invoice = Invoice(
+        id = "inv-1",
+        values = FieldValues.EMPTY.withString("invoice_number", "INV-1").withString("invoice_date", "2026-08-12"),
+        updatedAtMillis = 1L,
+    ).recomputed()
 
     private fun pdf(itemCount: Int = 4): ByteArray = PdfWriter(faces()).write(document(itemCount))
 
@@ -204,13 +183,7 @@ class PdfWriterTest {
                 """,
             ),
         )
-        val record = InvoiceRecord(
-            id = "inv-1",
-            invoiceNumber = "INV-1",
-            invoiceDateMillis = Iso8601.epochMillisFor(2026, 8, 12),
-            updatedAtMillis = 1L,
-        )
-        val rendered = InvoiceRenderer(FakeTextShaper()).render(doc, record)
+        val rendered = InvoiceRenderer(FakeTextShaper()).render(doc, blank().renderContext(), emptyMap())
         val text = PdfWriter(faces()).write(rendered).decodeToString()
 
         assertTrue(Regex("""\[[0-9.]+ [0-9.]+] 0 d""").containsMatchIn(text), "no dash array was emitted")
@@ -225,20 +198,10 @@ class PdfWriterTest {
      */
     @Test
     fun an_editor_only_placeholder_is_absent_from_the_exported_bytes() {
-        val file = listOf(
-            File("src/androidHostTest/resources/templates/classic.json"),
-            File("shared/src/androidHostTest/resources/templates/classic.json"),
-        ).firstOrNull { it.exists() }
-        val doc = assertNotNull(TemplateParser.parse(assertNotNull(file).readText()))
+        val doc = TestInvoices.classic
         assertTrue(doc.hasEditorOnly, "fixture has no editor-only content, so this proves nothing")
 
-        val blank = InvoiceRecord(
-            id = "inv-1",
-            invoiceNumber = "INV-1",
-            invoiceDateMillis = Iso8601.epochMillisFor(2026, 8, 12),
-            updatedAtMillis = 1L,
-        )
-        val exported = InvoiceRenderer(FakeTextShaper()).render(doc, blank)
+        val exported = InvoiceRenderer(FakeTextShaper()).render(doc, blank().renderContext(), TestInvoices.optionLists)
         val bytes = PdfWriter(faces()).write(exported)
 
         // Text is stored as glyph ids, so decode what the writer actually laid down instead of

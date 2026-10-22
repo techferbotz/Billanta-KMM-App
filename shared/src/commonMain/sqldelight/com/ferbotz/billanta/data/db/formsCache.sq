@@ -1,0 +1,15 @@
+-- The last `GET /forms` document (FIELDS.md §5) and its ETag, so the four entity screens work
+-- offline and a cold start can revalidate with If-None-Match. Not user data: it survives sign-out
+-- and account changes, like the compiled-template cache.
+CREATE TABLE formsCache (
+    localId INTEGER NOT NULL PRIMARY KEY,
+    json TEXT NOT NULL,
+    etag TEXT,
+    fetchedAtMillis INTEGER NOT NULL
+);
+
+get:
+SELECT * FROM formsCache WHERE localId = 1;
+
+put:
+INSERT OR REPLACE INTO formsCache(localId, json, etag, fetchedAtMillis) VALUES (1, ?, ?, ?);

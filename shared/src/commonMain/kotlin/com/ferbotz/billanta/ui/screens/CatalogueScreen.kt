@@ -40,8 +40,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.ferbotz.billanta.core.Iso8601
-import com.ferbotz.billanta.domain.model.CustomerRecord
-import com.ferbotz.billanta.domain.model.ProductRecord
+import com.ferbotz.billanta.records.Customer
+import com.ferbotz.billanta.records.Product
 import com.ferbotz.billanta.model.ProductKind
 import com.ferbotz.billanta.model.formatPaiseCompact
 import com.ferbotz.billanta.model.formatPaiseTrimmed
@@ -185,11 +185,13 @@ private fun CustomersPane(state: BillantaState) {
             // single item, so nothing recycled — every row composed however far down it was.
             val stats = state.customerStats
             val sellerState = state.sellerStateCode
+            val states = state.forms.optionLists[INDIAN_STATES].orEmpty()
             items(state.customers, key = { it.id }) { cust ->
                 CustomerCard(
                     customer = cust,
                     stats = stats[cust.id],
                     sellerStateCode = sellerState,
+                    stateName = { code -> states.firstOrNull { it.value == code }?.label ?: code },
                     onClick = { state.push(EditCustomerRoute(cust.id)) },
                 )
             }
@@ -234,32 +236,35 @@ private fun ProductsPane(state: BillantaState) {
  */
 @Composable
 private fun CustomerCard(
-    customer: CustomerRecord,
+    customer: Customer,
     stats: CustomerStats?,
     sellerStateCode: String?,
+    stateName: (String) -> String,
     onClick: () -> Unit,
 ) {
     val c = BillantaTheme.colors
+    val values = customer.values
     val (avatarBg, avatarFg) = avatarColors(customer.id)
-    val gstin = customer.gstin?.trim()?.takeIf { it.isNotEmpty() }
-    val place = listOfNotNull(customer.city, customer.state).map(String::trim).filter(String::isNotEmpty)
-        .joinToString(", ")
-    val sameState = isSameState(sellerStateCode, customer.stateCode ?: gstin?.let(::stateCodeFromGstin))
+    val gstin = values.string(Customer.GSTIN)?.trim()?.takeIf { it.isNotEmpty() }
+    val stateCode = values.string("customer_state")
+    val place = listOfNotNull(values.string("customer_city"), stateCode?.let(stateName)).map(String::trim)
+        .filter(String::isNotEmpty).joinToString(", ")
+    val sameState = isSameState(sellerStateCode, stateCode ?: gstin?.let(::stateCodeFromGstin))
     val location = listOfNotNull(
         place.takeIf { it.isNotEmpty() },
         sameState?.let { if (it) "same state" else "other state" },
     ).joinToString(" · ")
-    val contact = listOfNotNull(customer.phone, customer.email).map(String::trim).filter(String::isNotEmpty)
+    val contact = listOfNotNull(values.string(Customer.PHONE), values.string("customer_email")).map(String::trim).filter(String::isNotEmpty)
         .joinToString(" · ")
 
     SurfaceCard(Modifier.fillMaxWidth(), onClick = onClick, padding = 0) {
         Column {
             Row(Modifier.fillMaxWidth().padding(14.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Avatar(initialsOf(customer.name), size = 46, bg = avatarBg, fg = avatarFg)
+                Avatar(initialsOf(customer.name.ifBlank { "?" }), size = 46, bg = avatarBg, fg = avatarFg)
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
-                            customer.name,
+                            customer.name.ifBlank { "Unnamed customer" },
                             style = BillantaTheme.type.cardTitle,
                             color = c.textPrimary,
                             maxLines = 1,
@@ -307,21 +312,24 @@ private fun CustomerCard(
  * out the same height and their bottoms line up.
  */
 @Composable
-private fun ProductGridCard(product: ProductRecord, onClick: () -> Unit) {
+private fun ProductGridCard(product: Product, onClick: () -> Unit) {
     val c = BillantaTheme.colors
-    val kind = ProductKind.of(product.hsnSac)
-    val code = product.hsnSac?.trim()?.takeIf { it.isNotEmpty() }
+    val values = product.values
+    val hsnSac = values.string("hsn_sac")
+    val kind = ProductKind.of(hsnSac)
+    val code = hsnSac?.trim()?.takeIf { it.isNotEmpty() }
+    val previewUrl = product.image?.previewUrl
     SurfaceCard(Modifier.fillMaxWidth(), onClick = onClick, padding = 0) {
         Column {
             Box {
                 ProductImage(
-                    url = product.previewImageUrl,
+                    url = previewUrl,
                     kind = kind,
                     modifier = Modifier.fillMaxWidth().aspectRatio(4f / 3f),
                     iconSize = 34.dp,
                 )
                 // With a photo the tile's icon is hidden, so what the product is moves to a label.
-                if (product.previewImageUrl != null && kind != ProductKind.Unspecified) {
+                if (previewUrl != null && kind != ProductKind.Unspecified) {
                     Tag(
                         if (kind == ProductKind.Service) "Service" else "Goods",
                         color = c.textPrimary,
@@ -332,7 +340,7 @@ private fun ProductGridCard(product: ProductRecord, onClick: () -> Unit) {
             }
             Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(
-                    product.name,
+                    product.description.ifBlank { "Untitled product" },
                     style = BillantaTheme.type.bodyStrong,
                     color = c.textPrimary,
                     minLines = 2,
@@ -341,12 +349,12 @@ private fun ProductGridCard(product: ProductRecord, onClick: () -> Unit) {
                 )
                 Row(verticalAlignment = Alignment.Bottom) {
                     Text(
-                        product.unitPricePaise.formatPaiseTrimmed(),
+                        (values.string("unit_price")?.toLongOrNull() ?: 0L).formatPaiseTrimmed(),
                         style = BillantaTheme.type.amount,
                         color = c.textPrimary,
                         maxLines = 1,
                     )
-                    product.unit?.trim()?.takeIf { it.isNotEmpty() }?.let {
+                    values.string("unit")?.trim()?.takeIf { it.isNotEmpty() }?.let {
                         Text(
                             " / $it",
                             style = BillantaTheme.type.caption,
@@ -358,7 +366,7 @@ private fun ProductGridCard(product: ProductRecord, onClick: () -> Unit) {
                     }
                 }
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Tag("${product.taxRatePercent}% GST", color = c.textSecondary, background = c.surfaceAlt)
+                    Tag("${values.string("tax_rate") ?: "0"}% GST", color = c.textSecondary, background = c.surfaceAlt)
                     Text(
                         when (kind) {
                             ProductKind.Service -> "SAC $code"
@@ -383,11 +391,13 @@ private fun ProductGridCard(product: ProductRecord, onClick: () -> Unit) {
     }
 }
 
+private const val INDIAN_STATES = "indian_states"
+
 /** The narrowest a product card gets before the grid drops a column: two across on any phone. */
 private val ProductCardMinWidth = 150.dp
 
 /** Counted per line added, not per invoice — so "times", which is what it actually measures. */
-private fun usageLine(product: ProductRecord): String {
+private fun usageLine(product: Product): String {
     if (product.usageCount <= 0) return "Not on an invoice yet"
     val count = if (product.usageCount == 1L) "Used once" else "Used ${product.usageCount} times"
     return if (product.lastUsedAtMillis > 0) "$count · last ${Iso8601.formatDayMonth(product.lastUsedAtMillis)}" else count

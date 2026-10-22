@@ -1,3 +1,4 @@
+import java.util.Properties
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
@@ -19,6 +20,14 @@ if (file("google-services.json").exists()) {
             "settings → Your apps → com.ferbotz.billanta) and put it in androidApp/.",
     )
 }
+
+// A debug build's API host: `-Pbillanta.debugBaseUrl=…` on the command line, else the same key in
+// local.properties (which is not in the repo); see buildTypes.
+val debugBaseUrl: String = providers.gradleProperty("billanta.debugBaseUrl").orNull
+    ?: rootProject.file("local.properties").takeIf { it.exists() }
+        ?.let { file -> Properties().apply { file.inputStream().use { load(it) } } }
+        ?.getProperty("billanta.debugBaseUrl")
+        .orEmpty()
 
 kotlin {
     compilerOptions {
@@ -71,7 +80,15 @@ android {
         }
     }
     buildTypes {
+        debug {
+            // Points a debug build at another API host — a staging deploy, or a stand-in server
+            // on this machine (the emulator reaches it as 10.0.2.2) — without touching the code.
+            // Set `billanta.debugBaseUrl` in local.properties; unset means production. Release
+            // builds never read it.
+            buildConfigField("String", "API_BASE_URL_OVERRIDE", "\"$debugBaseUrl\"")
+        }
         release {
+            buildConfigField("String", "API_BASE_URL_OVERRIDE", "\"\"")
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),

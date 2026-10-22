@@ -1,0 +1,65 @@
+-- The product catalogue as values maps over the line ids (BE-021), synced like customers.
+-- `description` and `nameKey` (its normalised form, how a line recognises a product it already
+-- knows) are derived from the values. `usageCount` and `lastUsedAtMillis` are this device's own
+-- bookkeeping for ordering the picker; they never leave the device.
+CREATE TABLE productValues (
+    id TEXT NOT NULL PRIMARY KEY,
+    valuesJson TEXT NOT NULL,
+    dirtyKeysJson TEXT NOT NULL,
+    description TEXT NOT NULL,
+    nameKey TEXT NOT NULL,
+    usageCount INTEGER NOT NULL DEFAULT 0,
+    lastUsedAtMillis INTEGER NOT NULL DEFAULT 0,
+    createdAtMillis INTEGER,
+    updatedAtMillis INTEGER NOT NULL,
+    dirty INTEGER NOT NULL DEFAULT 0,
+    isDeleted INTEGER NOT NULL DEFAULT 0,
+    isSynced INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE INDEX idx_product_values_name_key ON productValues(nameKey);
+CREATE INDEX idx_product_values_recent ON productValues(lastUsedAtMillis);
+
+upsert:
+INSERT OR REPLACE INTO productValues(
+    id, valuesJson, dirtyKeysJson, description, nameKey, usageCount, lastUsedAtMillis,
+    createdAtMillis, updatedAtMillis, dirty, isDeleted, isSynced
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+byId:
+SELECT * FROM productValues WHERE id = ? AND isDeleted = 0;
+
+byIdIncludingDeleted:
+SELECT * FROM productValues WHERE id = ?;
+
+byNameKey:
+SELECT * FROM productValues WHERE nameKey = ? AND isDeleted = 0 LIMIT 1;
+
+list:
+SELECT * FROM productValues
+WHERE isDeleted = 0 AND (:q = '' OR nameKey LIKE '%' || lower(:q) || '%')
+ORDER BY lastUsedAtMillis DESC, description COLLATE NOCASE ASC;
+
+markUsed:
+UPDATE productValues SET usageCount = usageCount + 1, lastUsedAtMillis = ? WHERE id = ?;
+
+dirtyRows:
+SELECT * FROM productValues WHERE dirty = 1;
+
+syncedCleanIds:
+SELECT id FROM productValues WHERE dirty = 0 AND isSynced = 1;
+
+markSynced:
+UPDATE productValues SET dirty = 0, isSynced = 1, dirtyKeysJson = '[]' WHERE id = ? AND updatedAtMillis = ?;
+
+softDelete:
+UPDATE productValues SET isDeleted = 1, dirty = 1, updatedAtMillis = ? WHERE id = ?;
+
+hardDelete:
+DELETE FROM productValues WHERE id = ?;
+
+clear:
+DELETE FROM productValues;
+
+markAllDirty:
+UPDATE productValues SET dirty = 1, isSynced = 0;

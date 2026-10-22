@@ -42,7 +42,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
-import com.ferbotz.billanta.domain.model.InvoiceRecord
+import com.ferbotz.billanta.records.Invoice
+import com.ferbotz.billanta.render.TemplateParser
 import com.ferbotz.billanta.domain.model.TemplateInfo
 import com.ferbotz.billanta.render.CustomisationControl
 import com.ferbotz.billanta.render.TemplateDoc
@@ -82,7 +83,7 @@ private val PALETTE = listOf(
 @Composable
 fun InvoiceColorDialog(
     state: BillantaState,
-    record: InvoiceRecord,
+    record: Invoice,
     doc: TemplateDoc,
     onDismiss: () -> Unit,
 ) {
@@ -97,7 +98,7 @@ fun InvoiceColorDialog(
     var tokenName by remember { mutableStateOf(colorControls.first().token) }
     val token = doc.themeTokens.first { it.name == tokenName }
     var picked by remember(tokenName) {
-        mutableStateOf(record.themeOverrides[tokenName] ?: token.defaultArgb)
+        mutableStateOf(record.themeOverrides[tokenName]?.let(TemplateParser::parseHexColor) ?: token.defaultArgb)
     }
 
     Dialog(onDismissRequest = onDismiss) {
@@ -174,8 +175,8 @@ fun InvoiceColorDialog(
                         // Choosing the template's own colour clears the override rather than
                         // pinning it, so the invoice follows the template if its palette changes.
                         if (picked == token.defaultArgb) overrides.remove(tokenName)
-                        else overrides[tokenName] = picked
-                        state.setInvoiceCustomisation(record.id, overrides, record.hiddenSections)
+                        else overrides[tokenName] = TemplateParser.formatHexColor(picked)
+                        state.setInvoiceCustomisation(record, overrides, record.hiddenSections)
                         onDismiss()
                     },
                     modifier = Modifier.weight(1f),
@@ -349,7 +350,7 @@ internal fun argbToHsv(argb: Long): Triple<Float, Float, Float> {
 @Composable
 fun InvoiceSettingsSheetContent(
     state: BillantaState,
-    record: InvoiceRecord,
+    record: Invoice,
     modifier: Modifier = Modifier,
 ) {
     val c = BillantaTheme.colors
@@ -376,10 +377,10 @@ fun InvoiceSettingsSheetContent(
             items(state.visibleTemplates, key = { it.id }) { template ->
                 TemplateChoice(
                     template = template,
-                    selected = template.id == (record.templateId ?: state.selectedTemplateId),
+                    selected = template.id == (record.templateId?.takeIf { it.isNotEmpty() } ?: state.selectedTemplateId),
                     onClick = {
                         if (template.isPremium && !state.isPremium) state.openSheet(PremiumSheet(template.id))
-                        else state.setInvoiceTemplate(record.id, template)
+                        else state.setInvoiceTemplate(record, template)
                     },
                     modifier = Modifier.width(96.dp),
                 )

@@ -1,0 +1,3309 @@
+{
+  "page": {
+    "size": "A4",
+    "margin": {
+      "top": 26,
+      "left": 26,
+      "right": 26,
+      "bottom": 26
+    },
+    "fontFamily": "Lato",
+    "baseFontSize": 9
+  },
+  "root": {
+    "type": "box",
+    "style": {
+      "color": "#1a1a1a",
+      "fontSize": 9,
+      "fontFamily": "Lato",
+      "lineHeight": 1.45
+    },
+    "children": [
+      {
+        "type": "box",
+        "style": {
+          "color": "#1a1a1a",
+          "fontSize": 9,
+          "minHeight": 770,
+          "fontFamily": "Lato",
+          "lineHeight": 1.45,
+          "borderTopColor": "#1a1a1a",
+          "borderTopStyle": "solid",
+          "borderTopWidth": 1,
+          "borderLeftColor": "#1a1a1a",
+          "borderLeftStyle": "solid",
+          "borderLeftWidth": 1,
+          "borderRightColor": "#1a1a1a",
+          "borderRightStyle": "solid",
+          "borderRightWidth": 1,
+          "borderBottomColor": "#1a1a1a",
+          "borderBottomStyle": "solid",
+          "borderBottomWidth": 1
+        },
+        "children": [
+          {
+            "type": "box",
+            "style": {
+              "color": "#1a1a1a",
+              "display": "flex",
+              "fontSize": 9,
+              "alignItems": "flex-start",
+              "fontFamily": "Lato",
+              "lineHeight": 1.45,
+              "paddingTop": 18,
+              "paddingLeft": 16,
+              "paddingRight": 16,
+              "paddingBottom": 16,
+              "justifyContent": "space-between",
+              "borderBottomColor": "#1a1a1a",
+              "borderBottomStyle": "solid",
+              "borderBottomWidth": 1
+            },
+            "children": [
+              {
+                "type": "box",
+                "style": {
+                  "color": "#1a1a1a",
+                  "width": "58%",
+                  "fontSize": 9,
+                  "fontFamily": "Lato",
+                  "lineHeight": 1.45
+                },
+                "section": "business",
+                "children": [
+                  {
+                    "type": "box",
+                    "style": {
+                      "color": "#1a1a1a",
+                      "fontSize": 15,
+                      "fontFamily": "Lato",
+                      "fontWeight": 700,
+                      "lineHeight": 1.45,
+                      "marginBottom": 4
+                    },
+                    "children": [
+                      {
+                        "type": "text",
+                        "spans": [
+                          {
+                            "value": {
+                              "kind": "bind",
+                              "path": "company_name",
+                              "format": "text",
+                              "fallback": ""
+                            }
+                          }
+                        ],
+                        "style": {
+                          "color": "#1a1a1a",
+                          "fontSize": 15,
+                          "fontFamily": "Lato",
+                          "fontWeight": 700,
+                          "lineHeight": 1.45,
+                          "marginBottom": 4
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "path": "company_address_line1",
+                    "type": "conditional",
+                    "child": {
+                      "type": "box",
+                      "style": {
+                        "color": "#6f6f6f",
+                        "fontSize": 8.5,
+                        "fontFamily": "Lato",
+                        "lineHeight": 1.45
+                      },
+                      "children": [
+                        {
+                          "type": "text",
+                          "spans": [
+                            {
+                              "value": {
+                                "kind": "bind",
+                                "path": "company_address_line1",
+                                "format": "text",
+                                "fallback": ""
+                              }
+                            }
+                          ],
+                          "style": {
+                            "color": "#6f6f6f",
+                            "fontSize": 8.5,
+                            "fontFamily": "Lato",
+                            "lineHeight": 1.45
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "path": "company_address_line2",
+                    "type": "conditional",
+                    "child": {
+                      "type": "box",
+                      "style": {
+                        "color": "#6f6f6f",
+                        "fontSize": 8.5,
+                        "fontFamily": "Lato",
+                        "lineHeight": 1.45
+                      },
+                      "children": [
+                        {
+                          "type": "text",
+                          "spans": [
+                            {
+                              "value": {
+                                "kind": "bind",
+                                "path": "company_address_line2",
+                                "format": "text",
+                                "fallback": ""
+                              }
+                            }
+                          ],
+                          "style": {
+                            "color": "#6f6f6f",
+                            "fontSize": 8.5,
+                            "fontFamily": "Lato",
+                            "lineHeight": 1.45
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "path": "company_city",
+                    "type": "conditional",
+                    "child": {
+                      "type": "box",
+                      "style": {
+                        "color": "#6f6f6f",
+                        "fontSize": 8.5,
+                        "fontFamily": "Lato",
+                        "lineHeight": 1.45
+                      },
+                      "children": [
+                        {
+                          "type": "text",
+                          "spans": [
+                            {
+                              "value": {
+                                "kind": "bind",
+                                "path": "company_city",
+                                "format": "text",
+                                "fallback": ""
+                              }
+                            },
+                            {
+                              "value": {
+                                "kind": "literal",
+                                "text": " "
+                              }
+                            },
+                            {
+                              "value": {
+                                "kind": "bind",
+                                "path": "company_state",
+                                "format": "text",
+                                "fallback": ""
+                              }
+                            },
+                            {
+                              "value": {
+                                "kind": "literal",
+                                "text": " "
+                              }
+                            },
+                            {
+                              "value": {
+                                "kind": "bind",
+                                "path": "company_pincode",
+                                "format": "text",
+                                "fallback": ""
+                              }
+                            }
+                          ],
+                          "style": {
+                            "color": "#6f6f6f",
+                            "fontSize": 8.5,
+                            "fontFamily": "Lato",
+                            "lineHeight": 1.45
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "path": "company_gstin",
+                    "type": "conditional",
+                    "child": {
+                      "type": "box",
+                      "style": {
+                        "color": "#6f6f6f",
+                        "fontSize": 8.5,
+                        "fontFamily": "Lato",
+                        "lineHeight": 1.45
+                      },
+                      "children": [
+                        {
+                          "type": "text",
+                          "spans": [
+                            {
+                              "value": {
+                                "kind": "literal",
+                                "text": "GSTIN "
+                              }
+                            },
+                            {
+                              "value": {
+                                "kind": "bind",
+                                "path": "company_gstin",
+                                "format": "text",
+                                "fallback": ""
+                              }
+                            }
+                          ],
+                          "style": {
+                            "color": "#6f6f6f",
+                            "fontSize": 8.5,
+                            "fontFamily": "Lato",
+                            "lineHeight": 1.45
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
+                "type": "box",
+                "style": {
+                  "color": "#1a3a8c",
+                  "fontSize": 30,
+                  "fontFamily": "Lato",
+                  "fontWeight": 400,
+                  "lineHeight": 1.45,
+                  "letterSpacing": 0.5
+                },
+                "tokens": {
+                  "color": "accent"
+                },
+                "children": [
+                  {
+                    "type": "text",
+                    "spans": [
+                      {
+                        "value": {
+                          "kind": "literal",
+                          "text": "INVOICE"
+                        }
+                      }
+                    ],
+                    "style": {
+                      "color": "#1a3a8c",
+                      "fontSize": 30,
+                      "fontFamily": "Lato",
+                      "fontWeight": 400,
+                      "lineHeight": 1.45,
+                      "letterSpacing": 0.5
+                    },
+                    "tokens": {
+                      "color": "accent"
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "box",
+            "style": {
+              "color": "#1a1a1a",
+              "display": "flex",
+              "fontSize": 9,
+              "fontFamily": "Lato",
+              "lineHeight": 1.45,
+              "borderBottomColor": "#1a1a1a",
+              "borderBottomStyle": "solid",
+              "borderBottomWidth": 1
+            },
+            "section": "header",
+            "children": [
+              {
+                "type": "box",
+                "style": {
+                  "color": "#1a1a1a",
+                  "width": "50%",
+                  "fontSize": 9,
+                  "fontFamily": "Lato",
+                  "lineHeight": 1.45,
+                  "borderRightColor": "#1a1a1a",
+                  "borderRightStyle": "solid",
+                  "borderRightWidth": 1
+                },
+                "children": [
+                  {
+                    "type": "box",
+                    "style": {
+                      "color": "#1a1a1a",
+                      "fontSize": 9,
+                      "fontFamily": "Lato",
+                      "lineHeight": 1.45,
+                      "paddingTop": 10,
+                      "paddingLeft": 16,
+                      "paddingRight": 16,
+                      "paddingBottom": 12
+                    },
+                    "children": [
+                      {
+                        "type": "box",
+                        "style": {
+                          "color": "#1a1a1a",
+                          "display": "flex",
+                          "fontSize": 9,
+                          "fontFamily": "Lato",
+                          "lineHeight": 1.45,
+                          "marginBottom": 4
+                        },
+                        "children": [
+                          {
+                            "type": "box",
+                            "style": {
+                              "color": "#6f6f6f",
+                              "width": 84,
+                              "fontSize": 9,
+                              "fontFamily": "Lato",
+                              "lineHeight": 1.45
+                            },
+                            "children": [
+                              {
+                                "type": "text",
+                                "spans": [
+                                  {
+                                    "value": {
+                                      "kind": "literal",
+                                      "text": "Invoice#"
+                                    }
+                                  }
+                                ],
+                                "style": {
+                                  "color": "#6f6f6f",
+                                  "width": 84,
+                                  "fontSize": 9,
+                                  "fontFamily": "Lato",
+                                  "lineHeight": 1.45
+                                }
+                              }
+                            ]
+                          },
+                          {
+                            "type": "box",
+                            "style": {
+                              "color": "#1a1a1a",
+                              "fontSize": 9,
+                              "fontFamily": "Lato",
+                              "fontWeight": 700,
+                              "lineHeight": 1.45
+                            },
+                            "children": [
+                              {
+                                "type": "text",
+                                "spans": [
+                                  {
+                                    "value": {
+                                      "kind": "bind",
+                                      "path": "invoice_number",
+                                      "format": "text",
+                                      "fallback": ""
+                                    }
+                                  }
+                                ],
+                                "style": {
+                                  "color": "#1a1a1a",
+                                  "fontSize": 9,
+                                  "fontFamily": "Lato",
+                                  "fontWeight": 700,
+                                  "lineHeight": 1.45
+                                }
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "type": "box",
+                        "style": {
+                          "color": "#1a1a1a",
+                          "display": "flex",
+                          "fontSize": 9,
+                          "fontFamily": "Lato",
+                          "lineHeight": 1.45,
+                          "marginBottom": 4
+                        },
+                        "children": [
+                          {
+                            "type": "box",
+                            "style": {
+                              "color": "#6f6f6f",
+                              "width": 84,
+                              "fontSize": 9,
+                              "fontFamily": "Lato",
+                              "lineHeight": 1.45
+                            },
+                            "children": [
+                              {
+                                "type": "text",
+                                "spans": [
+                                  {
+                                    "value": {
+                                      "kind": "literal",
+                                      "text": "Invoice Date"
+                                    }
+                                  }
+                                ],
+                                "style": {
+                                  "color": "#6f6f6f",
+                                  "width": 84,
+                                  "fontSize": 9,
+                                  "fontFamily": "Lato",
+                                  "lineHeight": 1.45
+                                }
+                              }
+                            ]
+                          },
+                          {
+                            "type": "box",
+                            "style": {
+                              "color": "#1a1a1a",
+                              "fontSize": 9,
+                              "fontFamily": "Lato",
+                              "fontWeight": 700,
+                              "lineHeight": 1.45
+                            },
+                            "children": [
+                              {
+                                "type": "text",
+                                "spans": [
+                                  {
+                                    "value": {
+                                      "kind": "bind",
+                                      "path": "invoice_date",
+                                      "format": "date",
+                                      "fallback": ""
+                                    }
+                                  }
+                                ],
+                                "style": {
+                                  "color": "#1a1a1a",
+                                  "fontSize": 9,
+                                  "fontFamily": "Lato",
+                                  "fontWeight": 700,
+                                  "lineHeight": 1.45
+                                }
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "path": "due_date",
+                        "type": "conditional",
+                        "child": {
+                          "type": "box",
+                          "style": {
+                            "color": "#1a1a1a",
+                            "display": "flex",
+                            "fontSize": 9,
+                            "fontFamily": "Lato",
+                            "lineHeight": 1.45,
+                            "marginBottom": 4
+                          },
+                          "children": [
+                            {
+                              "type": "box",
+                              "style": {
+                                "color": "#6f6f6f",
+                                "width": 84,
+                                "fontSize": 9,
+                                "fontFamily": "Lato",
+                                "lineHeight": 1.45
+                              },
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "spans": [
+                                    {
+                                      "value": {
+                                        "kind": "literal",
+                                        "text": "Due Date"
+                                      }
+                                    }
+                                  ],
+                                  "style": {
+                                    "color": "#6f6f6f",
+                                    "width": 84,
+                                    "fontSize": 9,
+                                    "fontFamily": "Lato",
+                                    "lineHeight": 1.45
+                                  }
+                                }
+                              ]
+                            },
+                            {
+                              "type": "box",
+                              "style": {
+                                "color": "#1a1a1a",
+                                "fontSize": 9,
+                                "fontFamily": "Lato",
+                                "fontWeight": 700,
+                                "lineHeight": 1.45
+                              },
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "spans": [
+                                    {
+                                      "value": {
+                                        "kind": "bind",
+                                        "path": "due_date",
+                                        "format": "date",
+                                        "fallback": ""
+                                      }
+                                    }
+                                  ],
+                                  "style": {
+                                    "color": "#1a1a1a",
+                                    "fontSize": 9,
+                                    "fontFamily": "Lato",
+                                    "fontWeight": 700,
+                                    "lineHeight": 1.45
+                                  }
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "type": "box",
+                "style": {
+                  "color": "#1a1a1a",
+                  "width": "50%",
+                  "fontSize": 9,
+                  "fontFamily": "Lato",
+                  "lineHeight": 1.45
+                },
+                "section": "business",
+                "children": [
+                  {
+                    "type": "box",
+                    "style": {
+                      "color": "#1a1a1a",
+                      "fontSize": 9,
+                      "fontFamily": "Lato",
+                      "lineHeight": 1.45,
+                      "paddingTop": 10,
+                      "paddingLeft": 16,
+                      "paddingRight": 16,
+                      "paddingBottom": 12
+                    },
+                    "children": [
+                      {
+                        "path": "company_logo",
+                        "type": "conditional",
+                        "child": {
+                          "fit": "contain",
+                          "type": "image",
+                          "style": {
+                            "color": "#1a1a1a",
+                            "width": 90,
+                            "height": 44,
+                            "fontSize": 9,
+                            "fontFamily": "Lato",
+                            "lineHeight": 1.45
+                          },
+                          "source": {
+                            "kind": "bind",
+                            "path": "company_logo.url",
+                            "format": "text",
+                            "fallback": ""
+                          }
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "box",
+            "style": {
+              "color": "#1a1a1a",
+              "display": "flex",
+              "fontSize": 9,
+              "fontFamily": "Lato",
+              "lineHeight": 1.45,
+              "backgroundColor": "#f2f2f2",
+              "borderBottomColor": "#1a1a1a",
+              "borderBottomStyle": "solid",
+              "borderBottomWidth": 1
+            },
+            "children": [
+              {
+                "type": "box",
+                "style": {
+                  "color": "#1a1a1a",
+                  "width": "50%",
+                  "fontSize": 9,
+                  "fontFamily": "Lato",
+                  "lineHeight": 1.45,
+                  "borderRightColor": "#1a1a1a",
+                  "borderRightStyle": "solid",
+                  "borderRightWidth": 1
+                },
+                "children": [
+                  {
+                    "type": "box",
+                    "style": {
+                      "color": "#1a1a1a",
+                      "fontSize": 10.5,
+                      "fontFamily": "Lato",
+                      "lineHeight": 1.45,
+                      "paddingTop": 7,
+                      "paddingLeft": 16,
+                      "paddingRight": 16,
+                      "paddingBottom": 7
+                    },
+                    "children": [
+                      {
+                        "type": "text",
+                        "spans": [
+                          {
+                            "value": {
+                              "kind": "literal",
+                              "text": "Bill To"
+                            }
+                          }
+                        ],
+                        "style": {
+                          "color": "#1a1a1a",
+                          "fontSize": 10.5,
+                          "fontFamily": "Lato",
+                          "lineHeight": 1.45,
+                          "paddingTop": 7,
+                          "paddingLeft": 16,
+                          "paddingRight": 16,
+                          "paddingBottom": 7
+                        }
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "type": "box",
+                "style": {
+                  "color": "#1a1a1a",
+                  "width": "50%",
+                  "fontSize": 9,
+                  "fontFamily": "Lato",
+                  "lineHeight": 1.45,
+                  "borderRightColor": "#1a1a1a",
+                  "borderRightStyle": "solid",
+                  "borderRightWidth": 0
+                },
+                "children": [
+                  {
+                    "type": "box",
+                    "style": {
+                      "color": "#1a1a1a",
+                      "fontSize": 10.5,
+                      "fontFamily": "Lato",
+                      "lineHeight": 1.45,
+                      "paddingTop": 7,
+                      "paddingLeft": 16,
+                      "paddingRight": 16,
+                      "paddingBottom": 7
+                    },
+                    "children": [
+                      {
+                        "type": "text",
+                        "spans": [
+                          {
+                            "value": {
+                              "kind": "literal",
+                              "text": "Ship To"
+                            }
+                          }
+                        ],
+                        "style": {
+                          "color": "#1a1a1a",
+                          "fontSize": 10.5,
+                          "fontFamily": "Lato",
+                          "lineHeight": 1.45,
+                          "paddingTop": 7,
+                          "paddingLeft": 16,
+                          "paddingRight": 16,
+                          "paddingBottom": 7
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "box",
+            "style": {
+              "color": "#1a1a1a",
+              "display": "flex",
+              "fontSize": 9,
+              "fontFamily": "Lato",
+              "lineHeight": 1.45,
+              "borderBottomColor": "#1a1a1a",
+              "borderBottomStyle": "solid",
+              "borderBottomWidth": 1
+            },
+            "section": "parties",
+            "children": [
+              {
+                "type": "box",
+                "style": {
+                  "color": "#1a1a1a",
+                  "width": "50%",
+                  "fontSize": 9,
+                  "fontFamily": "Lato",
+                  "lineHeight": 1.45,
+                  "borderRightColor": "#1a1a1a",
+                  "borderRightStyle": "solid",
+                  "borderRightWidth": 1
+                },
+                "children": [
+                  {
+                    "type": "box",
+                    "style": {
+                      "color": "#1a1a1a",
+                      "fontSize": 9,
+                      "fontFamily": "Lato",
+                      "lineHeight": 1.45,
+                      "paddingTop": 11,
+                      "paddingLeft": 16,
+                      "paddingRight": 16,
+                      "paddingBottom": 14
+                    },
+                    "children": [
+                      {
+                        "path": "customer_name",
+                        "type": "conditional",
+                        "child": {
+                          "type": "box",
+                          "style": {
+                            "color": "#1a1a1a",
+                            "fontSize": 10,
+                            "fontFamily": "Lato",
+                            "fontWeight": 700,
+                            "lineHeight": 1.45,
+                            "marginBottom": 1
+                          },
+                          "children": [
+                            {
+                              "type": "text",
+                              "spans": [
+                                {
+                                  "value": {
+                                    "kind": "bind",
+                                    "path": "customer_name",
+                                    "format": "text",
+                                    "fallback": ""
+                                  }
+                                }
+                              ],
+                              "style": {
+                                "color": "#1a1a1a",
+                                "fontSize": 10,
+                                "fontFamily": "Lato",
+                                "fontWeight": 700,
+                                "lineHeight": 1.45,
+                                "marginBottom": 1
+                              }
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "path": "customer_address_line1",
+                        "type": "conditional",
+                        "child": {
+                          "type": "box",
+                          "style": {
+                            "color": "#6f6f6f",
+                            "fontSize": 8.5,
+                            "fontFamily": "Lato",
+                            "lineHeight": 1.45
+                          },
+                          "children": [
+                            {
+                              "type": "text",
+                              "spans": [
+                                {
+                                  "value": {
+                                    "kind": "bind",
+                                    "path": "customer_address_line1",
+                                    "format": "text",
+                                    "fallback": ""
+                                  }
+                                }
+                              ],
+                              "style": {
+                                "color": "#6f6f6f",
+                                "fontSize": 8.5,
+                                "fontFamily": "Lato",
+                                "lineHeight": 1.45
+                              }
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "path": "customer_address_line2",
+                        "type": "conditional",
+                        "child": {
+                          "type": "box",
+                          "style": {
+                            "color": "#6f6f6f",
+                            "fontSize": 8.5,
+                            "fontFamily": "Lato",
+                            "lineHeight": 1.45
+                          },
+                          "children": [
+                            {
+                              "type": "text",
+                              "spans": [
+                                {
+                                  "value": {
+                                    "kind": "bind",
+                                    "path": "customer_address_line2",
+                                    "format": "text",
+                                    "fallback": ""
+                                  }
+                                }
+                              ],
+                              "style": {
+                                "color": "#6f6f6f",
+                                "fontSize": 8.5,
+                                "fontFamily": "Lato",
+                                "lineHeight": 1.45
+                              }
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "path": "customer_city",
+                        "type": "conditional",
+                        "child": {
+                          "type": "box",
+                          "style": {
+                            "color": "#6f6f6f",
+                            "fontSize": 8.5,
+                            "fontFamily": "Lato",
+                            "lineHeight": 1.45
+                          },
+                          "children": [
+                            {
+                              "type": "text",
+                              "spans": [
+                                {
+                                  "value": {
+                                    "kind": "bind",
+                                    "path": "customer_city",
+                                    "format": "text",
+                                    "fallback": ""
+                                  }
+                                },
+                                {
+                                  "value": {
+                                    "kind": "literal",
+                                    "text": " "
+                                  }
+                                },
+                                {
+                                  "value": {
+                                    "kind": "bind",
+                                    "path": "customer_state",
+                                    "format": "text",
+                                    "fallback": ""
+                                  }
+                                },
+                                {
+                                  "value": {
+                                    "kind": "literal",
+                                    "text": " "
+                                  }
+                                },
+                                {
+                                  "value": {
+                                    "kind": "bind",
+                                    "path": "customer_pincode",
+                                    "format": "text",
+                                    "fallback": ""
+                                  }
+                                }
+                              ],
+                              "style": {
+                                "color": "#6f6f6f",
+                                "fontSize": 8.5,
+                                "fontFamily": "Lato",
+                                "lineHeight": 1.45
+                              }
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "path": "customer_gstin",
+                        "type": "conditional",
+                        "child": {
+                          "type": "box",
+                          "style": {
+                            "color": "#6f6f6f",
+                            "fontSize": 8.5,
+                            "fontFamily": "Lato",
+                            "lineHeight": 1.45
+                          },
+                          "children": [
+                            {
+                              "type": "text",
+                              "spans": [
+                                {
+                                  "value": {
+                                    "kind": "literal",
+                                    "text": "GSTIN "
+                                  }
+                                },
+                                {
+                                  "value": {
+                                    "kind": "bind",
+                                    "path": "customer_gstin",
+                                    "format": "text",
+                                    "fallback": ""
+                                  }
+                                }
+                              ],
+                              "style": {
+                                "color": "#6f6f6f",
+                                "fontSize": 8.5,
+                                "fontFamily": "Lato",
+                                "lineHeight": 1.45
+                              }
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "path": "customer_name",
+                        "type": "conditional",
+                        "child": {
+                          "type": "box",
+                          "style": {
+                            "color": "#1a1a1a",
+                            "fontSize": 9,
+                            "marginTop": 8,
+                            "textAlign": "center",
+                            "fontFamily": "Lato",
+                            "lineHeight": 1.45,
+                            "paddingTop": 14,
+                            "paddingLeft": 14,
+                            "borderRadius": 5,
+                            "paddingRight": 14,
+                            "paddingBottom": 14,
+                            "borderTopColor": "#a8a8a8",
+                            "borderTopStyle": "dashed",
+                            "borderTopWidth": 1.5,
+                            "borderLeftColor": "#a8a8a8",
+                            "borderLeftStyle": "dashed",
+                            "borderLeftWidth": 1.5,
+                            "borderRightColor": "#a8a8a8",
+                            "borderRightStyle": "dashed",
+                            "borderRightWidth": 1.5,
+                            "borderBottomColor": "#a8a8a8",
+                            "borderBottomStyle": "dashed",
+                            "borderBottomWidth": 1.5
+                          },
+                          "children": [
+                            {
+                              "type": "box",
+                              "style": {
+                                "color": "#a8a8a8",
+                                "fontSize": 9,
+                                "textAlign": "center",
+                                "fontFamily": "Lato",
+                                "lineHeight": 1.45
+                              },
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "spans": [
+                                    {
+                                      "value": {
+                                        "kind": "literal",
+                                        "text": "+ Add customer"
+                                      }
+                                    }
+                                  ],
+                                  "style": {
+                                    "color": "#a8a8a8",
+                                    "fontSize": 9,
+                                    "textAlign": "center",
+                                    "fontFamily": "Lato",
+                                    "lineHeight": 1.45
+                                  }
+                                }
+                              ]
+                            }
+                          ],
+                          "editorOnly": true
+                        },
+                        "negate": true
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "type": "box",
+                "style": {
+                  "color": "#1a1a1a",
+                  "width": "50%",
+                  "fontSize": 9,
+                  "fontFamily": "Lato",
+                  "lineHeight": 1.45,
+                  "borderRightColor": "#1a1a1a",
+                  "borderRightStyle": "solid",
+                  "borderRightWidth": 0
+                },
+                "children": [
+                  {
+                    "type": "box",
+                    "style": {
+                      "color": "#1a1a1a",
+                      "fontSize": 9,
+                      "fontFamily": "Lato",
+                      "lineHeight": 1.45,
+                      "paddingTop": 11,
+                      "paddingLeft": 16,
+                      "paddingRight": 16,
+                      "paddingBottom": 14
+                    },
+                    "children": [
+                      {
+                        "path": "customer_address_line1",
+                        "type": "conditional",
+                        "child": {
+                          "type": "box",
+                          "style": {
+                            "color": "#6f6f6f",
+                            "fontSize": 8.5,
+                            "fontFamily": "Lato",
+                            "lineHeight": 1.45
+                          },
+                          "children": [
+                            {
+                              "type": "text",
+                              "spans": [
+                                {
+                                  "value": {
+                                    "kind": "bind",
+                                    "path": "customer_address_line1",
+                                    "format": "text",
+                                    "fallback": ""
+                                  }
+                                }
+                              ],
+                              "style": {
+                                "color": "#6f6f6f",
+                                "fontSize": 8.5,
+                                "fontFamily": "Lato",
+                                "lineHeight": 1.45
+                              }
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "path": "customer_address_line2",
+                        "type": "conditional",
+                        "child": {
+                          "type": "box",
+                          "style": {
+                            "color": "#6f6f6f",
+                            "fontSize": 8.5,
+                            "fontFamily": "Lato",
+                            "lineHeight": 1.45
+                          },
+                          "children": [
+                            {
+                              "type": "text",
+                              "spans": [
+                                {
+                                  "value": {
+                                    "kind": "bind",
+                                    "path": "customer_address_line2",
+                                    "format": "text",
+                                    "fallback": ""
+                                  }
+                                }
+                              ],
+                              "style": {
+                                "color": "#6f6f6f",
+                                "fontSize": 8.5,
+                                "fontFamily": "Lato",
+                                "lineHeight": 1.45
+                              }
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "path": "customer_city",
+                        "type": "conditional",
+                        "child": {
+                          "type": "box",
+                          "style": {
+                            "color": "#6f6f6f",
+                            "fontSize": 8.5,
+                            "fontFamily": "Lato",
+                            "lineHeight": 1.45
+                          },
+                          "children": [
+                            {
+                              "type": "text",
+                              "spans": [
+                                {
+                                  "value": {
+                                    "kind": "bind",
+                                    "path": "customer_city",
+                                    "format": "text",
+                                    "fallback": ""
+                                  }
+                                },
+                                {
+                                  "value": {
+                                    "kind": "literal",
+                                    "text": " "
+                                  }
+                                },
+                                {
+                                  "value": {
+                                    "kind": "bind",
+                                    "path": "customer_state",
+                                    "format": "text",
+                                    "fallback": ""
+                                  }
+                                },
+                                {
+                                  "value": {
+                                    "kind": "literal",
+                                    "text": " "
+                                  }
+                                },
+                                {
+                                  "value": {
+                                    "kind": "bind",
+                                    "path": "customer_pincode",
+                                    "format": "text",
+                                    "fallback": ""
+                                  }
+                                }
+                              ],
+                              "style": {
+                                "color": "#6f6f6f",
+                                "fontSize": 8.5,
+                                "fontFamily": "Lato",
+                                "lineHeight": 1.45
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "box",
+            "style": {
+              "color": "#1a1a1a",
+              "fontSize": 9,
+              "fontFamily": "Lato",
+              "lineHeight": 1.45
+            },
+            "section": "items",
+            "children": [
+              {
+                "path": "line_items",
+                "type": "conditional",
+                "child": {
+                  "body": {
+                    "row": {
+                      "type": "row",
+                      "cells": [
+                        {
+                          "type": "cell",
+                          "style": {
+                            "color": "#1a1a1a",
+                            "fontSize": 9,
+                            "fontFamily": "Lato",
+                            "lineHeight": 1.45,
+                            "paddingTop": 10,
+                            "paddingLeft": 10,
+                            "paddingRight": 10,
+                            "paddingBottom": 10,
+                            "verticalAlign": "top",
+                            "borderRightColor": "#1a1a1a",
+                            "borderRightStyle": "solid",
+                            "borderRightWidth": 1,
+                            "borderBottomColor": "#1a1a1a",
+                            "borderBottomStyle": "solid",
+                            "borderBottomWidth": 1
+                          },
+                          "colSpan": 1,
+                          "children": [
+                            {
+                              "type": "box",
+                              "style": {
+                                "color": "#1a1a1a",
+                                "fontSize": 9,
+                                "fontFamily": "Lato",
+                                "fontWeight": 700,
+                                "lineHeight": 1.45
+                              },
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "spans": [
+                                    {
+                                      "value": {
+                                        "kind": "bind",
+                                        "path": "item.description",
+                                        "format": "text",
+                                        "fallback": ""
+                                      }
+                                    }
+                                  ],
+                                  "style": {
+                                    "color": "#1a1a1a",
+                                    "fontSize": 9,
+                                    "fontFamily": "Lato",
+                                    "fontWeight": 700,
+                                    "lineHeight": 1.45
+                                  }
+                                }
+                              ]
+                            },
+                            {
+                              "path": "item.hsn_sac",
+                              "type": "conditional",
+                              "child": {
+                                "type": "box",
+                                "style": {
+                                  "color": "#6f6f6f",
+                                  "fontSize": 8,
+                                  "fontFamily": "Lato",
+                                  "lineHeight": 1.45
+                                },
+                                "children": [
+                                  {
+                                    "type": "text",
+                                    "spans": [
+                                      {
+                                        "value": {
+                                          "kind": "literal",
+                                          "text": "HSN/SAC "
+                                        }
+                                      },
+                                      {
+                                        "value": {
+                                          "kind": "bind",
+                                          "path": "item.hsn_sac",
+                                          "format": "text",
+                                          "fallback": ""
+                                        }
+                                      }
+                                    ],
+                                    "style": {
+                                      "color": "#6f6f6f",
+                                      "fontSize": 8,
+                                      "fontFamily": "Lato",
+                                      "lineHeight": 1.45
+                                    }
+                                  }
+                                ]
+                              }
+                            }
+                          ]
+                        },
+                        {
+                          "type": "cell",
+                          "style": {
+                            "color": "#1a1a1a",
+                            "fontSize": 9,
+                            "textAlign": "right",
+                            "fontFamily": "Lato",
+                            "lineHeight": 1.45,
+                            "paddingTop": 10,
+                            "paddingLeft": 10,
+                            "paddingRight": 10,
+                            "paddingBottom": 10,
+                            "verticalAlign": "top",
+                            "borderRightColor": "#1a1a1a",
+                            "borderRightStyle": "solid",
+                            "borderRightWidth": 1,
+                            "borderBottomColor": "#1a1a1a",
+                            "borderBottomStyle": "solid",
+                            "borderBottomWidth": 1
+                          },
+                          "colSpan": 1,
+                          "children": [
+                            {
+                              "type": "text",
+                              "spans": [
+                                {
+                                  "value": {
+                                    "kind": "bind",
+                                    "path": "item.quantity",
+                                    "format": "number",
+                                    "fallback": ""
+                                  }
+                                }
+                              ],
+                              "style": {
+                                "color": "#1a1a1a",
+                                "fontSize": 9,
+                                "textAlign": "right",
+                                "fontFamily": "Lato",
+                                "lineHeight": 1.45,
+                                "paddingTop": 10,
+                                "paddingLeft": 10,
+                                "paddingRight": 10,
+                                "paddingBottom": 10,
+                                "verticalAlign": "top",
+                                "borderRightColor": "#1a1a1a",
+                                "borderRightStyle": "solid",
+                                "borderRightWidth": 1,
+                                "borderBottomColor": "#1a1a1a",
+                                "borderBottomStyle": "solid",
+                                "borderBottomWidth": 1
+                              }
+                            }
+                          ]
+                        },
+                        {
+                          "type": "cell",
+                          "style": {
+                            "color": "#1a1a1a",
+                            "fontSize": 9,
+                            "textAlign": "right",
+                            "fontFamily": "Lato",
+                            "lineHeight": 1.45,
+                            "paddingTop": 10,
+                            "paddingLeft": 10,
+                            "paddingRight": 10,
+                            "paddingBottom": 10,
+                            "verticalAlign": "top",
+                            "borderRightColor": "#1a1a1a",
+                            "borderRightStyle": "solid",
+                            "borderRightWidth": 1,
+                            "borderBottomColor": "#1a1a1a",
+                            "borderBottomStyle": "solid",
+                            "borderBottomWidth": 1
+                          },
+                          "colSpan": 1,
+                          "children": [
+                            {
+                              "type": "text",
+                              "spans": [
+                                {
+                                  "value": {
+                                    "kind": "bind",
+                                    "path": "item.unit_price",
+                                    "format": "currency",
+                                    "fallback": ""
+                                  }
+                                }
+                              ],
+                              "style": {
+                                "color": "#1a1a1a",
+                                "fontSize": 9,
+                                "textAlign": "right",
+                                "fontFamily": "Lato",
+                                "lineHeight": 1.45,
+                                "paddingTop": 10,
+                                "paddingLeft": 10,
+                                "paddingRight": 10,
+                                "paddingBottom": 10,
+                                "verticalAlign": "top",
+                                "borderRightColor": "#1a1a1a",
+                                "borderRightStyle": "solid",
+                                "borderRightWidth": 1,
+                                "borderBottomColor": "#1a1a1a",
+                                "borderBottomStyle": "solid",
+                                "borderBottomWidth": 1
+                              }
+                            }
+                          ]
+                        },
+                        {
+                          "type": "cell",
+                          "style": {
+                            "color": "#1a1a1a",
+                            "fontSize": 9,
+                            "textAlign": "right",
+                            "fontFamily": "Lato",
+                            "lineHeight": 1.45,
+                            "paddingTop": 10,
+                            "paddingLeft": 10,
+                            "paddingRight": 10,
+                            "paddingBottom": 10,
+                            "verticalAlign": "top",
+                            "borderRightColor": "#1a1a1a",
+                            "borderRightStyle": "solid",
+                            "borderRightWidth": 0,
+                            "borderBottomColor": "#1a1a1a",
+                            "borderBottomStyle": "solid",
+                            "borderBottomWidth": 1
+                          },
+                          "colSpan": 1,
+                          "children": [
+                            {
+                              "type": "text",
+                              "spans": [
+                                {
+                                  "value": {
+                                    "kind": "bind",
+                                    "path": "item.line_total",
+                                    "format": "currency",
+                                    "fallback": ""
+                                  }
+                                }
+                              ],
+                              "style": {
+                                "color": "#1a1a1a",
+                                "fontSize": 9,
+                                "textAlign": "right",
+                                "fontFamily": "Lato",
+                                "lineHeight": 1.45,
+                                "paddingTop": 10,
+                                "paddingLeft": 10,
+                                "paddingRight": 10,
+                                "paddingBottom": 10,
+                                "verticalAlign": "top",
+                                "borderRightColor": "#1a1a1a",
+                                "borderRightStyle": "solid",
+                                "borderRightWidth": 0,
+                                "borderBottomColor": "#1a1a1a",
+                                "borderBottomStyle": "solid",
+                                "borderBottomWidth": 1
+                              }
+                            }
+                          ]
+                        }
+                      ],
+                      "style": {
+                        "color": "#1a1a1a",
+                        "fontSize": 9,
+                        "fontFamily": "Lato",
+                        "lineHeight": 1.45
+                      }
+                    },
+                    "repeat": {
+                      "as": "item",
+                      "path": "line_items"
+                    }
+                  },
+                  "type": "table",
+                  "style": {
+                    "color": "#1a1a1a",
+                    "width": "100%",
+                    "fontSize": 9,
+                    "fontFamily": "Lato",
+                    "lineHeight": 1.45
+                  },
+                  "footer": [
+                    {
+                      "type": "row",
+                      "cells": [
+                        {
+                          "type": "cell",
+                          "style": {
+                            "color": "#1a1a1a",
+                            "fontSize": 9,
+                            "fontFamily": "Lato",
+                            "lineHeight": 1.45,
+                            "paddingTop": 9,
+                            "paddingLeft": 10,
+                            "paddingRight": 10,
+                            "paddingBottom": 9,
+                            "verticalAlign": "top",
+                            "borderRightColor": "#1a1a1a",
+                            "borderRightStyle": "solid",
+                            "borderRightWidth": 0,
+                            "borderBottomColor": "#1a1a1a",
+                            "borderBottomStyle": "solid",
+                            "borderBottomWidth": 0
+                          },
+                          "colSpan": 2,
+                          "children": []
+                        },
+                        {
+                          "type": "cell",
+                          "style": {
+                            "color": "#1a1a1a",
+                            "fontSize": 9,
+                            "textAlign": "right",
+                            "fontFamily": "Lato",
+                            "fontWeight": 700,
+                            "lineHeight": 1.45,
+                            "paddingTop": 9,
+                            "paddingLeft": 10,
+                            "paddingRight": 10,
+                            "paddingBottom": 9,
+                            "verticalAlign": "top",
+                            "borderRightColor": "#1a1a1a",
+                            "borderRightStyle": "solid",
+                            "borderRightWidth": 0,
+                            "borderBottomColor": "#1a1a1a",
+                            "borderBottomStyle": "solid",
+                            "borderBottomWidth": 0
+                          },
+                          "colSpan": 1,
+                          "children": [
+                            {
+                              "type": "text",
+                              "spans": [
+                                {
+                                  "value": {
+                                    "kind": "literal",
+                                    "text": "Sub Total"
+                                  }
+                                }
+                              ],
+                              "style": {
+                                "color": "#1a1a1a",
+                                "fontSize": 9,
+                                "textAlign": "right",
+                                "fontFamily": "Lato",
+                                "fontWeight": 700,
+                                "lineHeight": 1.45,
+                                "paddingTop": 9,
+                                "paddingLeft": 10,
+                                "paddingRight": 10,
+                                "paddingBottom": 9,
+                                "verticalAlign": "top",
+                                "borderRightColor": "#1a1a1a",
+                                "borderRightStyle": "solid",
+                                "borderRightWidth": 0,
+                                "borderBottomColor": "#1a1a1a",
+                                "borderBottomStyle": "solid",
+                                "borderBottomWidth": 0
+                              }
+                            }
+                          ]
+                        },
+                        {
+                          "type": "cell",
+                          "style": {
+                            "color": "#1a1a1a",
+                            "fontSize": 9,
+                            "textAlign": "right",
+                            "fontFamily": "Lato",
+                            "lineHeight": 1.45,
+                            "paddingTop": 9,
+                            "paddingLeft": 10,
+                            "paddingRight": 10,
+                            "paddingBottom": 9,
+                            "verticalAlign": "top",
+                            "borderLeftColor": "#1a1a1a",
+                            "borderLeftStyle": "solid",
+                            "borderLeftWidth": 1,
+                            "borderRightColor": "#1a1a1a",
+                            "borderRightStyle": "solid",
+                            "borderRightWidth": 0,
+                            "borderBottomColor": "#1a1a1a",
+                            "borderBottomStyle": "solid",
+                            "borderBottomWidth": 0
+                          },
+                          "colSpan": 1,
+                          "children": [
+                            {
+                              "type": "text",
+                              "spans": [
+                                {
+                                  "value": {
+                                    "kind": "bind",
+                                    "path": "subtotal",
+                                    "format": "currency",
+                                    "fallback": ""
+                                  }
+                                }
+                              ],
+                              "style": {
+                                "color": "#1a1a1a",
+                                "fontSize": 9,
+                                "textAlign": "right",
+                                "fontFamily": "Lato",
+                                "lineHeight": 1.45,
+                                "paddingTop": 9,
+                                "paddingLeft": 10,
+                                "paddingRight": 10,
+                                "paddingBottom": 9,
+                                "verticalAlign": "top",
+                                "borderLeftColor": "#1a1a1a",
+                                "borderLeftStyle": "solid",
+                                "borderLeftWidth": 1,
+                                "borderRightColor": "#1a1a1a",
+                                "borderRightStyle": "solid",
+                                "borderRightWidth": 0,
+                                "borderBottomColor": "#1a1a1a",
+                                "borderBottomStyle": "solid",
+                                "borderBottomWidth": 0
+                              }
+                            }
+                          ]
+                        }
+                      ],
+                      "style": {
+                        "color": "#1a1a1a",
+                        "fontSize": 9,
+                        "fontFamily": "Lato",
+                        "lineHeight": 1.45
+                      }
+                    }
+                  ],
+                  "header": [
+                    {
+                      "type": "row",
+                      "cells": [
+                        {
+                          "type": "cell",
+                          "style": {
+                            "color": "#ffffff",
+                            "width": "60%",
+                            "fontSize": 9,
+                            "textAlign": "left",
+                            "fontFamily": "Lato",
+                            "fontWeight": 400,
+                            "lineHeight": 1.45,
+                            "paddingTop": 8,
+                            "paddingLeft": 10,
+                            "paddingRight": 10,
+                            "paddingBottom": 8,
+                            "backgroundColor": "#1a3a8c"
+                          },
+                          "tokens": {
+                            "backgroundColor": "accent"
+                          },
+                          "colSpan": 1,
+                          "children": [
+                            {
+                              "type": "text",
+                              "spans": [
+                                {
+                                  "value": {
+                                    "kind": "literal",
+                                    "text": "Item & Description"
+                                  }
+                                }
+                              ],
+                              "style": {
+                                "color": "#ffffff",
+                                "width": "60%",
+                                "fontSize": 9,
+                                "textAlign": "left",
+                                "fontFamily": "Lato",
+                                "fontWeight": 400,
+                                "lineHeight": 1.45,
+                                "paddingTop": 8,
+                                "paddingLeft": 10,
+                                "paddingRight": 10,
+                                "paddingBottom": 8,
+                                "backgroundColor": "#1a3a8c"
+                              }
+                            }
+                          ]
+                        },
+                        {
+                          "type": "cell",
+                          "style": {
+                            "color": "#ffffff",
+                            "fontSize": 9,
+                            "textAlign": "right",
+                            "fontFamily": "Lato",
+                            "fontWeight": 400,
+                            "lineHeight": 1.45,
+                            "paddingTop": 8,
+                            "paddingLeft": 10,
+                            "paddingRight": 10,
+                            "paddingBottom": 8,
+                            "backgroundColor": "#1a3a8c"
+                          },
+                          "tokens": {
+                            "backgroundColor": "accent"
+                          },
+                          "colSpan": 1,
+                          "children": [
+                            {
+                              "type": "text",
+                              "spans": [
+                                {
+                                  "value": {
+                                    "kind": "literal",
+                                    "text": "Qty"
+                                  }
+                                }
+                              ],
+                              "style": {
+                                "color": "#ffffff",
+                                "fontSize": 9,
+                                "textAlign": "right",
+                                "fontFamily": "Lato",
+                                "fontWeight": 400,
+                                "lineHeight": 1.45,
+                                "paddingTop": 8,
+                                "paddingLeft": 10,
+                                "paddingRight": 10,
+                                "paddingBottom": 8,
+                                "backgroundColor": "#1a3a8c"
+                              }
+                            }
+                          ]
+                        },
+                        {
+                          "type": "cell",
+                          "style": {
+                            "color": "#ffffff",
+                            "fontSize": 9,
+                            "textAlign": "right",
+                            "fontFamily": "Lato",
+                            "fontWeight": 400,
+                            "lineHeight": 1.45,
+                            "paddingTop": 8,
+                            "paddingLeft": 10,
+                            "paddingRight": 10,
+                            "paddingBottom": 8,
+                            "backgroundColor": "#1a3a8c"
+                          },
+                          "tokens": {
+                            "backgroundColor": "accent"
+                          },
+                          "colSpan": 1,
+                          "children": [
+                            {
+                              "type": "text",
+                              "spans": [
+                                {
+                                  "value": {
+                                    "kind": "literal",
+                                    "text": "Rate"
+                                  }
+                                }
+                              ],
+                              "style": {
+                                "color": "#ffffff",
+                                "fontSize": 9,
+                                "textAlign": "right",
+                                "fontFamily": "Lato",
+                                "fontWeight": 400,
+                                "lineHeight": 1.45,
+                                "paddingTop": 8,
+                                "paddingLeft": 10,
+                                "paddingRight": 10,
+                                "paddingBottom": 8,
+                                "backgroundColor": "#1a3a8c"
+                              }
+                            }
+                          ]
+                        },
+                        {
+                          "type": "cell",
+                          "style": {
+                            "color": "#ffffff",
+                            "fontSize": 9,
+                            "textAlign": "right",
+                            "fontFamily": "Lato",
+                            "fontWeight": 400,
+                            "lineHeight": 1.45,
+                            "paddingTop": 8,
+                            "paddingLeft": 10,
+                            "paddingRight": 10,
+                            "paddingBottom": 8,
+                            "backgroundColor": "#1a3a8c"
+                          },
+                          "tokens": {
+                            "backgroundColor": "accent"
+                          },
+                          "colSpan": 1,
+                          "children": [
+                            {
+                              "type": "text",
+                              "spans": [
+                                {
+                                  "value": {
+                                    "kind": "literal",
+                                    "text": "Amount"
+                                  }
+                                }
+                              ],
+                              "style": {
+                                "color": "#ffffff",
+                                "fontSize": 9,
+                                "textAlign": "right",
+                                "fontFamily": "Lato",
+                                "fontWeight": 400,
+                                "lineHeight": 1.45,
+                                "paddingTop": 8,
+                                "paddingLeft": 10,
+                                "paddingRight": 10,
+                                "paddingBottom": 8,
+                                "backgroundColor": "#1a3a8c"
+                              }
+                            }
+                          ]
+                        }
+                      ],
+                      "style": {
+                        "color": "#1a1a1a",
+                        "fontSize": 9,
+                        "fontFamily": "Lato",
+                        "lineHeight": 1.45
+                      }
+                    }
+                  ],
+                  "columns": [
+                    {
+                      "width": "auto"
+                    },
+                    {
+                      "width": "auto"
+                    },
+                    {
+                      "width": "auto"
+                    },
+                    {
+                      "width": "auto"
+                    }
+                  ]
+                }
+              },
+              {
+                "path": "line_items",
+                "type": "conditional",
+                "child": {
+                  "type": "box",
+                  "style": {
+                    "color": "#1a1a1a",
+                    "fontSize": 9,
+                    "marginTop": 8,
+                    "textAlign": "center",
+                    "fontFamily": "Lato",
+                    "lineHeight": 1.45,
+                    "paddingTop": 14,
+                    "paddingLeft": 14,
+                    "borderRadius": 5,
+                    "paddingRight": 14,
+                    "paddingBottom": 14,
+                    "borderTopColor": "#a8a8a8",
+                    "borderTopStyle": "dashed",
+                    "borderTopWidth": 1.5,
+                    "borderLeftColor": "#a8a8a8",
+                    "borderLeftStyle": "dashed",
+                    "borderLeftWidth": 1.5,
+                    "borderRightColor": "#a8a8a8",
+                    "borderRightStyle": "dashed",
+                    "borderRightWidth": 1.5,
+                    "borderBottomColor": "#a8a8a8",
+                    "borderBottomStyle": "dashed",
+                    "borderBottomWidth": 1.5
+                  },
+                  "children": [
+                    {
+                      "type": "box",
+                      "style": {
+                        "color": "#a8a8a8",
+                        "fontSize": 9,
+                        "textAlign": "center",
+                        "fontFamily": "Lato",
+                        "lineHeight": 1.45
+                      },
+                      "children": [
+                        {
+                          "type": "text",
+                          "spans": [
+                            {
+                              "value": {
+                                "kind": "literal",
+                                "text": "+ Add an item"
+                              }
+                            }
+                          ],
+                          "style": {
+                            "color": "#a8a8a8",
+                            "fontSize": 9,
+                            "textAlign": "center",
+                            "fontFamily": "Lato",
+                            "lineHeight": 1.45
+                          }
+                        }
+                      ]
+                    }
+                  ],
+                  "editorOnly": true
+                },
+                "negate": true
+              }
+            ]
+          },
+          {
+            "type": "box",
+            "style": {
+              "color": "#1a1a1a",
+              "display": "flex",
+              "fontSize": 9,
+              "fontFamily": "Lato",
+              "lineHeight": 1.45,
+              "borderTopColor": "#1a1a1a",
+              "borderTopStyle": "solid",
+              "borderTopWidth": 1
+            },
+            "children": [
+              {
+                "type": "box",
+                "style": {
+                  "color": "#1a1a1a",
+                  "width": "58%",
+                  "fontSize": 9,
+                  "fontFamily": "Lato",
+                  "lineHeight": 1.45
+                },
+                "children": [
+                  {
+                    "type": "box",
+                    "style": {
+                      "color": "#1a1a1a",
+                      "fontSize": 9,
+                      "fontFamily": "Lato",
+                      "lineHeight": 1.45,
+                      "paddingTop": 14,
+                      "paddingLeft": 16,
+                      "paddingRight": 16,
+                      "paddingBottom": 22
+                    },
+                    "children": [
+                      {
+                        "type": "box",
+                        "style": {
+                          "color": "#6f6f6f",
+                          "fontSize": 9,
+                          "fontFamily": "Lato",
+                          "lineHeight": 1.45,
+                          "marginBottom": 16
+                        },
+                        "section": "notes",
+                        "children": [
+                          {
+                            "type": "text",
+                            "spans": [
+                              {
+                                "value": {
+                                  "kind": "bind",
+                                  "path": "notes",
+                                  "format": "text",
+                                  "fallback": "Thanks for shopping with us."
+                                }
+                              }
+                            ],
+                            "style": {
+                              "color": "#6f6f6f",
+                              "fontSize": 9,
+                              "fontFamily": "Lato",
+                              "lineHeight": 1.45,
+                              "marginBottom": 16
+                            }
+                          }
+                        ]
+                      },
+                      {
+                        "type": "box",
+                        "style": {
+                          "color": "#1a1a1a",
+                          "fontSize": 9,
+                          "fontFamily": "Lato",
+                          "lineHeight": 1.45,
+                          "marginBottom": 16
+                        },
+                        "section": "terms",
+                        "children": [
+                          {
+                            "type": "box",
+                            "style": {
+                              "color": "#1a1a1a",
+                              "fontSize": 10.5,
+                              "fontFamily": "Lato",
+                              "lineHeight": 1.45,
+                              "marginBottom": 3
+                            },
+                            "children": [
+                              {
+                                "type": "text",
+                                "spans": [
+                                  {
+                                    "value": {
+                                      "kind": "literal",
+                                      "text": "Terms & Conditions"
+                                    }
+                                  }
+                                ],
+                                "style": {
+                                  "color": "#1a1a1a",
+                                  "fontSize": 10.5,
+                                  "fontFamily": "Lato",
+                                  "lineHeight": 1.45,
+                                  "marginBottom": 3
+                                }
+                              }
+                            ]
+                          },
+                          {
+                            "type": "box",
+                            "style": {
+                              "color": "#6f6f6f",
+                              "fontSize": 8.5,
+                              "fontFamily": "Lato",
+                              "lineHeight": 1.55
+                            },
+                            "children": [
+                              {
+                                "type": "text",
+                                "spans": [
+                                  {
+                                    "value": {
+                                      "kind": "bind",
+                                      "path": "terms",
+                                      "format": "text",
+                                      "fallback": "Full payment is due upon receipt of this invoice. Late payments may incur additional charges or interest as per the applicable laws."
+                                    }
+                                  }
+                                ],
+                                "style": {
+                                  "color": "#6f6f6f",
+                                  "fontSize": 8.5,
+                                  "fontFamily": "Lato",
+                                  "lineHeight": 1.55
+                                }
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "type": "box",
+                        "style": {
+                          "color": "#1a1a1a",
+                          "fontSize": 9,
+                          "fontFamily": "Lato",
+                          "lineHeight": 1.45
+                        },
+                        "section": "payment",
+                        "children": [
+                          {
+                            "type": "box",
+                            "style": {
+                              "color": "#1a1a1a",
+                              "fontSize": 10.5,
+                              "fontFamily": "Lato",
+                              "lineHeight": 1.45,
+                              "marginBottom": 3
+                            },
+                            "children": [
+                              {
+                                "type": "text",
+                                "spans": [
+                                  {
+                                    "value": {
+                                      "kind": "literal",
+                                      "text": "Payment Details"
+                                    }
+                                  }
+                                ],
+                                "style": {
+                                  "color": "#1a1a1a",
+                                  "fontSize": 10.5,
+                                  "fontFamily": "Lato",
+                                  "lineHeight": 1.45,
+                                  "marginBottom": 3
+                                }
+                              }
+                            ]
+                          },
+                          {
+                            "type": "box",
+                            "style": {
+                              "color": "#1a1a1a",
+                              "fontSize": 9,
+                              "fontFamily": "Lato",
+                              "lineHeight": 1.45
+                            },
+                            "children": [
+                              {
+                                "path": "company_bank_account_number",
+                                "type": "conditional",
+                                "child": {
+                                  "type": "box",
+                                  "style": {
+                                    "color": "#1a1a1a",
+                                    "fontSize": 9,
+                                    "fontFamily": "Lato",
+                                    "lineHeight": 1.45
+                                  },
+                                  "children": [
+                                    {
+                                      "type": "box",
+                                      "style": {
+                                        "color": "#1a1a1a",
+                                        "display": "flex",
+                                        "fontSize": 9,
+                                        "fontFamily": "Lato",
+                                        "lineHeight": 1.45,
+                                        "marginBottom": 1.5
+                                      },
+                                      "children": [
+                                        {
+                                          "type": "box",
+                                          "style": {
+                                            "color": "#6f6f6f",
+                                            "width": 72,
+                                            "fontSize": 8.5,
+                                            "fontFamily": "Lato",
+                                            "lineHeight": 1.45
+                                          },
+                                          "children": [
+                                            {
+                                              "type": "text",
+                                              "spans": [
+                                                {
+                                                  "value": {
+                                                    "kind": "literal",
+                                                    "text": "A/C Name"
+                                                  }
+                                                }
+                                              ],
+                                              "style": {
+                                                "color": "#6f6f6f",
+                                                "width": 72,
+                                                "fontSize": 8.5,
+                                                "fontFamily": "Lato",
+                                                "lineHeight": 1.45
+                                              }
+                                            }
+                                          ]
+                                        },
+                                        {
+                                          "path": "company_bank_account_name",
+                                          "type": "conditional",
+                                          "child": {
+                                            "type": "box",
+                                            "style": {
+                                              "color": "#1a1a1a",
+                                              "fontSize": 8.5,
+                                              "fontFamily": "Lato",
+                                              "lineHeight": 1.45
+                                            },
+                                            "children": [
+                                              {
+                                                "type": "text",
+                                                "spans": [
+                                                  {
+                                                    "value": {
+                                                      "kind": "bind",
+                                                      "path": "company_bank_account_name",
+                                                      "format": "text",
+                                                      "fallback": ""
+                                                    }
+                                                  }
+                                                ],
+                                                "style": {
+                                                  "color": "#1a1a1a",
+                                                  "fontSize": 8.5,
+                                                  "fontFamily": "Lato",
+                                                  "lineHeight": 1.45
+                                                }
+                                              }
+                                            ]
+                                          }
+                                        },
+                                        {
+                                          "path": "company_bank_account_name",
+                                          "type": "conditional",
+                                          "child": {
+                                            "type": "box",
+                                            "style": {
+                                              "color": "#1a1a1a",
+                                              "fontSize": 8.5,
+                                              "fontFamily": "Lato",
+                                              "lineHeight": 1.45
+                                            },
+                                            "children": [
+                                              {
+                                                "type": "text",
+                                                "spans": [
+                                                  {
+                                                    "value": {
+                                                      "kind": "bind",
+                                                      "path": "company_name",
+                                                      "format": "text",
+                                                      "fallback": ""
+                                                    }
+                                                  }
+                                                ],
+                                                "style": {
+                                                  "color": "#1a1a1a",
+                                                  "fontSize": 8.5,
+                                                  "fontFamily": "Lato",
+                                                  "lineHeight": 1.45
+                                                }
+                                              }
+                                            ]
+                                          },
+                                          "negate": true
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "type": "box",
+                                      "style": {
+                                        "color": "#1a1a1a",
+                                        "display": "flex",
+                                        "fontSize": 9,
+                                        "fontFamily": "Lato",
+                                        "lineHeight": 1.45,
+                                        "marginBottom": 1.5
+                                      },
+                                      "children": [
+                                        {
+                                          "type": "box",
+                                          "style": {
+                                            "color": "#6f6f6f",
+                                            "width": 72,
+                                            "fontSize": 8.5,
+                                            "fontFamily": "Lato",
+                                            "lineHeight": 1.45
+                                          },
+                                          "children": [
+                                            {
+                                              "type": "text",
+                                              "spans": [
+                                                {
+                                                  "value": {
+                                                    "kind": "literal",
+                                                    "text": "A/C Number"
+                                                  }
+                                                }
+                                              ],
+                                              "style": {
+                                                "color": "#6f6f6f",
+                                                "width": 72,
+                                                "fontSize": 8.5,
+                                                "fontFamily": "Lato",
+                                                "lineHeight": 1.45
+                                              }
+                                            }
+                                          ]
+                                        },
+                                        {
+                                          "type": "box",
+                                          "style": {
+                                            "color": "#1a1a1a",
+                                            "fontSize": 8.5,
+                                            "fontFamily": "Lato",
+                                            "lineHeight": 1.45
+                                          },
+                                          "children": [
+                                            {
+                                              "type": "text",
+                                              "spans": [
+                                                {
+                                                  "value": {
+                                                    "kind": "bind",
+                                                    "path": "company_bank_account_number",
+                                                    "format": "text",
+                                                    "fallback": ""
+                                                  }
+                                                }
+                                              ],
+                                              "style": {
+                                                "color": "#1a1a1a",
+                                                "fontSize": 8.5,
+                                                "fontFamily": "Lato",
+                                                "lineHeight": 1.45
+                                              }
+                                            }
+                                          ]
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "path": "company_bank_name",
+                                      "type": "conditional",
+                                      "child": {
+                                        "type": "box",
+                                        "style": {
+                                          "color": "#1a1a1a",
+                                          "display": "flex",
+                                          "fontSize": 9,
+                                          "fontFamily": "Lato",
+                                          "lineHeight": 1.45,
+                                          "marginBottom": 1.5
+                                        },
+                                        "children": [
+                                          {
+                                            "type": "box",
+                                            "style": {
+                                              "color": "#6f6f6f",
+                                              "width": 72,
+                                              "fontSize": 8.5,
+                                              "fontFamily": "Lato",
+                                              "lineHeight": 1.45
+                                            },
+                                            "children": [
+                                              {
+                                                "type": "text",
+                                                "spans": [
+                                                  {
+                                                    "value": {
+                                                      "kind": "literal",
+                                                      "text": "Bank"
+                                                    }
+                                                  }
+                                                ],
+                                                "style": {
+                                                  "color": "#6f6f6f",
+                                                  "width": 72,
+                                                  "fontSize": 8.5,
+                                                  "fontFamily": "Lato",
+                                                  "lineHeight": 1.45
+                                                }
+                                              }
+                                            ]
+                                          },
+                                          {
+                                            "type": "box",
+                                            "style": {
+                                              "color": "#1a1a1a",
+                                              "fontSize": 8.5,
+                                              "fontFamily": "Lato",
+                                              "lineHeight": 1.45
+                                            },
+                                            "children": [
+                                              {
+                                                "type": "text",
+                                                "spans": [
+                                                  {
+                                                    "value": {
+                                                      "kind": "bind",
+                                                      "path": "company_bank_name",
+                                                      "format": "text",
+                                                      "fallback": ""
+                                                    }
+                                                  },
+                                                  {
+                                                    "value": {
+                                                      "kind": "literal",
+                                                      "text": " · IFSC "
+                                                    }
+                                                  },
+                                                  {
+                                                    "value": {
+                                                      "kind": "bind",
+                                                      "path": "company_bank_ifsc",
+                                                      "format": "text",
+                                                      "fallback": ""
+                                                    }
+                                                  }
+                                                ],
+                                                "style": {
+                                                  "color": "#1a1a1a",
+                                                  "fontSize": 8.5,
+                                                  "fontFamily": "Lato",
+                                                  "lineHeight": 1.45
+                                                }
+                                              }
+                                            ]
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  ]
+                                }
+                              },
+                              {
+                                "path": "company_upi_id",
+                                "type": "conditional",
+                                "child": {
+                                  "type": "box",
+                                  "style": {
+                                    "color": "#1a1a1a",
+                                    "display": "flex",
+                                    "fontSize": 9,
+                                    "fontFamily": "Lato",
+                                    "lineHeight": 1.45,
+                                    "marginBottom": 1.5
+                                  },
+                                  "children": [
+                                    {
+                                      "type": "box",
+                                      "style": {
+                                        "color": "#6f6f6f",
+                                        "width": 72,
+                                        "fontSize": 8.5,
+                                        "fontFamily": "Lato",
+                                        "lineHeight": 1.45
+                                      },
+                                      "children": [
+                                        {
+                                          "type": "text",
+                                          "spans": [
+                                            {
+                                              "value": {
+                                                "kind": "literal",
+                                                "text": "UPI"
+                                              }
+                                            }
+                                          ],
+                                          "style": {
+                                            "color": "#6f6f6f",
+                                            "width": 72,
+                                            "fontSize": 8.5,
+                                            "fontFamily": "Lato",
+                                            "lineHeight": 1.45
+                                          }
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "type": "box",
+                                      "style": {
+                                        "color": "#1a1a1a",
+                                        "fontSize": 8.5,
+                                        "fontFamily": "Lato",
+                                        "lineHeight": 1.45
+                                      },
+                                      "children": [
+                                        {
+                                          "type": "text",
+                                          "spans": [
+                                            {
+                                              "value": {
+                                                "kind": "bind",
+                                                "path": "company_upi_id",
+                                                "format": "text",
+                                                "fallback": ""
+                                              }
+                                            }
+                                          ],
+                                          "style": {
+                                            "color": "#1a1a1a",
+                                            "fontSize": 8.5,
+                                            "fontFamily": "Lato",
+                                            "lineHeight": 1.45
+                                          }
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                }
+                              }
+                            ]
+                          },
+                          {
+                            "path": "company_bank_account_number",
+                            "type": "conditional",
+                            "child": {
+                              "type": "box",
+                              "style": {
+                                "color": "#1a1a1a",
+                                "fontSize": 9,
+                                "marginTop": 8,
+                                "textAlign": "center",
+                                "fontFamily": "Lato",
+                                "lineHeight": 1.45,
+                                "paddingTop": 14,
+                                "paddingLeft": 14,
+                                "borderRadius": 5,
+                                "paddingRight": 14,
+                                "paddingBottom": 14,
+                                "borderTopColor": "#a8a8a8",
+                                "borderTopStyle": "dashed",
+                                "borderTopWidth": 1.5,
+                                "borderLeftColor": "#a8a8a8",
+                                "borderLeftStyle": "dashed",
+                                "borderLeftWidth": 1.5,
+                                "borderRightColor": "#a8a8a8",
+                                "borderRightStyle": "dashed",
+                                "borderRightWidth": 1.5,
+                                "borderBottomColor": "#a8a8a8",
+                                "borderBottomStyle": "dashed",
+                                "borderBottomWidth": 1.5
+                              },
+                              "children": [
+                                {
+                                  "type": "box",
+                                  "style": {
+                                    "color": "#a8a8a8",
+                                    "fontSize": 9,
+                                    "textAlign": "center",
+                                    "fontFamily": "Lato",
+                                    "lineHeight": 1.45
+                                  },
+                                  "children": [
+                                    {
+                                      "type": "text",
+                                      "spans": [
+                                        {
+                                          "value": {
+                                            "kind": "literal",
+                                            "text": "+ Add payment details"
+                                          }
+                                        }
+                                      ],
+                                      "style": {
+                                        "color": "#a8a8a8",
+                                        "fontSize": 9,
+                                        "textAlign": "center",
+                                        "fontFamily": "Lato",
+                                        "lineHeight": 1.45
+                                      }
+                                    }
+                                  ]
+                                }
+                              ],
+                              "editorOnly": true
+                            },
+                            "negate": true
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "type": "box",
+                "style": {
+                  "color": "#1a1a1a",
+                  "width": "42%",
+                  "fontSize": 9,
+                  "fontFamily": "Lato",
+                  "lineHeight": 1.45
+                },
+                "children": [
+                  {
+                    "type": "box",
+                    "style": {
+                      "color": "#1a1a1a",
+                      "fontSize": 9,
+                      "fontFamily": "Lato",
+                      "lineHeight": 1.45,
+                      "paddingTop": 12,
+                      "paddingLeft": 16,
+                      "paddingRight": 16,
+                      "paddingBottom": 12,
+                      "backgroundColor": "#aec8f2"
+                    },
+                    "tokens": {
+                      "backgroundColor": "secondary"
+                    },
+                    "section": "totals",
+                    "children": [
+                      {
+                        "path": "discount_total",
+                        "type": "conditional",
+                        "child": {
+                          "type": "box",
+                          "style": {
+                            "color": "#1a1a1a",
+                            "display": "flex",
+                            "fontSize": 9,
+                            "fontFamily": "Lato",
+                            "lineHeight": 1.45,
+                            "marginBottom": 5,
+                            "justifyContent": "space-between"
+                          },
+                          "children": [
+                            {
+                              "type": "box",
+                              "style": {
+                                "color": "#1a1a1a",
+                                "fontSize": 10,
+                                "fontFamily": "Lato",
+                                "fontWeight": 700,
+                                "lineHeight": 1.45
+                              },
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "spans": [
+                                    {
+                                      "value": {
+                                        "kind": "literal",
+                                        "text": "Discount"
+                                      }
+                                    }
+                                  ],
+                                  "style": {
+                                    "color": "#1a1a1a",
+                                    "fontSize": 10,
+                                    "fontFamily": "Lato",
+                                    "fontWeight": 700,
+                                    "lineHeight": 1.45
+                                  }
+                                }
+                              ]
+                            },
+                            {
+                              "type": "box",
+                              "style": {
+                                "color": "#1a1a1a",
+                                "fontSize": 10,
+                                "fontFamily": "Lato",
+                                "fontWeight": 700,
+                                "lineHeight": 1.45
+                              },
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "spans": [
+                                    {
+                                      "value": {
+                                        "kind": "bind",
+                                        "path": "discount_total",
+                                        "format": "currency",
+                                        "fallback": ""
+                                      }
+                                    }
+                                  ],
+                                  "style": {
+                                    "color": "#1a1a1a",
+                                    "fontSize": 10,
+                                    "fontFamily": "Lato",
+                                    "fontWeight": 700,
+                                    "lineHeight": 1.45
+                                  }
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "type": "box",
+                        "style": {
+                          "color": "#1a1a1a",
+                          "display": "flex",
+                          "fontSize": 9,
+                          "fontFamily": "Lato",
+                          "lineHeight": 1.45,
+                          "marginBottom": 5,
+                          "justifyContent": "space-between"
+                        },
+                        "children": [
+                          {
+                            "type": "box",
+                            "style": {
+                              "color": "#1a1a1a",
+                              "fontSize": 10,
+                              "fontFamily": "Lato",
+                              "fontWeight": 700,
+                              "lineHeight": 1.45
+                            },
+                            "children": [
+                              {
+                                "type": "text",
+                                "spans": [
+                                  {
+                                    "value": {
+                                      "kind": "literal",
+                                      "text": "Tax"
+                                    }
+                                  }
+                                ],
+                                "style": {
+                                  "color": "#1a1a1a",
+                                  "fontSize": 10,
+                                  "fontFamily": "Lato",
+                                  "fontWeight": 700,
+                                  "lineHeight": 1.45
+                                }
+                              }
+                            ]
+                          },
+                          {
+                            "type": "box",
+                            "style": {
+                              "color": "#1a1a1a",
+                              "fontSize": 10,
+                              "fontFamily": "Lato",
+                              "fontWeight": 700,
+                              "lineHeight": 1.45
+                            },
+                            "children": [
+                              {
+                                "type": "text",
+                                "spans": [
+                                  {
+                                    "value": {
+                                      "kind": "bind",
+                                      "path": "tax_total",
+                                      "format": "currency",
+                                      "fallback": ""
+                                    }
+                                  }
+                                ],
+                                "style": {
+                                  "color": "#1a1a1a",
+                                  "fontSize": 10,
+                                  "fontFamily": "Lato",
+                                  "fontWeight": 700,
+                                  "lineHeight": 1.45
+                                }
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "type": "box",
+                        "style": {
+                          "color": "#1a1a1a",
+                          "display": "flex",
+                          "fontSize": 9,
+                          "fontFamily": "Lato",
+                          "lineHeight": 1.45,
+                          "marginBottom": 5,
+                          "justifyContent": "space-between"
+                        },
+                        "children": [
+                          {
+                            "type": "box",
+                            "style": {
+                              "color": "#1a1a1a",
+                              "fontSize": 10,
+                              "fontFamily": "Lato",
+                              "fontWeight": 700,
+                              "lineHeight": 1.45
+                            },
+                            "children": [
+                              {
+                                "type": "text",
+                                "spans": [
+                                  {
+                                    "value": {
+                                      "kind": "literal",
+                                      "text": "Total"
+                                    }
+                                  }
+                                ],
+                                "style": {
+                                  "color": "#1a1a1a",
+                                  "fontSize": 10,
+                                  "fontFamily": "Lato",
+                                  "fontWeight": 700,
+                                  "lineHeight": 1.45
+                                }
+                              }
+                            ]
+                          },
+                          {
+                            "type": "box",
+                            "style": {
+                              "color": "#1a1a1a",
+                              "fontSize": 10,
+                              "fontFamily": "Lato",
+                              "fontWeight": 700,
+                              "lineHeight": 1.45
+                            },
+                            "children": [
+                              {
+                                "type": "text",
+                                "spans": [
+                                  {
+                                    "value": {
+                                      "kind": "bind",
+                                      "path": "grand_total",
+                                      "format": "currency",
+                                      "fallback": ""
+                                    }
+                                  }
+                                ],
+                                "style": {
+                                  "color": "#1a1a1a",
+                                  "fontSize": 10,
+                                  "fontFamily": "Lato",
+                                  "fontWeight": 700,
+                                  "lineHeight": 1.45
+                                }
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "type": "box",
+                        "style": {
+                          "color": "#1a1a1a",
+                          "display": "flex",
+                          "fontSize": 9,
+                          "fontFamily": "Lato",
+                          "lineHeight": 1.45,
+                          "marginBottom": 5,
+                          "justifyContent": "space-between"
+                        },
+                        "children": [
+                          {
+                            "type": "box",
+                            "style": {
+                              "color": "#1a1a1a",
+                              "fontSize": 10,
+                              "fontFamily": "Lato",
+                              "fontWeight": 700,
+                              "lineHeight": 1.45
+                            },
+                            "children": [
+                              {
+                                "type": "text",
+                                "spans": [
+                                  {
+                                    "value": {
+                                      "kind": "literal",
+                                      "text": "Balance Due"
+                                    }
+                                  }
+                                ],
+                                "style": {
+                                  "color": "#1a1a1a",
+                                  "fontSize": 10,
+                                  "fontFamily": "Lato",
+                                  "fontWeight": 700,
+                                  "lineHeight": 1.45
+                                }
+                              }
+                            ]
+                          },
+                          {
+                            "type": "box",
+                            "style": {
+                              "color": "#1a1a1a",
+                              "fontSize": 10,
+                              "fontFamily": "Lato",
+                              "fontWeight": 700,
+                              "lineHeight": 1.45
+                            },
+                            "children": [
+                              {
+                                "type": "text",
+                                "spans": [
+                                  {
+                                    "value": {
+                                      "kind": "bind",
+                                      "path": "grand_total",
+                                      "format": "currency",
+                                      "fallback": ""
+                                    }
+                                  }
+                                ],
+                                "style": {
+                                  "color": "#1a1a1a",
+                                  "fontSize": 10,
+                                  "fontFamily": "Lato",
+                                  "fontWeight": 700,
+                                  "lineHeight": 1.45
+                                }
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "theme": {
+    "tokens": {
+      "accent": {
+        "label": "Accent",
+        "default": "#1a3a8c"
+      },
+      "secondary": {
+        "label": "Secondary",
+        "default": "#aec8f2"
+      }
+    }
+  },
+  "sections": [
+    {
+      "id": "header",
+      "label": "Invoice details",
+      "fields": [
+        {
+          "id": "invoice_number",
+          "type": "invoice_number",
+          "label": "Invoice number",
+          "owner": "invoice"
+        },
+        {
+          "id": "invoice_date",
+          "type": "date",
+          "label": "Invoice date",
+          "owner": "invoice",
+          "default": {
+            "kind": "today"
+          }
+        },
+        {
+          "id": "due_date",
+          "type": "due_date",
+          "label": "Due date",
+          "owner": "invoice",
+          "default": {
+            "id": "settings_default_due_days",
+            "kind": "setting"
+          },
+          "presets": [
+            0,
+            7,
+            15,
+            30,
+            45
+          ],
+          "remember": true,
+          "relativeTo": "invoice_date"
+        }
+      ],
+      "hidable": false
+    },
+    {
+      "id": "business",
+      "label": "Your business",
+      "fields": [
+        {
+          "id": "company_logo",
+          "type": "image",
+          "label": "Logo",
+          "owner": "company"
+        },
+        {
+          "id": "company_name",
+          "type": "text",
+          "label": "Business name",
+          "owner": "company"
+        },
+        {
+          "id": "company_address_line1",
+          "type": "text",
+          "label": "Address line 1",
+          "owner": "company"
+        },
+        {
+          "id": "company_address_line2",
+          "type": "text",
+          "label": "Address line 2",
+          "owner": "company"
+        },
+        {
+          "id": "company_city",
+          "type": "text",
+          "label": "City",
+          "owner": "company"
+        },
+        {
+          "id": "company_state",
+          "type": "select",
+          "label": "State",
+          "owner": "company",
+          "options": "indian_states"
+        },
+        {
+          "id": "company_pincode",
+          "type": "pincode",
+          "label": "PIN code",
+          "owner": "company"
+        },
+        {
+          "id": "company_gstin",
+          "type": "gstin",
+          "label": "GSTIN",
+          "owner": "company"
+        }
+      ],
+      "hidable": false
+    },
+    {
+      "id": "parties",
+      "label": "Bill to",
+      "fields": [
+        {
+          "id": "customer",
+          "type": "customer",
+          "label": "Customer",
+          "owner": "invoice"
+        },
+        {
+          "id": "customer_name",
+          "type": "text",
+          "label": "Customer name",
+          "owner": "customer"
+        },
+        {
+          "id": "customer_address_line1",
+          "type": "text",
+          "label": "Address line 1",
+          "owner": "customer"
+        },
+        {
+          "id": "customer_address_line2",
+          "type": "text",
+          "label": "Address line 2",
+          "owner": "customer"
+        },
+        {
+          "id": "customer_city",
+          "type": "text",
+          "label": "City",
+          "owner": "customer"
+        },
+        {
+          "id": "customer_state",
+          "type": "select",
+          "label": "State",
+          "owner": "customer",
+          "options": "indian_states"
+        },
+        {
+          "id": "customer_pincode",
+          "type": "pincode",
+          "label": "PIN code",
+          "owner": "customer"
+        },
+        {
+          "id": "customer_gstin",
+          "type": "gstin",
+          "label": "GSTIN",
+          "owner": "customer"
+        }
+      ],
+      "hidable": false
+    },
+    {
+      "id": "items",
+      "label": "Items",
+      "fields": [
+        {
+          "id": "line_items",
+          "type": "line_items",
+          "label": "Items",
+          "owner": "invoice",
+          "columns": [
+            {
+              "id": "description",
+              "type": "text",
+              "label": "Item & description",
+              "owner": "line"
+            },
+            {
+              "id": "hsn_sac",
+              "type": "hsn_sac",
+              "label": "HSN/SAC",
+              "owner": "line"
+            },
+            {
+              "id": "quantity",
+              "min": 0,
+              "type": "number",
+              "label": "Qty",
+              "owner": "line",
+              "default": {
+                "kind": "value",
+                "value": "1"
+              }
+            },
+            {
+              "id": "unit_price",
+              "type": "money",
+              "label": "Rate",
+              "owner": "line"
+            },
+            {
+              "id": "tax_rate",
+              "type": "number",
+              "label": "GST %",
+              "owner": "line",
+              "default": {
+                "id": "settings_default_tax_rate",
+                "kind": "setting"
+              }
+            },
+            {
+              "id": "line_total",
+              "type": "computed",
+              "label": "Amount",
+              "owner": "line_computed",
+              "format": "currency"
+            }
+          ]
+        }
+      ],
+      "hidable": false
+    },
+    {
+      "id": "totals",
+      "label": "Total",
+      "fields": [
+        {
+          "id": "discount",
+          "type": "discount",
+          "label": "Discount",
+          "owner": "invoice"
+        },
+        {
+          "id": "grand_total",
+          "type": "computed",
+          "label": "Total",
+          "owner": "computed",
+          "format": "currency"
+        }
+      ],
+      "hidable": false
+    },
+    {
+      "id": "notes",
+      "label": "Notes",
+      "fields": [
+        {
+          "id": "notes",
+          "type": "multiline",
+          "label": "Notes",
+          "owner": "invoice",
+          "default": {
+            "id": "settings_default_notes",
+            "kind": "setting"
+          },
+          "placeholder": "Thanks for shopping with us."
+        }
+      ],
+      "hidable": true
+    },
+    {
+      "id": "payment",
+      "label": "Payment details",
+      "fields": [
+        {
+          "id": "company_bank_account_number",
+          "type": "text",
+          "label": "Account number",
+          "owner": "company"
+        },
+        {
+          "id": "company_bank_account_name",
+          "type": "text",
+          "label": "Account name",
+          "owner": "company"
+        },
+        {
+          "id": "company_bank_name",
+          "type": "text",
+          "label": "Bank name",
+          "owner": "company"
+        },
+        {
+          "id": "company_bank_ifsc",
+          "type": "ifsc",
+          "label": "IFSC",
+          "owner": "company"
+        },
+        {
+          "id": "company_upi_id",
+          "type": "upi_id",
+          "label": "UPI ID",
+          "owner": "company"
+        }
+      ],
+      "hidable": true
+    },
+    {
+      "id": "terms",
+      "label": "Terms & conditions",
+      "fields": [
+        {
+          "id": "terms",
+          "type": "multiline",
+          "label": "Terms & conditions",
+          "owner": "invoice",
+          "default": {
+            "id": "settings_default_terms",
+            "kind": "setting"
+          },
+          "remember": true
+        }
+      ],
+      "hidable": true
+    }
+  ],
+  "customisation": [
+    {
+      "type": "template",
+      "title": "Template"
+    },
+    {
+      "type": "color",
+      "title": "Brand colour",
+      "token": "accent"
+    },
+    {
+      "type": "color",
+      "title": "Totals panel",
+      "token": "secondary"
+    },
+    {
+      "type": "section",
+      "title": "Payment info",
+      "section": "payment"
+    },
+    {
+      "type": "section",
+      "title": "Notes",
+      "section": "notes"
+    },
+    {
+      "type": "section",
+      "title": "Terms",
+      "section": "terms"
+    }
+  ],
+  "schemaVersion": 2,
+  "compilerVersion": 2
+}

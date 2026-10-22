@@ -32,11 +32,18 @@ class FakeTextShaper(
         fun flush() {
             if (current.isEmpty()) return
             val trimmed = current.dropLastWhile { it.isSpace }
-            var x = 0f
+            val lineWidth = trimmed.sumOf { it.width.toDouble() }.toFloat()
+            // As on a device: an aligned line moves within the whole width it was given.
+            val free = if (maxWidthPt.isFinite()) (maxWidthPt - lineWidth).coerceAtLeast(0f) else 0f
+            var x = when (paragraphStyle.align) {
+                TextAlignment.Right -> free
+                TextAlignment.Center -> free / 2f
+                TextAlignment.Left, TextAlignment.Justify -> 0f
+            }
             val shaped = trimmed.map { piece ->
                 ShapedRun(piece.text, piece.style, x, piece.width).also { x += piece.width }
             }
-            widest = maxOf(widest, x)
+            widest = maxOf(widest, lineWidth)
             lines += ShapedLine(
                 runs = mergeAdjacent(shaped),
                 topPt = lines.size * lineHeight,

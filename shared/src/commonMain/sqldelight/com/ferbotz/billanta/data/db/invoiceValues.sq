@@ -1,0 +1,84 @@
+-- Invoices as values maps (BE-021): the invoice's own fields plus its complete copy of the company
+-- and customer values, all in `valuesJson`. `computedJson` caches the totals: ours until a sync,
+-- then the server's. The columns after `pdfPath` are derived from those on every write, for lists,
+-- search and cards; nothing reads a field id from a column of its own.
+CREATE TABLE invoiceValues (
+    id TEXT NOT NULL PRIMARY KEY,
+    status TEXT NOT NULL,
+    templateId TEXT,
+    templateVersion INTEGER,
+    valuesJson TEXT NOT NULL,
+    computedJson TEXT NOT NULL,
+    hiddenSectionsJson TEXT,
+    themeOverridesJson TEXT,
+    pdfPath TEXT,
+    invoiceNumber TEXT NOT NULL,
+    invoiceDate TEXT,
+    customerId TEXT,
+    customerName TEXT,
+    searchText TEXT NOT NULL,
+    grandTotal INTEGER NOT NULL,
+    lineCount INTEGER NOT NULL,
+    firstLineDescription TEXT,
+    createdAtMillis INTEGER,
+    updatedAtMillis INTEGER NOT NULL,
+    deletedAtMillis INTEGER,
+    dirty INTEGER NOT NULL DEFAULT 0,
+    syncError TEXT
+);
+
+CREATE INDEX idx_invoice_values_dirty ON invoiceValues(dirty);
+CREATE INDEX idx_invoice_values_customer ON invoiceValues(customerId);
+CREATE INDEX idx_invoice_values_date ON invoiceValues(invoiceDate);
+
+upsert:
+INSERT OR REPLACE INTO invoiceValues(
+    id, status, templateId, templateVersion, valuesJson, computedJson, hiddenSectionsJson,
+    themeOverridesJson, pdfPath, invoiceNumber, invoiceDate, customerId, customerName, searchText,
+    grandTotal, lineCount, firstLineDescription, createdAtMillis, updatedAtMillis, deletedAtMillis,
+    dirty, syncError
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+byId:
+SELECT * FROM invoiceValues WHERE id = ? AND deletedAtMillis IS NULL;
+
+byIdIncludingDeleted:
+SELECT * FROM invoiceValues WHERE id = ?;
+
+list:
+SELECT * FROM invoiceValues
+WHERE deletedAtMillis IS NULL AND (:q = '' OR searchText LIKE '%' || lower(:q) || '%')
+ORDER BY invoiceDate DESC, createdAtMillis DESC;
+
+drafts:
+SELECT * FROM invoiceValues WHERE deletedAtMillis IS NULL AND status = 'Draft';
+
+-- instr() = 1 is "starts with", without LIKE's wildcards: a prefix such as "INV_" must match itself.
+numbersStartingWith:
+SELECT invoiceNumber FROM invoiceValues
+WHERE deletedAtMillis IS NULL AND instr(invoiceNumber, :prefix) = 1;
+
+numberInUse:
+SELECT COUNT(*) FROM invoiceValues
+WHERE deletedAtMillis IS NULL AND invoiceNumber = ? AND invoiceNumber != '' AND id != ?;
+
+dirtyRows:
+SELECT * FROM invoiceValues WHERE dirty = 1;
+
+markClean:
+UPDATE invoiceValues SET dirty = 0, syncError = NULL WHERE id = ? AND updatedAtMillis = ?;
+
+setSyncError:
+UPDATE invoiceValues SET syncError = ? WHERE id = ?;
+
+softDelete:
+UPDATE invoiceValues SET deletedAtMillis = ?, updatedAtMillis = ?, dirty = 1 WHERE id = ?;
+
+hardDelete:
+DELETE FROM invoiceValues WHERE id = ?;
+
+clear:
+DELETE FROM invoiceValues;
+
+markAllDirty:
+UPDATE invoiceValues SET dirty = 1, syncError = NULL;

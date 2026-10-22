@@ -15,19 +15,22 @@ import com.ferbotz.billanta.data.api.createAuthedHttpClient
 import com.ferbotz.billanta.data.api.createAuthlessHttpClient
 import com.ferbotz.billanta.data.db.DatabaseDriverFactory
 import com.ferbotz.billanta.data.db.createBillantaDb
-import com.ferbotz.billanta.data.local.CustomerLocalDataSource
-import com.ferbotz.billanta.data.local.InvoiceLocalDataSource
-import com.ferbotz.billanta.data.local.ProductLocalDataSource
+import com.ferbotz.billanta.data.local.CustomerValuesLocal
+import com.ferbotz.billanta.data.local.FormsCacheLocal
+import com.ferbotz.billanta.data.local.InvoiceValuesLocal
+import com.ferbotz.billanta.data.local.ProductValuesLocal
 import com.ferbotz.billanta.data.local.ProfileLocalDataSource
+import com.ferbotz.billanta.data.local.RememberedValuesLocal
+import com.ferbotz.billanta.data.local.SingletonValuesLocal
 import com.ferbotz.billanta.data.local.SyncMetaLocal
 import com.ferbotz.billanta.data.local.TemplateLocalDataSource
-import com.ferbotz.billanta.data.repo.CompanyRepository
-import com.ferbotz.billanta.domain.model.toSnapshot
 import com.ferbotz.billanta.data.repo.CustomerRepository
+import com.ferbotz.billanta.data.repo.FormsRepository
 import com.ferbotz.billanta.data.repo.InvoiceRepository
-import com.ferbotz.billanta.data.repo.MediaRepository
 import com.ferbotz.billanta.data.repo.ProductRepository
-import com.ferbotz.billanta.data.repo.SettingsRepository
+import com.ferbotz.billanta.data.repo.ProfileRepository
+import com.ferbotz.billanta.resources.Res
+import com.ferbotz.billanta.data.repo.MediaRepository
 import com.ferbotz.billanta.data.repo.TemplateRepository
 import com.ferbotz.billanta.data.sync.SyncManager
 import com.ferbotz.billanta.render.paint.InvoiceImageLoader
@@ -87,12 +90,17 @@ class AppContainer(
     val imagePickerCoordinator = ImagePickerCoordinator()
     // ---- storage ----
     private val db = createBillantaDb(driverFactory)
-    private val invoiceLocal = InvoiceLocalDataSource(db, ioDispatcher)
-    private val customerLocal = CustomerLocalDataSource(db, ioDispatcher)
     private val profileLocal = ProfileLocalDataSource(db, ioDispatcher)
     private val templateLocal = TemplateLocalDataSource(db, ioDispatcher)
-    private val productLocal = ProductLocalDataSource(db, ioDispatcher)
     private val syncMetaLocal = SyncMetaLocal(db, ioDispatcher)
+
+    // BE-021: every record is a values map (field id → value).
+    private val singletonValues = SingletonValuesLocal(db, ioDispatcher)
+    private val customerValues = CustomerValuesLocal(db, ioDispatcher)
+    private val productValues = ProductValuesLocal(db, ioDispatcher)
+    private val invoiceValues = InvoiceValuesLocal(db, ioDispatcher)
+    private val rememberedValues = RememberedValuesLocal(db, ioDispatcher)
+    private val formsCache = FormsCacheLocal(db, ioDispatcher)
 
     // ---- identity ----
     /**
@@ -132,11 +140,14 @@ class AppContainer(
 
     // ---- session ----
     private val wipeLocalData: suspend () -> Unit = {
-        invoiceLocal.clearAll()
-        customerLocal.clearAll()
-        productLocal.clearAll()
-        profileLocal.clearProfile()
+        profileLocal.clearAccount()
         syncMetaLocal.clearAll()
+        invoiceValues.clearAll()
+        customerValues.clearAll()
+        productValues.clearAll()
+        singletonValues.clearAll()
+        // Remembered values are this user's typing (a PO number, say): they go with the rest.
+        rememberedValues.clearAll()
     }
 
     /**
@@ -149,10 +160,10 @@ class AppContainer(
      */
     private val reownLocalData: suspend () -> Unit = {
         syncMetaLocal.clearAll()
-        invoiceLocal.markAllDirty()
-        customerLocal.markAllDirty()
-        productLocal.markAllDirty()
-        profileLocal.markProfileDirty()
+        invoiceValues.markAllDirty()
+        customerValues.markAllDirty()
+        productValues.markAllDirty()
+        singletonValues.markAllDirty()
     }
 
     val userManager = UserManager(
@@ -170,33 +181,48 @@ class AppContainer(
         scope = appScope,
         api = api,
         authState = userManager.authState,
-        invoiceLocal = invoiceLocal,
-        customerLocal = customerLocal,
-        productLocal = productLocal,
-        profileLocal = profileLocal,
+        singletons = singletonValues,
+        customers = customerValues,
+        products = productValues,
+        invoices = invoiceValues,
         syncMeta = syncMetaLocal,
         connectivity = connectivity,
         clock = clock,
         onAccountVanished = { userManager.onAccountVanished() },
         syncEnabled = { remoteConfig.current.effectiveFeatures.cloudSync },
-        maxPushBatch = { remoteConfig.current.limits.maxSyncBatchInvoices },
+        limits = { remoteConfig.current.limits },
     )
 
     // ---- repositories ----
     private val onMutation: () -> Unit = { syncManager.requestSync() }
 
-    val invoiceRepository = InvoiceRepository(invoiceLocal, customerLocal, profileLocal, clock, onMutation)
-    val customerRepository = CustomerRepository(customerLocal, clock, onMutation)
-    val productRepository = ProductRepository(productLocal, clock, onMutation)
-    val companyRepository = CompanyRepository(
-        local = profileLocal,
+    val invoiceRepository = InvoiceRepository(
+        invoices = invoiceValues,
+        customers = customerValues,
+        products = productValues,
+        singletons = singletonValues,
+        remembered = rememberedValues,
         clock = clock,
         onLocalMutation = onMutation,
-        onCompanyChanged = { invoiceRepository.restampCompanySnapshot(it.toSnapshot()) },
     )
-    val settingsRepository = SettingsRepository(profileLocal, clock, onMutation)
+    // Drafts copy the profile and their customer, so they follow every change to either.
+    val profileRepository = ProfileRepository(singletonValues, clock, onMutation) {
+        invoiceRepository.refreshDrafts()
+    }
+    val customerRepository = CustomerRepository(customerValues, clock, onMutation) {
+        invoiceRepository.refreshDrafts()
+    }
+    val productRepository = ProductRepository(productValues, clock, onMutation)
     val templateRepository = TemplateRepository(templateLocal, api, clock)
     val mediaRepository = MediaRepository(api)
+
+    /** The four entity forms (BE-021): the bundled copy, then the cache, then `GET /forms`. */
+    val formsRepository = FormsRepository(
+        api = api,
+        cache = formsCache,
+        clock = clock,
+        bundled = { Res.readBytes("files/forms.json").decodeToString() },
+    )
 
     init {
         // Cold start: fetch the config first thing, without waiting on it — the cached document is
@@ -206,6 +232,11 @@ class AppContainer(
             userManager.restore()
             // Warm the template catalogue opportunistically; offline failure is fine.
             templateRepository.refreshCatalogue()
+        }
+        // The forms are public and needed signed out, so they load and revalidate on every cold start.
+        appScope.launch {
+            formsRepository.load()
+            formsRepository.refresh()
         }
         // Sync switched back on (or maintenance over): push what piled up while it was off.
         appScope.launch {

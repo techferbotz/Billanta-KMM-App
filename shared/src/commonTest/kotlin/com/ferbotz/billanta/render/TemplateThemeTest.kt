@@ -1,9 +1,6 @@
 package com.ferbotz.billanta.render
 
-import com.ferbotz.billanta.core.Iso8601
-import com.ferbotz.billanta.domain.model.CompanySnapshot
-import com.ferbotz.billanta.domain.model.CustomerSnapshot
-import com.ferbotz.billanta.domain.model.InvoiceRecord
+import com.ferbotz.billanta.fields.FieldValues
 import com.ferbotz.billanta.render.layout.DrawCommand
 import com.ferbotz.billanta.render.layout.LayoutEngine
 import com.ferbotz.billanta.render.layout.TemplateFlattener
@@ -49,19 +46,16 @@ class TemplateThemeTest {
     }
     """
 
-    private val record = InvoiceRecord(
-        id = "i1",
-        invoiceNumber = "INV-1",
-        invoiceDateMillis = Iso8601.epochMillisFor(2026, 8, 6),
-        currency = "INR",
-        companySnapshot = CompanySnapshot(name = "ACME", stateCode = "27"),
-        customerSnapshot = CustomerSnapshot(name = "Buyer", stateCode = "27"),
-        updatedAtMillis = 1L,
+    /** The tree prints only literals, so any context will do; this one is a plain invoice. */
+    private val context = renderContextOf(
+        values = FieldValues.EMPTY.withString("invoice_number", "INV-1").withString("company_name", "ACME"),
+        lines = emptyList(),
+        totals = emptyMap(),
     )
 
     private fun renderText(theme: InvoiceTheme): String {
         val doc = assertNotNull(TemplateParser.parse(themedTemplate))
-        return InvoiceRenderer(FakeTextShaper()).render(doc, record, theme)
+        return InvoiceRenderer(FakeTextShaper()).render(doc, context, emptyMap(), theme)
             .pages.flatMap { it.commands.flattenCommands() }
             .filterIsInstance<DrawCommand.Text>()
             .flatMap { it.paragraph.lines }
@@ -71,7 +65,7 @@ class TemplateThemeTest {
 
     private fun fills(theme: InvoiceTheme): List<Long> {
         val doc = assertNotNull(TemplateParser.parse(themedTemplate))
-        return InvoiceRenderer(FakeTextShaper()).render(doc, record, theme)
+        return InvoiceRenderer(FakeTextShaper()).render(doc, context, emptyMap(), theme)
             .pages.flatMap { it.commands.flattenCommands() }
             .filterIsInstance<DrawCommand.Fill>()
             .map { it.colorArgb }
@@ -116,7 +110,7 @@ class TemplateThemeTest {
         // Only `accent` is overridden, so the `ink` text colour must not move.
         val doc = assertNotNull(TemplateParser.parse(themedTemplate))
         val runs = InvoiceRenderer(FakeTextShaper())
-            .render(doc, record, InvoiceTheme(colorOverrides = mapOf("accent" to 0xFFC2410CL)))
+            .render(doc, context, emptyMap(), InvoiceTheme(colorOverrides = mapOf("accent" to 0xFFC2410CL)))
             .pages.flatMap { it.commands.flattenCommands() }
             .filterIsInstance<DrawCommand.Text>()
             .flatMap { it.paragraph.lines }

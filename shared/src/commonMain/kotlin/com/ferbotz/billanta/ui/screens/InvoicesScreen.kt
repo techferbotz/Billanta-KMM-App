@@ -34,6 +34,7 @@ import androidx.compose.ui.unit.dp
 import com.ferbotz.billanta.core.Iso8601
 import com.ferbotz.billanta.model.formatPaiseTrimmed
 import com.ferbotz.billanta.state.BillantaState
+import com.ferbotz.billanta.state.invoiceDateMillis
 import com.ferbotz.billanta.state.PreviewRoute
 import com.ferbotz.billanta.theme.BillantaTheme
 import com.ferbotz.billanta.ui.AppIcon
@@ -65,9 +66,9 @@ fun InvoicesScreen(state: BillantaState) {
             } else {
                 // Newest first already, so grouping keeps the order: each month's heading lands
                 // directly above that month's invoices.
-                list.groupBy { Iso8601.monthRange(it.invoiceDateMillis).first }.forEach { (month, invoices) ->
+                list.groupBy { Iso8601.monthRange(it.invoiceDateMillis ?: 0L).first }.forEach { (month, invoices) ->
                     item(key = "month-$month") {
-                        MonthHeader(month, invoices.sumOf { it.grandTotalPaise })
+                        MonthHeader(month, invoices.sumOf { it.computed.grandTotal })
                     }
                     items(invoices, key = { it.id }) { inv ->
                         InvoiceCard(inv, onClick = { state.push(PreviewRoute(inv.id)) })

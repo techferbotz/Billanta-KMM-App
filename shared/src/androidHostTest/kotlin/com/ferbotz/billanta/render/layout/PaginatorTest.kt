@@ -1,57 +1,28 @@
 package com.ferbotz.billanta.render.layout
 
-import com.ferbotz.billanta.core.Iso8601
-import com.ferbotz.billanta.domain.model.CompanySnapshot
-import com.ferbotz.billanta.domain.model.CustomerSnapshot
-import com.ferbotz.billanta.domain.model.InvoiceItemRecord
-import com.ferbotz.billanta.domain.model.InvoiceRecord
+import com.ferbotz.billanta.records.Invoice
 import com.ferbotz.billanta.render.InvoiceRenderer
 import com.ferbotz.billanta.render.PageSpec
 import com.ferbotz.billanta.render.TemplateDoc
-import com.ferbotz.billanta.render.TemplateParser
+import com.ferbotz.billanta.render.TestInvoices
 import com.ferbotz.billanta.render.text.FakeTextShaper
-import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
-/** Pagination over the real `classic` template: long invoices must page, not clip. */
+/** Pagination over the backend's own Classic: long invoices must page, not clip. */
 class PaginatorTest {
 
     private val renderer = InvoiceRenderer(FakeTextShaper())
 
-    private fun template(name: String): TemplateDoc {
-        val file = listOf(
-            File("src/androidHostTest/resources/templates/$name.json"),
-            File("shared/src/androidHostTest/resources/templates/$name.json"),
-        ).firstOrNull { it.exists() }
-        assertNotNull(file, "fixture $name.json not found")
-        return assertNotNull(TemplateParser.parse(file.readText()))
-    }
+    private val classic: TemplateDoc get() = TestInvoices.classic
 
-    private fun invoice(itemCount: Int) = InvoiceRecord(
-        id = "inv-1",
-        invoiceNumber = "INV-2026-0042",
-        invoiceDateMillis = Iso8601.epochMillisFor(2026, 8, 5),
-        currency = "INR",
-        companySnapshot = CompanySnapshot(name = "Studio Nine", stateCode = "27", upiId = "studio@ok"),
-        customerSnapshot = CustomerSnapshot(name = "Kavya Iyer", stateCode = "27"),
-        items = (1..itemCount).map { i ->
-            InvoiceItemRecord(
-                description = "Line item number $i for the engagement",
-                quantity = "1",
-                unitPricePaise = 500000,
-                taxRatePercent = "18",
-                lineTotalPaise = 500000,
-                taxAmountPaise = 90000,
-            )
-        },
-        subtotalPaise = 500000L * itemCount,
-        taxTotalPaise = 90000L * itemCount,
-        grandTotalPaise = 590000L * itemCount,
-        updatedAtMillis = 1L,
-    )
+    private fun invoice(itemCount: Int): Invoice =
+        TestInvoices.invoice(itemCount, notes = null) { "Line item number $it for the engagement" }
+
+    private fun render(doc: TemplateDoc, invoice: Invoice) =
+        renderer.render(doc, invoice.renderContext(), TestInvoices.optionLists)
 
     private fun textOf(page: RenderedPage): String =
         page.commands.flattenCommands()
@@ -62,13 +33,13 @@ class PaginatorTest {
 
     @Test
     fun short_invoice_stays_on_one_page() {
-        val document = renderer.render(template("classic"), invoice(3))
+        val document = render(classic, invoice(3))
         assertEquals(1, document.pageCount)
     }
 
     @Test
     fun long_invoice_paginates_instead_of_clipping() {
-        val document = renderer.render(template("classic"), invoice(60))
+        val document = render(classic, invoice(60))
         assertTrue(document.pageCount >= 2, "60 items should need more than one page")
         assertTrue(document.pageCount < 20, "60 items should not explode into ${document.pageCount} pages")
     }
@@ -77,7 +48,7 @@ class PaginatorTest {
     @Test
     fun no_item_is_lost_across_the_page_break() {
         val itemCount = 60
-        val document = renderer.render(template("classic"), invoice(itemCount))
+        val document = render(classic, invoice(itemCount))
         val everything = document.pages.joinToString(" ") { textOf(it) }
         (1..itemCount).forEach { i ->
             assertTrue(
@@ -89,7 +60,7 @@ class PaginatorTest {
 
     @Test
     fun table_headers_repeat_on_continuation_pages() {
-        val document = renderer.render(template("classic"), invoice(60))
+        val document = render(classic, invoice(60))
         assertTrue(document.pageCount >= 2)
         document.pages.forEachIndexed { index, page ->
             assertTrue(
@@ -101,8 +72,8 @@ class PaginatorTest {
 
     @Test
     fun every_page_stays_inside_the_printable_area() {
-        val doc = template("classic")
-        val document = renderer.render(doc, invoice(60))
+        val doc = classic
+        val document = render(doc, invoice(60))
         val bottomLimit = PageSpec.A4_HEIGHT_PT - doc.page.marginBottomPt
 
         document.pages.forEachIndexed { index, page ->
@@ -124,8 +95,8 @@ class PaginatorTest {
 
     @Test
     fun content_starts_below_the_top_margin_on_every_page() {
-        val doc = template("classic")
-        val document = renderer.render(doc, invoice(60))
+        val doc = classic
+        val document = render(doc, invoice(60))
         document.pages.forEachIndexed { index, page ->
             val top = page.commands.flattenCommands().minOfOrNull { command ->
                 when (command) {
@@ -145,16 +116,8 @@ class PaginatorTest {
 
     @Test
     fun page_count_grows_with_the_item_count() {
-        val small = renderer.render(template("classic"), invoice(10)).pageCount
-        val large = renderer.render(template("classic"), invoice(120)).pageCount
+        val small = render(classic, invoice(10)).pageCount
+        val large = render(classic, invoice(120)).pageCount
         assertTrue(large > small, "120 items should need more pages than 10 (got $large vs $small)")
-    }
-
-    @Test
-    fun minimal_template_paginates_too() {
-        val document = renderer.render(template("minimal"), invoice(60))
-        assertTrue(document.pageCount >= 2)
-        val everything = document.pages.joinToString(" ") { textOf(it) }
-        assertTrue(everything.contains("Line item number 60 "), "last item missing from minimal")
     }
 }

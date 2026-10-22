@@ -5,8 +5,7 @@ import com.ferbotz.billanta.render.layout.dashPatternFor
 import com.ferbotz.billanta.render.layout.dashRuns
 import com.ferbotz.billanta.render.layout.flattenCommands
 import com.ferbotz.billanta.render.text.FakeTextShaper
-import com.ferbotz.billanta.core.Iso8601
-import com.ferbotz.billanta.domain.model.InvoiceRecord
+import kotlinx.serialization.json.JsonObject
 import kotlin.math.abs
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -23,12 +22,8 @@ class BorderStyleTest {
 
     private val renderer = InvoiceRenderer(FakeTextShaper())
 
-    private fun record() = InvoiceRecord(
-        id = "inv-1",
-        invoiceNumber = "INV-1",
-        invoiceDateMillis = Iso8601.epochMillisFor(2026, 8, 12),
-        updatedAtMillis = 1L,
-    )
+    /** These trees bind nothing, so an empty render context is all they need. */
+    private val context = JsonObject(emptyMap())
 
     /** One box, so the assertions are about the border and nothing else. */
     private fun boxWith(style: String): TemplateDoc = assertNotNull(
@@ -49,7 +44,7 @@ class BorderStyleTest {
     )
 
     private fun bordersOf(doc: TemplateDoc): DrawCommand.Borders {
-        val commands = renderer.render(doc, record()).pages.flatMap { it.commands.flattenCommands() }
+        val commands = renderer.render(doc, context, emptyMap()).pages.flatMap { it.commands.flattenCommands() }
         return assertNotNull(
             commands.filterIsInstance<DrawCommand.Borders>().firstOrNull(),
             "no border command was emitted at all",
@@ -149,7 +144,7 @@ class BorderStyleTest {
             ),
         )
         val commands = renderer
-            .render(doc, record(), theme = InvoiceTheme(colorOverrides = mapOf("accent" to 0xFF00FF00)))
+            .render(doc, context, emptyMap(), theme = InvoiceTheme(colorOverrides = mapOf("accent" to 0xFF00FF00)))
             .pages.flatMap { it.commands.flattenCommands() }
         val borders = assertNotNull(commands.filterIsInstance<DrawCommand.Borders>().firstOrNull())
 

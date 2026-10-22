@@ -71,120 +71,16 @@ class BillantaApi(
     /** Permanently deletes the account and all server data. */
     suspend fun deleteMe(): AppResult<Unit> = apiCallUnit { client.delete("users/me") }
 
-    // ---- company -------------------------------------------------------------------------------
-
-    /** `data: null` until the company is first set up. */
-    suspend fun getCompany(): AppResult<CompanyDto?> = apiCallNullable { client.get("company") }
-
-    suspend fun putCompany(company: CompanyDto): AppResult<CompanyDto> = apiCall {
-        client.put("company") {
-            contentType(ContentType.Application.Json)
-            setBody(company)
-        }
-    }
-
-    // ---- settings ------------------------------------------------------------------------------
-
-    suspend fun getSettings(): AppResult<SettingsDto> = apiCall { client.get("settings") }
-
-    suspend fun putSettings(settings: SettingsDto): AppResult<SettingsDto> = apiCall {
-        client.put("settings") {
-            contentType(ContentType.Application.Json)
-            setBody(settings)
-        }
-    }
-
     // ---- customers -----------------------------------------------------------------------------
-
-    suspend fun createCustomer(customer: CustomerDto): AppResult<CustomerDto> = apiCall {
-        client.post("customers") {
-            contentType(ContentType.Application.Json)
-            setBody(customer)
-        }
-    }
-
-    suspend fun listCustomers(q: String? = null, limit: Int = 100, cursor: String? = null): AppResult<PageDto<CustomerDto>> =
-        apiCall {
-            client.get("customers") {
-                if (!q.isNullOrBlank()) parameter("q", q)
-                parameter("limit", pageSize(limit))
-                cursor?.let { parameter("cursor", it) }
-            }
-        }
-
-    suspend fun getCustomer(id: String): AppResult<CustomerDto> = apiCall { client.get("customers/$id") }
-
-    /** Full-field patch body (explicit nulls) so cleared fields clear server-side too. */
-    suspend fun patchCustomer(id: String, patch: JsonObject): AppResult<CustomerDto> = apiCall {
-        client.patch("customers/$id") {
-            contentType(ContentType.Application.Json)
-            setBody(patch)
-        }
-    }
 
     suspend fun deleteCustomer(id: String): AppResult<Unit> = apiCallUnit { client.delete("customers/$id") }
 
     // ---- products ------------------------------------------------------------------------------
 
-    suspend fun createProduct(product: ProductDto): AppResult<ProductDto> = apiCall {
-        client.post("products") {
-            contentType(ContentType.Application.Json)
-            setBody(product)
-        }
-    }
-
-    suspend fun listProducts(q: String? = null, limit: Int = 100, cursor: String? = null): AppResult<PageDto<ProductDto>> =
-        apiCall {
-            client.get("products") {
-                if (!q.isNullOrBlank()) parameter("q", q)
-                parameter("limit", pageSize(limit))
-                cursor?.let { parameter("cursor", it) }
-            }
-        }
-
-    suspend fun patchProduct(id: String, patch: JsonObject): AppResult<ProductDto> = apiCall {
-        client.patch("products/$id") {
-            contentType(ContentType.Application.Json)
-            setBody(patch)
-        }
-    }
-
     /** Hard delete, as documented — there is no product tombstone. */
     suspend fun deleteProduct(id: String): AppResult<Unit> = apiCallUnit { client.delete("products/$id") }
 
     // ---- invoices ------------------------------------------------------------------------------
-
-    /** Create or idempotently replace by client id. Totals in the response are authoritative. */
-    suspend fun upsertInvoice(invoice: InvoiceDto): AppResult<InvoiceDto> = apiCall {
-        client.post("invoices") {
-            contentType(ContentType.Application.Json)
-            setBody(invoice)
-        }
-    }
-
-    suspend fun listInvoices(
-        status: String? = null,
-        q: String? = null,
-        limit: Int = 100,
-        cursor: String? = null,
-    ): AppResult<PageDto<InvoiceDto>> = apiCall {
-        client.get("invoices") {
-            status?.let { parameter("status", it) }
-            if (!q.isNullOrBlank()) parameter("q", q)
-            parameter("limit", pageSize(limit))
-            cursor?.let { parameter("cursor", it) }
-        }
-    }
-
-    suspend fun getInvoice(id: String): AppResult<InvoiceDto> = apiCall { client.get("invoices/$id") }
-
-    /** Quick scalar edits (status/notes/dueDate/pdfPath/invoiceDate/invoiceNumber/currency). */
-    suspend fun patchInvoice(id: String, patch: JsonObject): AppResult<InvoiceDto> = apiCall {
-        client.patch("invoices/$id") {
-            contentType(ContentType.Application.Json)
-            setBody(patch)
-        }
-    }
 
     /**
      * Soft delete (tombstone); idempotent.
@@ -205,13 +101,122 @@ class BillantaApi(
         }
     }
 
-    /** Batch offline sync: pushes are LWW by `updatedAt`; pull pages via `since`/`nextCursor`. */
-    suspend fun syncInvoices(request: SyncRequestDto): AppResult<SyncResponseDto> = apiCall {
-        client.post("invoices/sync") {
-            contentType(ContentType.Application.Json)
-            setBody(request)
+    // ---- BE-021: forms and values maps ---------------------------------------------------------
+
+    sealed interface FormsFetch {
+        /** The forms document (without its envelope) and the ETag to revalidate it with. */
+        data class Fetched(val json: String, val etag: String?) : FormsFetch
+        data object NotModified : FormsFetch
+    }
+
+    /**
+     * `GET /forms` (FIELDS.md §5). Public, so it works signed out. [ifNoneMatch] is the ETag exactly
+     * as an earlier response sent it; a `304` comes back as [FormsFetch.NotModified].
+     */
+    suspend fun getForms(ifNoneMatch: String?): AppResult<FormsFetch> {
+        val response = try {
+            client.get("forms") { ifNoneMatch?.let { header(HttpHeaders.IfNoneMatch, it) } }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Throwable) {
+            return AppError.Network(e.message).asFailure()
+        }
+        return try {
+            when {
+                response.status == HttpStatusCode.NotModified -> AppResult.Success(FormsFetch.NotModified)
+                response.status.isSuccess() -> {
+                    val env = response.body<Envelope<JsonObject>>()
+                    val data = env.data
+                    if (!env.success || data == null) {
+                        AppError.Http(response.status.value, env.code, env.message).asFailure()
+                    } else {
+                        AppResult.Success(FormsFetch.Fetched(data.toString(), response.headers[HttpHeaders.ETag]))
+                    }
+                }
+                else -> httpErrorOf(response).asFailure()
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Throwable) {
+            AppError.Unexpected(e.message).asFailure()
         }
     }
+
+    /** `data: null` until a profile exists. */
+    suspend fun getCompanyValues(): AppResult<ValuesRecordDto?> = apiCallNullable { client.get("company") }
+
+    /** Merges: a `null` value clears that key. Creates the profile when there is none yet. */
+    suspend fun patchCompanyValues(body: ValuesBodyDto): AppResult<ValuesRecordDto> = apiCall {
+        client.patch("company") {
+            contentType(ContentType.Application.Json)
+            setBody(body)
+        }
+    }
+
+    /** Created on first read with the settings form's defaults. */
+    suspend fun getSettingsValues(): AppResult<ValuesRecordDto> = apiCall { client.get("settings") }
+
+    /** Merges. Never `PUT` settings: a full replace would clobber the running invoice number. */
+    suspend fun patchSettingsValues(body: ValuesBodyDto): AppResult<ValuesRecordDto> = apiCall {
+        client.patch("settings") {
+            contentType(ContentType.Application.Json)
+            setBody(body)
+        }
+    }
+
+    /** Creates, or fully replaces, the customer with this id. */
+    suspend fun createCustomerValues(customer: EntityValuesDto): AppResult<EntityValuesDto> = apiCall {
+        client.post("customers") {
+            contentType(ContentType.Application.Json)
+            setBody(customer)
+        }
+    }
+
+    suspend fun listCustomerValues(limit: Int = 100, cursor: String? = null): AppResult<PageDto<EntityValuesDto>> =
+        apiCall {
+            client.get("customers") {
+                parameter("limit", pageSize(limit))
+                cursor?.let { parameter("cursor", it) }
+            }
+        }
+
+    suspend fun patchCustomerValues(id: String, body: ValuesBodyDto): AppResult<EntityValuesDto> = apiCall {
+        client.patch("customers/$id") {
+            contentType(ContentType.Application.Json)
+            setBody(body)
+        }
+    }
+
+    suspend fun createProductValues(product: EntityValuesDto): AppResult<EntityValuesDto> = apiCall {
+        client.post("products") {
+            contentType(ContentType.Application.Json)
+            setBody(product)
+        }
+    }
+
+    suspend fun listProductValues(limit: Int = 100, cursor: String? = null): AppResult<PageDto<EntityValuesDto>> =
+        apiCall {
+            client.get("products") {
+                parameter("limit", pageSize(limit))
+                cursor?.let { parameter("cursor", it) }
+            }
+        }
+
+    suspend fun patchProductValues(id: String, body: ValuesBodyDto): AppResult<EntityValuesDto> = apiCall {
+        client.patch("products/$id") {
+            contentType(ContentType.Application.Json)
+            setBody(body)
+        }
+    }
+
+    /** Batch offline sync of values-map invoices: same mechanics as before, the BE-021 shape. */
+    suspend fun syncInvoiceValues(request: InvoiceValuesSyncRequestDto): AppResult<InvoiceValuesSyncResponseDto> =
+        apiCall {
+            client.post("invoices/sync") {
+                contentType(ContentType.Application.Json)
+                setBody(request)
+            }
+        }
 
     // ---- templates (optional auth) -------------------------------------------------------------
 

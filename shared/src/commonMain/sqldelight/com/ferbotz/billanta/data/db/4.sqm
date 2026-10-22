@@ -1,0 +1,111 @@
+-- Schema 4 -> 5
+--   * BE-021, server-driven fields: every record becomes a values map (field id → value) stored as
+--     opaque JSON, plus the device-only remembered values and the cached `GET /forms` document.
+--
+-- A deliberate clean break, matching the backend's: nothing is carried over. The server wipes every
+-- account and record when BE-021 deploys, so there is nothing to sync these rows to, and the app has
+-- no users yet whose data would be lost. The sync cursors go too, since they point into the old
+-- server's history.
+--
+-- The CREATE TABLEs must match the .sq files exactly.
+
+DROP TABLE IF EXISTS invoiceItemRow;
+DROP TABLE IF EXISTS invoiceRow;
+DROP TABLE IF EXISTS customerRow;
+DROP TABLE IF EXISTS productRow;
+DROP TABLE IF EXISTS companyRow;
+DROP TABLE IF EXISTS settingsRow;
+DELETE FROM syncMetaRow;
+
+CREATE TABLE singletonValues (
+    kind TEXT NOT NULL PRIMARY KEY,
+    valuesJson TEXT NOT NULL,
+    dirtyKeysJson TEXT NOT NULL,
+    createdAtMillis INTEGER,
+    updatedAtMillis INTEGER NOT NULL
+);
+
+CREATE TABLE customerValues (
+    id TEXT NOT NULL PRIMARY KEY,
+    valuesJson TEXT NOT NULL,
+    dirtyKeysJson TEXT NOT NULL,
+    name TEXT NOT NULL,
+    searchText TEXT NOT NULL,
+    createdAtMillis INTEGER,
+    updatedAtMillis INTEGER NOT NULL,
+    dirty INTEGER NOT NULL DEFAULT 0,
+    isDeleted INTEGER NOT NULL DEFAULT 0,
+    isSynced INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE INDEX idx_customer_values_name ON customerValues(name);
+
+CREATE TABLE productValues (
+    id TEXT NOT NULL PRIMARY KEY,
+    valuesJson TEXT NOT NULL,
+    dirtyKeysJson TEXT NOT NULL,
+    description TEXT NOT NULL,
+    nameKey TEXT NOT NULL,
+    usageCount INTEGER NOT NULL DEFAULT 0,
+    lastUsedAtMillis INTEGER NOT NULL DEFAULT 0,
+    createdAtMillis INTEGER,
+    updatedAtMillis INTEGER NOT NULL,
+    dirty INTEGER NOT NULL DEFAULT 0,
+    isDeleted INTEGER NOT NULL DEFAULT 0,
+    isSynced INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE INDEX idx_product_values_name_key ON productValues(nameKey);
+CREATE INDEX idx_product_values_recent ON productValues(lastUsedAtMillis);
+
+CREATE TABLE invoiceValues (
+    id TEXT NOT NULL PRIMARY KEY,
+    status TEXT NOT NULL,
+    templateId TEXT,
+    templateVersion INTEGER,
+    valuesJson TEXT NOT NULL,
+    computedJson TEXT NOT NULL,
+    hiddenSectionsJson TEXT,
+    themeOverridesJson TEXT,
+    pdfPath TEXT,
+    invoiceNumber TEXT NOT NULL,
+    invoiceDate TEXT,
+    customerId TEXT,
+    customerName TEXT,
+    searchText TEXT NOT NULL,
+    grandTotal INTEGER NOT NULL,
+    lineCount INTEGER NOT NULL,
+    firstLineDescription TEXT,
+    createdAtMillis INTEGER,
+    updatedAtMillis INTEGER NOT NULL,
+    deletedAtMillis INTEGER,
+    dirty INTEGER NOT NULL DEFAULT 0,
+    syncError TEXT
+);
+
+CREATE INDEX idx_invoice_values_dirty ON invoiceValues(dirty);
+CREATE INDEX idx_invoice_values_customer ON invoiceValues(customerId);
+CREATE INDEX idx_invoice_values_date ON invoiceValues(invoiceDate);
+
+CREATE TABLE invoiceLineValues (
+    invoiceId TEXT NOT NULL,
+    id TEXT NOT NULL,
+    position INTEGER NOT NULL,
+    valuesJson TEXT NOT NULL,
+    computedJson TEXT NOT NULL,
+    PRIMARY KEY (invoiceId, id)
+);
+
+CREATE INDEX idx_invoice_line_values_order ON invoiceLineValues(invoiceId, position);
+
+CREATE TABLE rememberedValue (
+    fieldId TEXT NOT NULL PRIMARY KEY,
+    valueJson TEXT NOT NULL
+);
+
+CREATE TABLE formsCache (
+    localId INTEGER NOT NULL PRIMARY KEY,
+    json TEXT NOT NULL,
+    etag TEXT,
+    fetchedAtMillis INTEGER NOT NULL
+);

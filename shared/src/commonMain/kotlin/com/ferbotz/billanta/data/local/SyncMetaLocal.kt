@@ -24,8 +24,6 @@ class SyncMetaLocal(
     companion object {
         const val KEY_INVOICE_CURSOR = "invoiceCursor"
         const val KEY_LAST_SYNC_AT = "lastSyncAtMillis"
-        /** Set once a product pull has seen the photo keys (BE-020); see SyncManager.pullProducts. */
-        const val KEY_PRODUCT_PHOTOS_RECONCILED = "productPhotosReconciled"
         const val KEY_OWNER_USER_ID = "ownerUserId"
     }
 }

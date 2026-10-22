@@ -1,0 +1,58 @@
+-- Customers as values maps (BE-021), offline-first. `dirty` rows need pushing: a POST of the
+-- whole map while `isSynced` is 0, else a PATCH of `dirtyKeysJson`. `isDeleted` rows are local
+-- tombstones awaiting DELETE. `name` and `searchText` are derived from the values on every write,
+-- for sorting and for search over name, phone and GSTIN.
+CREATE TABLE customerValues (
+    id TEXT NOT NULL PRIMARY KEY,
+    valuesJson TEXT NOT NULL,
+    dirtyKeysJson TEXT NOT NULL,
+    name TEXT NOT NULL,
+    searchText TEXT NOT NULL,
+    createdAtMillis INTEGER,
+    updatedAtMillis INTEGER NOT NULL,
+    dirty INTEGER NOT NULL DEFAULT 0,
+    isDeleted INTEGER NOT NULL DEFAULT 0,
+    isSynced INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE INDEX idx_customer_values_name ON customerValues(name);
+
+upsert:
+INSERT OR REPLACE INTO customerValues(
+    id, valuesJson, dirtyKeysJson, name, searchText, createdAtMillis, updatedAtMillis,
+    dirty, isDeleted, isSynced
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+byId:
+SELECT * FROM customerValues WHERE id = ? AND isDeleted = 0;
+
+byIdIncludingDeleted:
+SELECT * FROM customerValues WHERE id = ?;
+
+list:
+SELECT * FROM customerValues
+WHERE isDeleted = 0 AND (:q = '' OR searchText LIKE '%' || lower(:q) || '%')
+ORDER BY name COLLATE NOCASE ASC;
+
+dirtyRows:
+SELECT * FROM customerValues WHERE dirty = 1;
+
+syncedCleanIds:
+SELECT id FROM customerValues WHERE dirty = 0 AND isSynced = 1;
+
+markSynced:
+UPDATE customerValues SET dirty = 0, isSynced = 1, dirtyKeysJson = '[]' WHERE id = ? AND updatedAtMillis = ?;
+
+softDelete:
+UPDATE customerValues SET isDeleted = 1, dirty = 1, updatedAtMillis = ? WHERE id = ?;
+
+hardDelete:
+DELETE FROM customerValues WHERE id = ?;
+
+clear:
+DELETE FROM customerValues;
+
+-- Re-owns every row for a new server identity: isSynced back to 0, so the push POSTs the whole
+-- map rather than PATCHing an id the new account has never seen.
+markAllDirty:
+UPDATE customerValues SET dirty = 1, isSynced = 0;

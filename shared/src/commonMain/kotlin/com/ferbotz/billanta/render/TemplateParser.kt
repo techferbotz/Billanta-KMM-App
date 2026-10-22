@@ -1,6 +1,7 @@
 package com.ferbotz.billanta.render
 
 import com.ferbotz.billanta.core.BillantaJson
+import com.ferbotz.billanta.fields.FieldParser
 import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
@@ -73,7 +74,7 @@ object TemplateParser {
                 id = id,
                 label = obj.str("label") ?: id,
                 hidable = (obj["hidable"] as? JsonPrimitive)?.booleanOrNull ?: true,
-                edits = SectionEdits.fromWire(obj.str("edits")),
+                fields = FieldParser.parseFields(obj["fields"]),
             )
         } ?: emptyList()
 
@@ -166,10 +167,11 @@ object TemplateParser {
     private fun parseTable(obj: JsonObject, style: TStyle): TTable {
         val columns = (obj["columns"] as? JsonArray)?.mapNotNull { colEl ->
             val col = colEl as? JsonObject ?: return@mapNotNull null
-            when (val w = col["width"]) {
-                is JsonPrimitive -> if (w.isString) TColumn(null) else TColumn(w.floatOrNull)
-                else -> TColumn(null)
+            val width = when (val w = col["width"]) {
+                is JsonPrimitive -> if (w.isString) null else w.floatOrNull
+                else -> null
             }
+            TColumn(width, FieldParser.parseGate(col["visibleIf"]))
         } ?: emptyList()
 
         val body = (obj["body"] as? JsonObject)?.let { bodyObj ->
@@ -203,7 +205,13 @@ object TemplateParser {
     private fun parseRow(obj: JsonObject): TRow? {
         if (obj.str("type") != "row") return null
         val cells = (obj["cells"] as? JsonArray)?.mapNotNull { (it as? JsonObject)?.let(::parseCell) } ?: emptyList()
-        return TRow(parseStyle(obj["style"] as? JsonObject), cells, obj.str("section"), parseTokens(obj))
+        return TRow(
+            style = parseStyle(obj["style"] as? JsonObject),
+            cells = cells,
+            section = obj.str("section"),
+            tokens = parseTokens(obj),
+            visibleIf = FieldParser.parseGate(obj["visibleIf"]),
+        )
     }
 
     private fun parseCell(obj: JsonObject): TCell? {
