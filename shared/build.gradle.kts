@@ -73,11 +73,13 @@ kotlin {
             implementation(libs.sqldelight.coroutines)
             implementation(libs.coil.compose)
             implementation(libs.coil.network.ktor)
+            implementation(libs.okio)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
             implementation(libs.kotlinx.coroutines.test)
             implementation(libs.ktor.client.mock)
+            implementation(libs.okio.fakefilesystem)
         }
         getByName("androidHostTest").dependencies {
             implementation(libs.sqldelight.sqlite.driver)

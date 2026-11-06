@@ -23,6 +23,8 @@ kotlinxSerialization = "1.9.0"
 ktor = "3.4.2"
 sqldelight = "2.3.2"
 coil = "3.3.0"
+# Already on every target through Coil; declared because the invoice thumbnails use it directly.
+okio = "3.16.4"
 credentials = "1.5.0"
 googleid = "1.1.1"
 
@@ -69,6 +71,8 @@ sqldelight-native-driver = { module = "app.cash.sqldelight:native-driver", versi
 sqldelight-sqlite-driver = { module = "app.cash.sqldelight:sqlite-driver", version.ref = "sqldelight" }
 coil-compose = { module = "io.coil-kt.coil3:coil-compose", version.ref = "coil" }
 coil-network-ktor = { module = "io.coil-kt.coil3:coil-network-ktor3", version.ref = "coil" }
+okio = { module = "com.squareup.okio:okio", version.ref = "okio" }
+okio-fakefilesystem = { module = "com.squareup.okio:okio-fakefilesystem", version.ref = "okio" }
 androidx-credentials = { module = "androidx.credentials:credentials", version.ref = "credentials" }
 androidx-credentials-play = { module = "androidx.credentials:credentials-play-services-auth", version.ref = "credentials" }
 googleid = { module = "com.google.android.libraries.identity.googleid:googleid", version.ref = "googleid" }

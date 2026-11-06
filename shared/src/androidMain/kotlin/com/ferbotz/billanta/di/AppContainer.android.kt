@@ -11,9 +11,13 @@ import com.ferbotz.billanta.core.SharedPrefsKeyValueStore
 import com.ferbotz.billanta.data.api.BillantaApiConfig
 import com.ferbotz.billanta.data.db.AndroidDatabaseDriverFactory
 import com.ferbotz.billanta.share.AndroidFileShareService
+import com.ferbotz.billanta.thumbs.ThumbnailStore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import okio.FileSystem
+import okio.Path.Companion.toPath
+import java.io.File
 
 fun createAppContainer(
     context: Context,
@@ -50,6 +54,8 @@ fun createAppContainer(
         },
         shareService = AndroidFileShareService(appContext),
         platformIdentity = androidIdentity(appContext),
+        // The cache directory: the OS may clear it under storage pressure, and the list redraws.
+        thumbnailStore = ThumbnailStore(FileSystem.SYSTEM, File(appContext.cacheDir, "invoice-thumbnails").path.toPath()),
     )
 }
 

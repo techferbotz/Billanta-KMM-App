@@ -73,6 +73,7 @@ import com.ferbotz.billanta.ui.screens.PreviewScreen
 import com.ferbotz.billanta.ui.screens.ProfileScreen
 import com.ferbotz.billanta.ui.screens.SettingsScreen
 import com.ferbotz.billanta.ui.screens.TemplatesScreen
+import com.ferbotz.billanta.thumbs.ProvideThumbnailShaper
 import kotlinx.coroutines.delay
 
 @Composable
@@ -92,6 +93,8 @@ fun App(
         // Always enabled: back now means something on a tab root too — return to Invoices, then
         // ask before leaving — rather than falling through to the system and closing the app.
         SystemBackHandler(enabled = true) { state.back() }
+        // The list's pictures are drawn off screen, with fonts that only a composition can load.
+        ProvideThumbnailShaper(container.invoiceThumbnails)
 
         Surface(Modifier.fillMaxSize(), color = BillantaTheme.colors.background) {
             // One gate at the root, in the protocol's order (BE-014): maintenance, then a forced

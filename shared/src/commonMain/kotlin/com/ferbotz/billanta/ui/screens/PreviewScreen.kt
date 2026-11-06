@@ -49,7 +49,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.width
 import com.ferbotz.billanta.render.CustomisationControl
 import com.ferbotz.billanta.render.InvoiceRenderer
-import com.ferbotz.billanta.render.InvoiceTheme
 import com.ferbotz.billanta.render.TemplateDoc
 import com.ferbotz.billanta.render.TemplateParser
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -365,10 +364,7 @@ private fun RememberPreparedInvoice(
         value = if (urls.isEmpty()) emptyMap() else state.container.invoiceImageLoader.load(urls)
     }
     val renderer = rememberInvoiceRenderer(images.intrinsicSizes())
-    val theme = InvoiceTheme(
-        colorOverrides = record.themeOverrides.mapNotNull { (token, hex) -> TemplateParser.parseHexColor(hex)?.let { token to it } }.toMap(),
-        hiddenSections = record.hiddenSections,
-    )
+    val theme = record.renderTheme()
     val dateFormat = state.dateFormat
     val optionLists = state.forms.optionLists
     return remember(doc, context, images, renderer, theme, dateFormat, optionLists) {

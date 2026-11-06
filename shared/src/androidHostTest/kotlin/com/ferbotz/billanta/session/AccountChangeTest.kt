@@ -19,6 +19,7 @@ import com.ferbotz.billanta.data.local.SyncMetaLocal
 import com.ferbotz.billanta.fields.FieldValues
 import com.ferbotz.billanta.records.Customer
 import com.ferbotz.billanta.records.Invoice
+import com.ferbotz.billanta.thumbs.ThumbnailStore
 import kotlinx.serialization.json.JsonPrimitive
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
@@ -33,6 +34,8 @@ import io.ktor.serialization.kotlinx.json.json
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
+import okio.Path.Companion.toPath
+import okio.fakefilesystem.FakeFileSystem
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -72,6 +75,7 @@ class AccountChangeTest {
         val profile = ProfileLocalDataSource(db, dispatcher)
         val syncMeta = SyncMetaLocal(db, dispatcher)
         val store = Store()
+        val thumbnails = ThumbnailStore(FakeFileSystem(), "/cache/invoice-thumbnails".toPath()).also { it.load() }
         var wiped = 0
         var reowned = 0
 
@@ -109,6 +113,7 @@ class AccountChangeTest {
                 invoices.clearAll(); customers.clearAll(); products.clearAll()
                 singletons.clearAll(); remembered.clearAll()
                 profile.clearAccount(); syncMeta.clearAll()
+                thumbnails.clear()
             },
             reownLocalData = {
                 reowned++
@@ -126,6 +131,7 @@ class AccountChangeTest {
             )
             customers.saveLocal(Customer("cust-1", FieldValues.EMPTY.withString("customer_name", "Kavya Iyer"), updatedAtMillis = 1L))
             remembered.put("po_number", JsonPrimitive("PO-7781"))
+            thumbnails.write("inv-1", "0123456789abcdef", byteArrayOf(1))
             // Pretend the old account had already synced them. Both marks are guarded by
             // updatedAt, so they must match the rows written above or they silently do nothing.
             invoices.markClean("inv-1", 1L)
@@ -147,6 +153,7 @@ class AccountChangeTest {
         assertEquals(0, h.wiped, "the same account must never wipe")
         assertEquals(0, h.reowned, "the same account does not need re-owning either")
         assertNotNull(h.invoices.getById("inv-1"))
+        assertNotNull(h.thumbnails.fingerprintOf("inv-1"), "signing back in must redraw nothing (BE-023)")
     }
 
     /**
@@ -166,6 +173,7 @@ class AccountChangeTest {
         assertEquals(1, h.reowned)
         assertNotNull(h.invoices.getById("inv-1"), "the invoice was deleted")
         assertNotNull(h.customers.getById("cust-1"), "the customer was deleted")
+        assertNotNull(h.thumbnails.fingerprintOf("inv-1"), "kept invoices keep their pictures")
     }
 
     /** Email match is case-insensitive — Google is not consistent about it, and people are not. */
@@ -196,6 +204,7 @@ class AccountChangeTest {
         assertEquals(0, h.reowned)
         assertEquals(null, h.invoices.getById("inv-1"))
         assertTrue(h.remembered.all().isEmpty(), "one person's remembered entries must not prefill another's invoices")
+        assertTrue(h.thumbnails.files.value.isEmpty(), "the previous account's thumbnails must not stay on the phone (BE-023)")
     }
 
     /**

@@ -35,6 +35,7 @@ import com.ferbotz.billanta.ui.fields.FieldContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -76,6 +77,13 @@ data object DeleteAccountRoute : Route
  */
 data class EditCustomerRoute(val customerId: String?, val attachToInvoiceId: String? = null) : Route
 data class EditProductRoute(val productId: String?) : Route
+
+/** A screen that saves an invoice as the user types, so its list picture waits until they're done. */
+fun Route?.isInvoiceEditor(): Boolean = when (this) {
+    is EditInvoiceDataRoute, is EditSectionRoute, is EditLineRoute, is PickCustomerRoute -> true
+    is EditCustomerRoute -> attachToInvoiceId != null
+    else -> false
+}
 
 /** A modal bottom sheet layered above everything. */
 sealed interface SheetRoute
@@ -227,21 +235,8 @@ class BillantaState(
      * issued invoice keeps the version it was made on, and falls back to the newest one cached
      * when that one cannot be fetched offline (FIELDS_APP_GUIDE.md §10).
      */
-    suspend fun templateDocFor(invoice: Invoice?): AppResult<TemplateDoc> {
-        val templateId = invoice?.templateId?.takeIf { it.isNotEmpty() } ?: selectedTemplateId
-            ?: return AppResult.Failure(com.ferbotz.billanta.core.AppError.Validation("No templates yet — connect once to download them."))
-        val current = templateById(templateId)?.currentVersion
-        val version = if (invoice == null || invoice.isDraft) current ?: invoice?.templateVersion else invoice.templateVersion ?: current
-        return when (val result = container.templateRepository.getCompiled(templateId, version)) {
-            is AppResult.Success -> TemplateParser.parse(result.value.json)?.let { AppResult.Success(it) }
-                ?: AppResult.Failure(com.ferbotz.billanta.core.AppError.Validation("This template can't be displayed — try updating the app."))
-            is AppResult.Failure -> if (version != null && version != current) {
-                container.templateRepository.getCompiled(templateId, null).let { fallback ->
-                    (fallback as? AppResult.Success)?.value?.json?.let(TemplateParser::parse)?.let { AppResult.Success(it) } ?: result
-                }
-            } else result
-        }
-    }
+    suspend fun templateDocFor(invoice: Invoice?): AppResult<TemplateDoc> =
+        container.templateDocs.resolve(invoice, fallbackTemplateId = selectedTemplateId).map { it.doc }
 
     fun invoiceFlow(id: String): Flow<Invoice?> = container.invoiceRepository.observeInvoice(id)
 
@@ -284,6 +279,12 @@ class BillantaState(
         scope.launch { container.profileRepository.observeProfile().collect { profile = it } }
         scope.launch { container.formsRepository.forms.collect { forms = it } }
         scope.launch { container.remoteConfig.document.collect { remoteConfig = it.config } }
+        // The list's pictures print dates the user's way, and wait while an invoice is being edited.
+        scope.launch { snapshotFlow { dateFormat }.collect { container.invoiceThumbnails.setDateFormat(it) } }
+        scope.launch {
+            snapshotFlow { currentRoute.isInvoiceEditor() }.distinctUntilChanged()
+                .collect { container.invoiceThumbnails.setEditorOpen(it) }
+        }
     }
 
     // ---- creating an invoice -------------------------------------------------------------------

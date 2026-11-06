@@ -19,30 +19,55 @@ expect fun decodeImageBitmap(bytes: ByteArray): ImageBitmap?
  * Exports must resolve every image *before* laying out: a logo that is still downloading when the
  * user taps Share would otherwise be silently missing from the file. Results are cached for the
  * app's lifetime, so the second render of the same invoice is instant and works offline.
+ *
+ * A broken link — the server says there is no such image, or the bytes aren't one — is remembered
+ * as missing, and the page is drawn without it. An image that couldn't be reached at all (offline,
+ * a server error) is not remembered, so it is tried again next time.
  */
 class InvoiceImageLoader(private val client: HttpClient) {
 
-    private val mutex = Mutex()
-    private val cache = HashMap<String, ImageBitmap?>()
+    private sealed interface Entry {
+        class Loaded(val bitmap: ImageBitmap) : Entry
+        data object Missing : Entry
+    }
 
-    suspend fun load(urls: List<String>): Map<String, ImageBitmap> {
+    private val mutex = Mutex()
+    private val cache = HashMap<String, Entry>()
+
+    /** Every image there is to have; one that is broken or out of reach is left out. */
+    suspend fun load(urls: List<String>): Map<String, ImageBitmap> = fetchAll(urls).first
+
+    /**
+     * Like [load], but null while any image is out of reach rather than broken. A list thumbnail
+     * is saved for good, so it waits for its logo instead of being drawn without it.
+     */
+    suspend fun loadComplete(urls: List<String>): Map<String, ImageBitmap>? =
+        fetchAll(urls).let { (images, complete) -> if (complete) images else null }
+
+    private suspend fun fetchAll(urls: List<String>): Pair<Map<String, ImageBitmap>, Boolean> {
         val wanted = urls.filter { it.isNotBlank() }.distinct()
-        if (wanted.isEmpty()) return emptyMap()
+        if (wanted.isEmpty()) return emptyMap<String, ImageBitmap>() to true
 
         val missing = mutex.withLock { wanted.filterNot { cache.containsKey(it) } }
         missing.forEach { url ->
-            val bitmap = fetch(url)
-            mutex.withLock { cache[url] = bitmap }
+            val entry = fetch(url) ?: return@forEach
+            mutex.withLock { cache[url] = entry }
         }
 
         return mutex.withLock {
-            wanted.mapNotNull { url -> cache[url]?.let { url to it } }.toMap()
+            val images = wanted.mapNotNull { url -> (cache[url] as? Entry.Loaded)?.let { url to it.bitmap } }.toMap()
+            images to wanted.all { cache.containsKey(it) }
         }
     }
 
-    private suspend fun fetch(url: String): ImageBitmap? = try {
+    /** Null when the image couldn't be reached, which is worth another try. */
+    private suspend fun fetch(url: String): Entry? = try {
         val response = client.get(url)
-        if (response.status.isSuccess()) decodeImageBitmap(response.readRawBytes()) else null
+        when {
+            response.status.isSuccess() -> decodeImageBitmap(response.readRawBytes())?.let { Entry.Loaded(it) } ?: Entry.Missing
+            response.status.value in 400..499 -> Entry.Missing
+            else -> null
+        }
     } catch (e: CancellationException) {
         throw e
     } catch (_: Throwable) {

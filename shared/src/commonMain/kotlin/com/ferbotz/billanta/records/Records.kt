@@ -6,7 +6,9 @@ import com.ferbotz.billanta.domain.money.InvoiceMath
 import com.ferbotz.billanta.domain.money.LineComputed
 import com.ferbotz.billanta.fields.FieldValues
 import com.ferbotz.billanta.fields.ImageValue
+import com.ferbotz.billanta.render.InvoiceTheme
 import com.ferbotz.billanta.render.RenderLine
+import com.ferbotz.billanta.render.TemplateParser
 import com.ferbotz.billanta.render.renderContextOf
 import kotlinx.serialization.json.JsonObject
 
@@ -128,6 +130,12 @@ data class Invoice(
             RenderLine(line.values, (line.computed ?: computed.lines.getOrNull(i))?.toMap().orEmpty())
         },
         totals = computed.totalsMap(),
+    )
+
+    /** The user's colours and switched-off sections, as the renderer applies them. */
+    fun renderTheme(): InvoiceTheme = InvoiceTheme(
+        colorOverrides = themeOverrides.mapNotNull { (token, hex) -> TemplateParser.parseHexColor(hex)?.let { token to it } }.toMap(),
+        hiddenSections = hiddenSections,
     )
 
     /** This invoice with its totals worked out again from its values, as after any local edit. */

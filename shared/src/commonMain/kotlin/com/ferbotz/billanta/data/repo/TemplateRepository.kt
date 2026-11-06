@@ -25,6 +25,9 @@ class TemplateRepository(
 
     fun observeTemplates(): Flow<List<TemplateInfo>> = local.observeTemplates()
 
+    /** The version new and Draft invoices draw with, as the cached catalogue knows it. */
+    suspend fun currentVersion(templateId: String): Long? = local.getById(templateId)?.currentVersion
+
     /**
      * Pulls the whole catalogue into local storage, draining every page — the endpoint became
      * cursor-paginated in BE-006, so stopping at the first page would silently hide templates once

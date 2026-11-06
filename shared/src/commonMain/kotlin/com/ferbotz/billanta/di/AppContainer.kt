@@ -31,7 +31,10 @@ import com.ferbotz.billanta.data.repo.ProductRepository
 import com.ferbotz.billanta.data.repo.ProfileRepository
 import com.ferbotz.billanta.resources.Res
 import com.ferbotz.billanta.data.repo.MediaRepository
+import com.ferbotz.billanta.data.repo.TemplateDocs
 import com.ferbotz.billanta.data.repo.TemplateRepository
+import com.ferbotz.billanta.thumbs.InvoiceThumbnails
+import com.ferbotz.billanta.thumbs.ThumbnailStore
 import com.ferbotz.billanta.data.sync.SyncManager
 import com.ferbotz.billanta.render.paint.InvoiceImageLoader
 import com.ferbotz.billanta.media.ImagePickerCoordinator
@@ -77,6 +80,8 @@ class AppContainer(
     shareService: FileShareService = NoopFileShareService,
     /** Platform, version and build of this app — the device id is filled in here, per install. */
     platformIdentity: AppIdentity = AppIdentity.Unknown,
+    /** Where the invoice list's pictures are kept (BE-023); null turns them off. */
+    thumbnailStore: ThumbnailStore? = null,
 ) {
     /** The core deliverable: rendered invoice → PDF/PNG/JPEG → share sheet. */
     val invoiceExporter = InvoiceExporter(shareService)
@@ -148,6 +153,8 @@ class AppContainer(
         singletonValues.clearAll()
         // Remembered values are this user's typing (a PO number, say): they go with the rest.
         rememberedValues.clearAll()
+        // So do the list's pictures of their invoices.
+        invoiceThumbnails.clear()
     }
 
     /**
@@ -214,6 +221,9 @@ class AppContainer(
     }
     val productRepository = ProductRepository(productValues, clock, onMutation)
     val templateRepository = TemplateRepository(templateLocal, api, clock)
+
+    /** The compiled tree an invoice draws with — one answer for the preview, editor and thumbnails. */
+    val templateDocs = TemplateDocs(templateRepository)
     val mediaRepository = MediaRepository(api)
 
     /** The four entity forms (BE-021): the bundled copy, then the cache, then `GET /forms`. */
@@ -222,6 +232,19 @@ class AppContainer(
         cache = formsCache,
         clock = clock,
         bundled = { Res.readBytes("files/forms.json").decodeToString() },
+    )
+
+    /** The invoice list's pictures of page 1, drawn and kept on this phone (BE-023). */
+    val invoiceThumbnails = InvoiceThumbnails(
+        store = thumbnailStore,
+        invoices = invoiceRepository,
+        templates = templateRepository,
+        templateDocs = templateDocs,
+        forms = formsRepository.forms,
+        images = invoiceImageLoader,
+        connectivity = connectivity,
+        scope = appScope,
+        clock = clock,
     )
 
     init {

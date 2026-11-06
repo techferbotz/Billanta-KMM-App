@@ -4,10 +4,16 @@ import com.ferbotz.billanta.core.UserDefaultsKeyValueStore
 import com.ferbotz.billanta.data.api.BillantaApiConfig
 import com.ferbotz.billanta.data.db.IosDatabaseDriverFactory
 import com.ferbotz.billanta.share.IosFileShareService
+import com.ferbotz.billanta.thumbs.ThumbnailStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
 import com.ferbotz.billanta.config.AppIdentity
+import okio.FileSystem
+import okio.Path.Companion.toPath
 import platform.Foundation.NSBundle
+import platform.Foundation.NSCachesDirectory
+import platform.Foundation.NSSearchPathForDirectoriesInDomains
+import platform.Foundation.NSUserDomainMask
 import platform.Foundation.NSURL
 import platform.SafariServices.SFSafariViewController
 import platform.UIKit.UIApplication
@@ -39,7 +45,12 @@ fun createAppContainer(
     },
     shareService = IosFileShareService(),
     platformIdentity = iosIdentity(),
+    // Caches: iOS may purge it when space runs low, and the list redraws.
+    thumbnailStore = ThumbnailStore(FileSystem.SYSTEM, "${cachesDirectory()}/invoice-thumbnails".toPath()),
 )
+
+private fun cachesDirectory(): String =
+    NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, true).first() as String
 
 /** CFBundleShortVersionString is the display version; CFBundleVersion is the integer build. */
 private fun iosIdentity(): AppIdentity {
